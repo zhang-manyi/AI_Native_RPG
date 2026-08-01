@@ -1,0 +1,127 @@
+# Scenario pack: the village disappearance case (docs/09_Reference_Scenario.md).
+#
+# Static story setup lives here, not in code. Three-layer split:
+#   1. this file          — locations, NPCs, initial facts/visibility/trust, quests
+#   2. narrative rules    — Python, src/ai_native_rpg/narrative/rules.py
+#   3. runtime generation — LLM output via the Narrative Engine
+#
+# Swapping the story means swapping this directory, with no code change.
+
+world_id: village_disappearance
+time_day: 1
+
+locations:
+  village_square:
+    name: 村庄广场
+    description: 村子的中心，井边总有人聚着低声说话。失踪案之后，这里的谈话声更小了。
+    connected_to: [tavern, forest_edge, npc_a_house]
+  tavern:
+    name: 酒馆
+    description: 村里唯一的酒馆，白天几乎没人。老板擦着永远擦不干净的杯子。
+    connected_to: [village_square]
+  npc_a_house:
+    name: 玛尔塔的家
+    description: 窗帘拉得很严，门口的柴堆比邻居家的都高。
+    connected_to: [village_square]
+  forest_edge:
+    name: 森林入口
+    description: 村民口中"孩子不许去"的地方。地上有被踩乱的痕迹，已经下过雨。
+    connected_to: [village_square]
+
+players:
+  player_1:
+    location: village_square
+
+quests:
+  investigation:
+    stage: 0
+    status: active
+
+npcs:
+  npc_a:
+    location: tavern
+    faction_id: villagers
+  npc_b:
+    location: forest_edge
+    faction_id: villagers
+
+factions:
+  villagers:
+    power: 0.4
+    stability: 0.6
+
+# Directional: npc_id -> target_id. Absent pairs default to all-zero.
+relationships:
+  npc_a:
+    player_1:
+      trust: 10
+      fear: 30
+      respect: 0
+  npc_b:
+    player_1:
+      trust: 0
+      fear: 0
+      respect: 10
+
+facts:
+  # --- public knowledge ---
+  victim_name:
+    value: 磨坊主的女儿艾拉，十四岁
+    visibility: revealed
+  disappearance_night:
+    value: 三天前的夜里，雨停之后
+    visibility: revealed
+  search_failed:
+    value: 村民搜过森林边缘，什么也没找到
+    visibility: revealed
+
+  # --- the clue chain, gated on trust with NPC_A ---
+  clue_1_witness:
+    value: 失踪当晚，玛尔塔看见有人从森林入口的方向回到村里
+    visibility: hidden
+    partial_value: 玛尔塔那晚似乎没睡，但她不愿多说
+    reveal_condition:
+      mode: any
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 40
+
+  clue_2_identity:
+    value: 那个人的身形和走路的样子，像是猎人洛伦（NPC_B）
+    visibility: hidden
+    reveal_condition:
+      mode: any
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 70
+
+  # --- the answer: either high trust, or independent investigation ---
+  killer_identity:
+    value: npc_b
+    visibility: hidden
+    partial_value: 村里有人知情，但没人愿意先开口
+    reveal_condition:
+      mode: any
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 85
+        - path: quests.investigation.stage
+          op: gte
+          value: 3
+
+  # --- NPC_A's motive: why she is afraid to talk ---
+  npc_a_threatened:
+    value: 洛伦警告过玛尔塔，如果她说出去，她的儿子会是下一个
+    visibility: hidden
+    reveal_condition:
+      mode: all
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 70
+        - path: relationships.npc_a.player_1.fear
+          op: lte
+          value: 20
