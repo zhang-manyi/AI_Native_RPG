@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# runtime artifacts
+data/runtime/
+data/traces/
+.env
+
+# local tooling / editor state
+.claude/
+.vscode/
+.idea/
+.DS_Store

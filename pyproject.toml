@@ -1,0 +1,49 @@
+[project]
+name = "ai-native-rpg"
+version = "0.1.0"
+description = "AI Native RPG: Agent runtime with deterministic world state, memory, tool use, trace and eval"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9,<3",
+    "pyyaml>=6.0.2,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24,<1",
+    "ruff>=0.7,<1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_native_rpg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q --strict-markers"
+markers = [
+    "llm: requires a real LLM backend (skipped by default)",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+# docs/schemas/ holds the design-time drafts; src/ai_native_rpg/schemas/ supersedes
+# them and is what gets linted.
+extend-exclude = ["docs/schemas"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    # Chinese punctuation in docstrings and prompt strings is intentional.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # `str, Enum` is kept over `StrEnum` for Pydantic serialization consistency.
+    "UP042",
+]
