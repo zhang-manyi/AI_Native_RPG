@@ -1,5 +1,9 @@
 # AI Native RPG
 
+[![CI](https://github.com/zhang-manyi/AI_Native_RPG/actions/workflows/ci.yml/badge.svg)](https://github.com/zhang-manyi/AI_Native_RPG/actions/workflows/ci.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![Ruff](https://img.shields.io/badge/lint-ruff-261230)](https://github.com/astral-sh/ruff)
+
 一个 LLM 驱动的 RPG Agent 系统：可交互的 NPC Agent 运行时 + 确定性世界状态层 + 完整的 Trace/Eval 闭环。
 
 场景是一起村庄失踪案：玩家自由对话调查，NPC 在人设约束下决定说什么、隐瞒什么，线索随关系值和调查进度逐步解锁。
