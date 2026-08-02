@@ -34,8 +34,16 @@ World State Manager 已完成（含剧本包加载与交叉引用校验）。当
 
 ```bash
 uv venv && uv pip install -e ".[dev]"
-.venv/bin/python -m pytest
+.venv/bin/python -m pytest        # 全部测试，不需要 API key
 ```
+
+需要真实 LLM 时（对话生成、剧情生成、LLM-as-judge 评分）：
+
+```bash
+cp .env.example .env              # 填入 DEEPSEEK_API_KEY
+```
+
+模型是 `deepseek-v4-flash`（OpenAI 兼容端点）。`.env` 已在 `.gitignore` 中，不会入库。测试一律走 mock client，不发网络请求。
 
 ## 结构
 
@@ -71,3 +79,4 @@ docs/                   架构设计（01-10）
 | [08 Evaluation](docs/08_Evaluation.md) | 一致性、记忆召回、工具成功率、叙事结构指标 |
 | [09 Reference Scenario](docs/09_Reference_Scenario.md) | 场景设定、切片计划、测试策略 |
 | [10 Narrative Operators](docs/10_Narrative_Operators.md) | 叙事结构调度、伏笔账本、张力与偏好分离 |
+| [11 Prompt Lab](docs/11_Prompt_Lab.md) | Prompt 离线实验：候选对比、评分、选定 |

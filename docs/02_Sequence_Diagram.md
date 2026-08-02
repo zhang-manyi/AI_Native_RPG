@@ -83,22 +83,24 @@ Player                Client/UI          NPC Agent         World State      Narr
 | Player Profile Summary | 否，异步 | 每会话/章节 1 次 |
 | Narrative Event Generation | 否，异步/低频 | 仅当规则判断触发事件时 |
 
-### 4.1 为什么 Action 校验必须在 Dialogue Generation 之前
+### 4.1 Action 校验必须在 Dialogue Generation 之前
 
-如果先生成台词再校验 Action，考虑这个序列：NPC_A 的 plan 是"透露线索 1"，台词已经把线索说出口，Validator 这时才判定 `trust=35 < 40` 拒绝该 Action。结果是玩家听到了线索、但世界状态里 `clue_1` 仍是 `hidden`——台词和事实源不一致，且**已经说出的话无法回滚**。后续 NPC 再基于 `hidden` 状态行动，玩家会看到明显的失忆/矛盾。
+顺序是 `Plan → Action Proposal → Validate → Dialogue Generation`，校验结果（批准/拒绝 + 原因）作为约束传入生成阶段。
 
-正确顺序是 `Plan → Action Proposal → Validate → Dialogue Generation`，把校验结果（批准/拒绝 + 原因）作为约束喂进生成阶段。被拒绝时 NPC 生成的是"回避/含糊其辞"的台词，这恰好是符合角色的行为，而不是一个需要特殊处理的错误分支。
+原因：先生成台词再校验，会出现"线索已说出口、Validator 才拒绝该 Action"的状态——台词与事实源不一致，且**说出的话无法回滚**。
 
-### 4.2 合并 LLM 调用的适用范围
+被拒绝时 NPC 生成回避/含糊的台词，这是符合角色的行为，不是错误分支。
 
-§4.1 意味着**有 Action 的回合无法合并成一次调用**（校验结果是第二次调用的输入）。采用分路径策略：
+### 4.2 何时可以合并成一次 LLM 调用
+
+§4.1 意味着有 Action 的回合无法合并（校验结果是第二次调用的输入）：
 
 | 回合类型 | 调用次数 | 延迟 |
 |---|---|---|
-| 无 Action（纯对话/闲聊/信息已可见） | 1 次，输出 `{plan, dialogue}` | ~1.5-3s |
-| 有 Action（透露线索、改变关系值等） | 2 次，中间插入确定性校验 | ~2.5-4s |
+| 无 Action（闲聊、信息已可见） | 1 次，输出 `{plan, dialogue}` | ~1.5-3s |
+| 有 Action（透露线索、改关系值） | 2 次，中间插入确定性校验 | ~2.5-4s |
 
-判断走哪条路径由第一次调用的输出决定：模型输出的 `plan.action_proposal` 为空即走快路径直接采用同次生成的 dialogue，非空则丢弃该 dialogue、校验后重新生成。代价是有 Action 的回合浪费了一部分首次生成的 token，换来的是台词与世界状态的强一致——这个交换在 RPG 场景里是划算的，因为不一致的代价是玩家直接察觉到的叙事崩坏。
+路径判断：第一次调用输出的 `plan.action_proposal` 为空则走快路径、直接采用同次生成的 dialogue；非空则丢弃该 dialogue，校验后重新生成。有 Action 的回合会浪费一部分首次生成的 token，换取台词与世界状态的强一致。
 
 ## 5. 延迟预算
 

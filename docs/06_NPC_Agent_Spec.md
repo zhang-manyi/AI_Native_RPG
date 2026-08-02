@@ -54,7 +54,7 @@ NPC 通过 Function Calling 调用工具，模型输出结构化的工具调用�
 - 单次响应延迟目标 <3s（见 [02_Sequence_Diagram.md](./02_Sequence_Diagram.md)）。
 
 ### Evaluation
-见 [08_Evaluation.md](./08_Evaluation.md)：Persona Consistency、Memory Recall@K、Tool Use Success Rate。
+见 [08_Evaluation.md](./08_Evaluation.md)：Persona Consistency（LLM-as-judge）、Memory Recall@K、Tool Use Success Rate。本 Agent 使用的 prompt 经 [11_Prompt_Lab.md](./11_Prompt_Lab.md) 的流程选定。
 
 ## 3. Dialogue Generation
 
@@ -82,7 +82,7 @@ Dialogue Generation 与 Planning 是否合并成一次 LLM 调用（结构化输
 - **不涉及 Action**：合并成 1 次调用，省一次网络往返。
 - **涉及 Action**：必须拆成 2 次，因为 Validator 的校验结果是 Dialogue Generation 的输入约束。
 
-判断走哪条路径由第一次调用的输出决定（`plan.action_proposal` 是否为空），完整取舍见 [02_Sequence_Diagram.md](./02_Sequence_Diagram.md#42-合并-llm-调用的适用范围)。
+判断走哪条路径由第一次调用的输出决定（`plan.action_proposal` 是否为空），完整取舍见 [02_Sequence_Diagram.md](./02_Sequence_Diagram.md#42-何时可以合并成一次-llm-调用)。
 
 ## 4. Agent Harness
 
@@ -113,18 +113,50 @@ Dialogue Generation      (LLM, 以校验结果为约束生成台词)
 Reflection (可选)        (事后更新 Agent 私有 Memory/Emotion，异步)
 ```
 
-注意 Harness 里 Action 校验位于 Dialogue Generation **之前**，理由见 [02_Sequence_Diagram.md](./02_Sequence_Diagram.md#41-为什么-action-校验必须在-dialogue-generation-之前)。上面第 3 行的 Tool Use 是模型主动查询信息，与之无关。Reflection 只写 Agent 私有状态（emotion/beliefs/episodic memory），不写 World State，因此无需走 Validator，但要落 Trace 以便调试。
+注意 Harness 里 Action 校验位于 Dialogue Generation **之前**，理由见 [02_Sequence_Diagram.md](./02_Sequence_Diagram.md#41-action-校验必须在-dialogue-generation-之前)。上面第 3 行的 Tool Use 是模型主动查询信息，与之无关。Reflection 只写 Agent 私有状态（emotion/beliefs/episodic memory），不写 World State，因此无需走 Validator，但要落 Trace 以便调试。
 
 ### Skills（角色能力包，后续扩展）
 
 当 NPC 数量增多、角色分化（如"调查线索型 NPC" vs "交易/商人型 NPC"）时，可以把"这类角色该有哪些工具 + 该遵循哪些行为准则 + 该用什么语气"打包成一个 Skill（persona 模板 + 工具子集 + few-shot 示例的组合），按 NPC 的角色类型加载到 Harness 里，而不是每个 NPC 都单独维护一份完整配置。当前场景（[09_Reference_Scenario.md](./09_Reference_Scenario.md)）只有 1-2 个 NPC，不需要这一层抽象；NPC 数量增长到需要复用角色模板时再引入。
 
-## 5. 数据结构
+## 5. LLM Client
+
+Harness 通过一个 Protocol 访问模型，不直接依赖任何 SDK：
+
+```python
+class LLMClient(Protocol):
+    def complete(
+        self, messages: list[Message], *, schema: type[BaseModel], temperature: float
+    ) -> LLMResponse: ...
+```
+
+两个实现：`DeepSeekClient`（OpenAI 兼容接口）和 `MockLLMClient`（返回预设的结构化输出）。测试一律用 mock，**不发任何网络请求**，因此 Harness 的循环、JSON 解析、重试、超时都可以单测。这也是后续 Model Router 的挂点。
+
+### 配置
+
+| 变量 | 值 | 用途 |
+|---|---|---|
+| `DEEPSEEK_API_KEY` | `sk-...` | 密钥 |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容端点 |
+| `DEEPSEEK_MODEL` | `deepseek-v4-flash` | 对话/剧情生成 |
+| `JUDGE_MODEL` | `deepseek-v4-flash` | LLM-as-judge 打分 |
+| `USE_MOCK_LLM` | `0` / `1` | 置 1 时完全不联网 |
+
+放在项目根的 `.env`，**已加入 `.gitignore`，不入库**。仓库里只有 `.env.example` 作为模板：
+
+```bash
+cp .env.example .env   # 然后填入自己的 key
+```
+
+密钥只从环境变量读取，不写进任何 Python 文件、不作为函数默认参数、不打印进 Trace（Trace 里只记模型名和 token 数）。
+
+## 6. 数据结构
 
 见 [schemas/npc_agent.py](./schemas/npc_agent.py) 和 [schemas/memory.py](./schemas/memory.py)。
 
-## 6. 当前实现范围
+## 7. 实现约定
 
 - Reflection 做成异步、低频（每次对话后更新一条 episodic memory 即可），不做复杂的自我批评循环。
 - Tool Use 的工具集固定为 3-4 个，不做动态工具发现。
 - 初期只实现 1-2 个 NPC，不做 Faction Agent / Event Agent（架构上可复用同一套 Runtime，作为后续扩展）。
+- Prompt 文件放在 `prompts/`，由 [11_Prompt_Lab.md](./11_Prompt_Lab.md) 的流程选定；Harness 只读文件，不在代码里内联 prompt 字符串。

@@ -86,7 +86,7 @@ Narrative Engine 想制造反转，是通过推进 `story_beats` 让条件表自
 
 **没有任何 actor 可以绕过 `reveal_condition`，Narrative Engine 也不行。**
 
-Engine 只推进条件所读取的状态（`story_beats.chapter`、`quests.*.stage`），由条件表决定这解锁了什么。想让某条线索在第二章无条件可见，就给它加第二条通道：
+Engine 只能推进条件所读取的状态（`story_beats.chapter`、`quests.*.stage`），由条件表决定这解锁了什么。想让某条线索在第二章无条件可见，给它加第二条通道：
 
 ```yaml
 reveal_condition:
@@ -100,11 +100,9 @@ reveal_condition:
       value: 2
 ```
 
-**关键性质：Engine 推进 chapter 时并不知道自己解锁了什么。** 谁在第几章解锁写在剧本里，`killer_identity` 的条件里没有 `chapter`，所以 Engine 无论推到第几章都不会泄漏凶手。
+由此得到的性质：**Engine 推进 chapter 时不知道自己解锁了什么。** 谁在第几章解锁写在剧本里；`killer_identity` 的条件中没有 `chapter`，所以推进章节永远不会泄漏凶手。
 
-曾考虑给 Engine 一个 `force_reveal_fact` 无视条件，已否决：beat 会自己往前走，任何预留了通道的 fact 迟早都能解锁，真正打不开的只有作者**刻意**没留通道的那几条——而那正是结局信息。配额也救不了它（配额按作者意图分配，用掉它的是运行时的 LLM 判断）。失败代价不对称：晚一章解锁玩家察觉不到，第一章泄漏凶手一次就毁掉整局。
-
-代价是每个披露都必须被作者预先表达成条件。这既是成本也是特性：作者不留通道就是硬约束，不是可绕过的默认值。
+代价：每个想要的披露都必须被剧本作者预先写成条件。作者不留通道 = 硬约束，不是可绕过的默认值。
 
 ## 4. 数据结构
 

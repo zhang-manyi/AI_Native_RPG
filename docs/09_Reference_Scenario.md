@@ -26,12 +26,13 @@
 | Player Model | 实现（简化） | Behavior Tracker 用真实代码；Profile Summarizer 初期用规则模板代替 LLM 批量调用 |
 | Experience Controller | 实现（简化） | 加权求和打分，2 个维度即可 |
 | Narrative Engine | 完整实现 | 规则触发 + 真实 LLM 生成结构化内容 |
-| 叙事算子 | 实现（简化） | 4 个算子 + 伏笔账本 + 节奏规则；不做张力曲线拟合，见 [10](./10_Narrative_Operators.md#6-实现约定) |
+| 叙事算子 | 实现（简化） | 4 个算子 + 伏笔账本 + 节奏规则；不做张力曲线拟合，见 [10](./10_Narrative_Operators.md#7-实现约定) |
 | World State Manager | 完整实现 | Action Proposal/Validator 全流程跑通，PlayerView 支持 hidden/revealed/partial 三态，剧本包加载 + 交叉引用校验 |
 | NPC Agent Runtime | 完整实现 | Memory（三层，RAG）+ Planning + Tool Use（Function Calling）+ Dialogue Generation + Action，核心投入区域 |
 | Developer Platform | 实现（简化） | Trace Viewer + World/Memory Viewer + Narrative State Panel（伏笔账本、解锁进度、被拒 proposal） |
-| Evaluation | 实现（简化） | Memory Recall@K + Tool Use Success Rate + 三个叙事结构指标优先（均为纯代码），Persona Consistency 人工评分 |
-| 戏剧性反讽 | 不在本场景范围 | 需要 visibility 从"每 fact 一态"改成"每观察者一态"，见 [10](./10_Narrative_Operators.md#45-戏剧性反讽扩展点不在本场景) |
+| Evaluation | 实现（简化） | 纯代码指标优先（Memory Recall@K、Tool Use Success Rate、伏笔两项），Persona Consistency 与 Narrative Coherence 用 LLM-as-judge + 20-30 条人工校准集 |
+| Prompt Lab | 实现（简化） | 候选 prompt 批量对比 + 评分报告，见 [11](./11_Prompt_Lab.md)；不做自动搜索/进化 |
+| 戏剧性反讽 | 不在本场景范围 | 需要 visibility 从"每 fact 一态"改成"每观察者一态"，见 [10](./10_Narrative_Operators.md#5-结构质量优先级) |
 | Faction Agent / Event Agent | 不在本场景范围 | 架构上可复用 NPC Agent Runtime，作为后续横向扩展 |
 | Model Router | 不在本场景范围 | 固定用一个模型；后续可按任务复杂度路由到不同大小的模型 |
 

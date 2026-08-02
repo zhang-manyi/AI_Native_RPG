@@ -32,7 +32,7 @@ def check_triggers(world_state: WorldState) -> list[EventCandidate]:
 
 ### 2.2 Experience Controller：候选事件准入 + 排序（确定性）
 
-**两段式，不是一个乘式。** 偏好和张力是两个正交维度（详见 [10_Narrative_Operators.md](./10_Narrative_Operators.md#3-玩家偏好与张力是两个维度不能相乘)）：偏好是玩家的口味轴，一个会话内基本不变；张力是故事的时间轴，每个 beat 都在变。相乘无法表达**对味但不是时候**——玩家偏好阴谋，但刚连着三次揭露，第四次阴谋事件依然是错的，而乘法里偏好那一项还在给它加分。
+**两段式，不是一个乘式。** 偏好和张力是两个正交维度（详见 [10_Narrative_Operators.md](./10_Narrative_Operators.md#3-选择张力准入-偏好排序)）：偏好是玩家的口味轴，一个会话内基本不变；张力是故事的时间轴，每个 beat 都在变。相乘无法表达**对味但不是时候**——玩家偏好阴谋，但刚连着三次揭露，第四次阴谋事件依然是错的，而乘法里偏好那一项还在给它加分。
 
 ```python
 def select_candidate(
@@ -52,7 +52,7 @@ def select_candidate(
     return max(admissible, key=score)
 ```
 
-偏好排序这一段类似推荐系统的重排层，不需要 LLM。玩家偏好阴谋剧情，"背叛"类事件排名靠前；玩家偏好轻松探索，同样的世界状态下"背叛"事件会被降权。但节奏规则先于偏好生效：无论玩家多偏好阴谋，连续两轮 `reveal` 都不允许。`passes_pacing_rules` 的具体规则、以及为什么本场景不做完整张力曲线，见 [10_Narrative_Operators.md](./10_Narrative_Operators.md#32-本场景不做完整张力曲线)。
+偏好排序这一段类似推荐系统的重排层，不需要 LLM。玩家偏好阴谋剧情，"背叛"类事件排名靠前；玩家偏好轻松探索，同样的世界状态下"背叛"事件会被降权。但节奏规则先于偏好生效：无论玩家多偏好阴谋，连续两轮 `reveal` 都不允许。`passes_pacing_rules` 的具体规则、以及为什么本场景不做完整张力曲线，见 [10_Narrative_Operators.md](./10_Narrative_Operators.md#31-节奏规则张力准入的全部内容)。
 
 ### 2.3 LLM 生成具体内容
 
