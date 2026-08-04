@@ -19,6 +19,7 @@ import yaml
 from pydantic import ValidationError
 
 from .schemas.common import Condition
+from .schemas.npc_agent import NPCGoal, NPCPersona, NPCState
 from .schemas.world_state import (
     Fact,
     FactionState,
@@ -162,10 +163,11 @@ def _validate_world(world: WorldState) -> None:
                 ) from exc
 
 
-def load_scenario(name_or_path: str | Path) -> WorldState:
-    """Load and validate a scenario pack into an initial ``WorldState``.
+def _read_pack(name_or_path: str | Path) -> tuple[Path, dict[str, Any]]:
+    """Resolve a pack and parse its ``world.yaml`` into a raw mapping.
 
-    Accepts either a pack name under ``scenarios/`` or a path to a pack directory.
+    Shared by ``load_scenario`` and ``load_personas`` so both read the same file
+    through the same error handling.
     """
     world_file = _resolve_pack(name_or_path)
 
@@ -177,6 +179,16 @@ def load_scenario(name_or_path: str | Path) -> WorldState:
     if not isinstance(raw, dict):
         raise ScenarioError(f"{world_file} must contain a mapping at the top level")
 
+    return world_file, raw
+
+
+def load_scenario(name_or_path: str | Path) -> WorldState:
+    """Load and validate a scenario pack into an initial ``WorldState``.
+
+    Accepts either a pack name under ``scenarios/`` or a path to a pack directory.
+    """
+    world_file, raw = _read_pack(name_or_path)
+
     try:
         world = _build_world(raw)
     except ValidationError as exc:
@@ -184,3 +196,55 @@ def load_scenario(name_or_path: str | Path) -> WorldState:
 
     _validate_world(world)
     return world
+
+
+def load_personas(name_or_path: str | Path) -> dict[str, NPCState]:
+    """Load the agent-internal ``NPCState`` for each NPC from ``npc_personas``.
+
+    Kept separate from ``load_scenario`` on purpose: persona / goal / emotion /
+    beliefs are Agent state, not objective world state, and must not live in
+    ``WorldState`` (docs/04 §2.1, docs/06 §2). Every persona's ``npc_id`` is
+    cross-checked against the world's ``npcs`` so a persona for a non-existent NPC
+    — or an NPC left without a persona — surfaces at load, not as a mystifying
+    KeyError deep in the Harness.
+    """
+    world_file, raw = _read_pack(name_or_path)
+
+    world_npcs = set((raw.get("npcs") or {}).keys())
+    persona_specs = raw.get("npc_personas") or {}
+
+    personas: dict[str, NPCState] = {}
+    for npc_id, spec in persona_specs.items():
+        if npc_id not in world_npcs:
+            raise ScenarioError(
+                f"{world_file}: npc_personas has {npc_id!r}, which is not an NPC in the world"
+            )
+        persona_spec = spec.get("persona") or {}
+        goal_spec = spec.get("goal") or {}
+        try:
+            personas[npc_id] = NPCState(
+                npc_id=npc_id,
+                persona=NPCPersona(
+                    traits=dict(persona_spec.get("traits") or {}),
+                    background=persona_spec.get("background", ""),
+                ),
+                goal=NPCGoal(
+                    primary=goal_spec.get("primary", ""),
+                    secondary=list(goal_spec.get("secondary") or []),
+                ),
+                emotion=spec.get("emotion", "neutral"),
+                beliefs=dict(spec.get("beliefs") or {}),
+            )
+        except ValidationError as exc:
+            raise ScenarioError(
+                f"{world_file}: persona for {npc_id!r} does not match the schema: {exc}"
+            ) from exc
+
+    missing = world_npcs - set(personas)
+    if missing:
+        raise ScenarioError(
+            f"{world_file}: NPCs {sorted(missing)} have no persona in npc_personas; "
+            "the Agent Harness needs an NPCState for every NPC it may speak as"
+        )
+
+    return personas

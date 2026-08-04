@@ -45,6 +45,44 @@ npcs:
     location: forest_edge
     faction_id: villagers
 
+# Agent-internal state (NPCState), NOT objective world state. Loaded by
+# load_personas(), kept out of WorldState on purpose: this is "what the NPC
+# thinks", world_state.npcs is "where the NPC is". See docs/06 §2 and 09 §2.
+# traits are [0,1]; honesty gates the persona hard-rules the Eval layer checks.
+npc_personas:
+  npc_a:
+    persona:
+      background: >
+        玛尔塔，村里的接生婆，独自带大一个儿子。失踪案发生那晚她看见了不该看见的东西，
+        此后紧闭家门。回避不是因为无知，是因为害怕。
+      traits:
+        fearful: 0.9
+        honest: 0.7
+        protective: 0.95
+    goal:
+      primary: 隐藏自己那晚目击的事，保护儿子的安全
+      secondary:
+        - 不直接对玩家说谎（她诚实，只是回避）
+        - 观察玩家是否可信
+    emotion: afraid
+    beliefs:
+      saw_something_that_night: true
+      talking_endangers_her_son: true
+  npc_b:
+    persona:
+      background: >
+        洛伦，村里的猎人，沉默寡言，熟悉森林里每一条路。表面上和所有人一样配合搜寻，
+        实际上是这起失踪案的关键人物。
+      traits:
+        calm: 0.9
+        honest: 0.2
+        calculating: 0.85
+    goal:
+      primary: 不让任何人查到自己头上
+      secondary:
+        - 留意玩家的调查进度
+        - 必要时施压让目击者闭口
+
 factions:
   villagers:
     power: 0.4
