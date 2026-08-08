@@ -55,13 +55,13 @@
 
 | 切片 | 状态 | 内容 | 结束时能演示什么 |
 |---|---|---|---|
-| 1 | 进行中 | World State（完成）+ 1 个 NPC + mock LLM + Trace 落盘 | 玩家问一句话拿到一句回复，Trace 可查 |
+| 1 | 完成 | World State（完成）+ 1 个 NPC + mock LLM + Trace 落盘 | 玩家问一句话拿到一句回复，Trace 可查 |
 | 2 | 未开始 | 真实 LLM + embedding 记忆检索 + Tool Use | NPC 会查关系值/世界事实再回答 |
 | 3 | 未开始 | Narrative Engine + 算子 + 伏笔账本 + `StoryBeats` | 线索按节奏逐步解锁，伏笔有回收 |
 | 4 | 未开始 | Player Model 影响披露方式 + 调试面板 | 两种玩法风格拿到不同的线索呈现 |
 | 5 | 未开始 | Eval 脚本 + 数据回流一轮 | 改 prompt 前后的指标对比 |
 
-**下一步从这里继续**：切片 1 的后半 —— NPC Agent Harness（Memory 检索 + Planning/Dialogue + Action Proposal）、mock LLM client（Protocol 抽象，便于换真实模型和单测）、Trace 落盘。World State 侧的接口已就绪：`WorldStateManager.player_view()` 给 Agent 提供可见信息，`dry_run()` / `submit()` 走 Action 校验，`get_relationship()` 提供 prompt 所需的关系值。
+**下一步从这里继续**：切片 2 —— 真实 LLM client（`DeepSeekClient`，OpenAI 兼容接口，挂在切片 1 已就位的 `LLMClient` Protocol 上）、把 `HashingEmbedder` 换成真 embedding 模型（`Embedder` Protocol 已留好接口）、Tool Use（Function Calling）工具循环。切片 1 已就绪的挂点：`Harness.respond()` 走完 Memory 检索 → Planning → Validator → Dialogue → Reflection 并产出 `AgentTrace`，`TraceStore` 负责落盘；`WorldStateManager.player_view()` / `dry_run()` / `submit()` / `get_relationship()` 提供确定性世界层。
 
 ## 5. 测试策略
 

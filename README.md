@@ -28,7 +28,7 @@
 
 ## 状态
 
-World State Manager 已完成（含剧本包加载与交叉引用校验）。当前进度见 [docs/09_Reference_Scenario.md](docs/09_Reference_Scenario.md) 的切片表。
+切片 1 已完成：World State Manager（含剧本包加载与交叉引用校验）+ NPC Agent Harness 端到端窄链路（Memory 检索 → Planning → Validator → Dialogue → Reflection），全程 mock LLM 零网络请求，Trace 落盘可查。当前进度见 [docs/09_Reference_Scenario.md](docs/09_Reference_Scenario.md) 的切片表。
 
 ## 快速开始
 
