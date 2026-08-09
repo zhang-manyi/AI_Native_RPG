@@ -1,14 +1,22 @@
 """Embedding: the text -> vector seam for memory retrieval.
 
-Slice 1 ships a deterministic, dependency-free ``HashingEmbedder`` so the whole
-retrieval chain (encode -> cosine -> importance rerank) is exercised and unit-
-testable without a model or network. Slice 2 swaps in a real embedding model
-behind the same ``Embedder`` Protocol; nothing else in the Agent changes.
+Two implementations sit behind ``Embedder``: the dependency-free
+``HashingEmbedder`` here, and ``embedding_qwen.Qwen3Embedder`` (a real model,
+optional extra). The hashing one keeps the whole retrieval chain (encode ->
+cosine -> importance rerank) exercised and unit-testable with no model, no torch
+and no network; the real one is what makes retrieval actually semantic.
+
+The Protocol is *asymmetric*: ``encode`` for stored text, ``encode_query`` for the
+search text. Instruction-tuned embedding models — Qwen3-Embedding included — are
+trained with a task instruction on the query side only, and encoding both sides
+identically costs retrieval quality. ``HashingEmbedder`` has no notion of a query
+side, so it simply delegates.
 
 The mock is a hashing bag-of-words projection: deterministic (same text -> same
 vector, required for reproducible tests) and giving overlapping-word texts a
 higher cosine than unrelated ones — enough signal to verify ranking, not a claim
-of semantic quality.
+of semantic quality. Its real limitation is that it matches *characters*, not
+meaning: two paraphrases sharing no characters score near zero.
 """
 
 from __future__ import annotations
@@ -20,12 +28,18 @@ from typing import Protocol
 
 
 class Embedder(Protocol):
-    """Encodes text into a fixed-length vector. The retrieval seam for slice 2."""
+    """Encodes text into a fixed-length vector.
+
+    ``encode`` handles stored documents (memories); ``encode_query`` handles the
+    text being searched for. They differ for instruction-tuned models.
+    """
 
     @property
     def dim(self) -> int: ...
 
     def encode(self, text: str) -> list[float]: ...
+
+    def encode_query(self, text: str) -> list[float]: ...
 
 
 _WORD = re.compile(r"\w+", re.UNICODE)
@@ -90,3 +104,8 @@ class HashingEmbedder(Embedder):
         for token in _tokenize(text):
             vec[self._bucket(token)] += 1.0
         return vec
+
+    def encode_query(self, text: str) -> list[float]:
+        """Symmetric: a hashing projection has no query-side instruction to add,
+        and pretending otherwise would only desynchronise the two sides."""
+        return self.encode(text)

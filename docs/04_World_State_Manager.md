@@ -80,6 +80,8 @@ def PlayerView(world_state: WorldState, player_id: str) -> VisibleState:
 
 披露不需要一个专门的 Agent 来"决定"：信息何时可见由 `Fact` 上的数据 + 这个纯函数共同决定。功能保留，但少了一整层 Agent，也不会和 Narrative Engine 的"决定世界发生什么"职责打架。
 
+**关于 `player_id`：它不是多人系统的伏笔。** MVP 只有一个玩家（`player_1`）。这个 id 存在是因为关系值本质上是 (谁, 对谁) 的二元组——`relationships.npc_a.player_1.trust` 这样的 `reveal_condition` 路径必须能指名道姓，否则线索无从解锁。同理，NPC 提交 `adjust_relationship` 时必须用这个 id 指代对象，所以 Agent 的 prompt 里也要出现它（否则模型会自己编一个，校验必然拒绝）。**不要**因为看到这个字段就去实现多人会话、玩家列表或分房间逻辑。
+
 Narrative Engine 想制造反转，是通过推进 `story_beats` 让条件表自然满足，**而不是直接翻某个 Fact 的 `visibility`**——这个限定很重要，见下一节。
 
 ### 3.3 叙事推进不等于披露授权

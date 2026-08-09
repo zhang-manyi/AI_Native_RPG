@@ -16,9 +16,11 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
+from .agent.memory_store import MemoryStore
 from .schemas.common import Condition
+from .schemas.memory import EpisodicMemory, SemanticMemory
 from .schemas.npc_agent import NPCGoal, NPCPersona, NPCState
 from .schemas.world_state import (
     Fact,
@@ -248,3 +250,90 @@ def load_personas(name_or_path: str | Path) -> dict[str, NPCState]:
         )
 
     return personas
+
+
+class SeedMemories(BaseModel):
+    """What an NPC already remembered before the player showed up.
+
+    Agent-private state, so it loads alongside personas and never enters
+    ``WorldState``. Without seeds a fresh NPC has nothing to recall and
+    ``query_memory`` is dead weight on turn one; with them, retrieval has the
+    NPC's own private knowledge to find — knowledge that is *belief*, and so may
+    be mistaken, unlike a world fact.
+    """
+
+    episodic: list[EpisodicMemory] = Field(default_factory=list)
+    semantic: list[SemanticMemory] = Field(default_factory=list)
+
+    def load_into(self, store: MemoryStore) -> None:
+        """Populate a store. Raises if the store belongs to another NPC."""
+        for memory in self.episodic:
+            store.add_episodic(memory)
+        for memory in self.semantic:
+            store.add_semantic(memory)
+
+
+def load_seed_memories(name_or_path: str | Path) -> dict[str, SeedMemories]:
+    """Load each NPC's starting memories from the pack's ``npc_seed_memories``.
+
+    Unlike personas, memories are optional — a bystander NPC may genuinely have
+    nothing relevant to recall — so every NPC in the world gets an entry, empty if
+    the pack does not mention it. Ids are checked for uniqueness because a
+    duplicate would make ``forget``/``update_semantic`` act on an arbitrary one of
+    two memories, a bug that would surface far from its cause.
+    """
+    world_file, raw = _read_pack(name_or_path)
+
+    world_npcs = set((raw.get("npcs") or {}).keys())
+    specs = raw.get("npc_seed_memories") or {}
+
+    seeds: dict[str, SeedMemories] = {npc_id: SeedMemories() for npc_id in world_npcs}
+    for npc_id, spec in specs.items():
+        if npc_id not in world_npcs:
+            raise ScenarioError(
+                f"{world_file}: npc_seed_memories has {npc_id!r}, which is not an NPC in the world"
+            )
+
+        day = int(raw.get("time_day", 1) or 1)
+        try:
+            episodic = [
+                EpisodicMemory(
+                    memory_id=item["id"],
+                    npc_id=npc_id,
+                    event_description=item["description"],
+                    importance=item.get("importance", 0.5),
+                    emotion=item.get("emotion"),
+                    # Seeds predate play; default them to the world's start day.
+                    occurred_at_day=item.get("occurred_at_day", day),
+                )
+                for item in spec.get("episodic") or []
+            ]
+            semantic = [
+                SemanticMemory(
+                    memory_id=item["id"],
+                    npc_id=npc_id,
+                    fact=item["fact"],
+                    confidence=item.get("confidence", 0.7),
+                )
+                for item in spec.get("semantic") or []
+            ]
+        except KeyError as exc:
+            raise ScenarioError(
+                f"{world_file}: a seed memory for {npc_id!r} is missing field {exc}"
+            ) from exc
+        except ValidationError as exc:
+            raise ScenarioError(
+                f"{world_file}: seed memories for {npc_id!r} do not match the schema: {exc}"
+            ) from exc
+
+        ids = [m.memory_id for m in [*episodic, *semantic]]
+        duplicates = sorted({mid for mid in ids if ids.count(mid) > 1})
+        if duplicates:
+            raise ScenarioError(
+                f"{world_file}: seed memories for {npc_id!r} reuse id(s) {duplicates}; "
+                "ids must be unique so forget/update act on exactly one memory"
+            )
+
+        seeds[npc_id] = SeedMemories(episodic=episodic, semantic=semantic)
+
+    return seeds

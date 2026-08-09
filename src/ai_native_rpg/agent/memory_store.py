@@ -67,6 +67,126 @@ class MemoryStore:
                 "each NPC's memory is private"
             )
 
+    def rebind_embedder(self, embedder: Embedder) -> int:
+        """Swap the embedder, re-encoding any memory whose vector no longer fits.
+
+        Changing embedder (or MRL width) invalidates stored vectors: comparing a
+        64-dim saved vector against a 256-dim query raises a length mismatch deep
+        inside ``cosine_similarity``. Re-encoding is what keeps an existing save
+        file usable across the swap, which is the whole point of having this seam.
+
+        Returns the number of memories re-encoded.
+        """
+        self._embedder = embedder
+        expected = embedder.dim
+        recoded = 0
+
+        for index, memory in enumerate(self._episodic):
+            if memory.embedding is None or len(memory.embedding) != expected:
+                self._episodic[index] = memory.model_copy(
+                    update={"embedding": embedder.encode(memory.event_description)}
+                )
+                recoded += 1
+
+        for index, memory in enumerate(self._semantic):
+            if memory.embedding is None or len(memory.embedding) != expected:
+                self._semantic[index] = memory.model_copy(
+                    update={"embedding": embedder.encode(memory.fact)}
+                )
+                recoded += 1
+
+        return recoded
+
+    # --- mutation ----------------------------------------------------------
+
+    def update_semantic(
+        self,
+        memory_id: str,
+        *,
+        fact: str | None = None,
+        confidence: float | None = None,
+    ) -> SemanticMemory:
+        """Revise a belief, re-encoding it when the text changes.
+
+        Beliefs are the NPC's own model of the world and may be wrong; without a
+        way to correct one, an NPC could never realise it misunderstood something.
+        Changing the text must recompute the embedding, or the stale vector would
+        keep answering retrieval for content that is no longer there.
+        """
+        if confidence is not None and not 0.0 <= confidence <= 1.0:
+            raise ValueError(f"confidence must be within [0, 1], got {confidence}")
+
+        for index, memory in enumerate(self._semantic):
+            if memory.memory_id != memory_id:
+                continue
+            updates: dict[str, object] = {}
+            if fact is not None and fact != memory.fact:
+                updates["fact"] = fact
+                updates["embedding"] = self._embedder.encode(fact)
+            if confidence is not None:
+                updates["confidence"] = confidence
+            updated = memory.model_copy(update=updates) if updates else memory
+            self._semantic[index] = updated
+            return updated
+
+        raise KeyError(f"no semantic memory {memory_id!r} for {self.npc_id!r}")
+
+    def forget(self, memory_id: str) -> bool:
+        """Delete one memory by id. Returns whether anything was removed."""
+        for bucket in (self._episodic, self._semantic):
+            for index, memory in enumerate(bucket):
+                if memory.memory_id == memory_id:
+                    del bucket[index]
+                    return True
+        return False
+
+    def decay(self, rate: float) -> None:
+        """Reduce every episodic memory's ``importance`` by ``rate``, floored at 0.
+
+        Subtractive, not multiplicative: only subtraction lets a trivial memory
+        actually reach zero and fall under ``prune``'s floor. Exponential decay
+        preserves ratios forever, so nothing would ever cross a fixed threshold and
+        the pair below would never forget anything.
+
+        Paired with ``prune``, this is the forgetting mechanism: trivia sinks below
+        the floor and is dropped, while salient events stay retrievable. Semantic
+        beliefs do not decay — a belief is either revised or it stands.
+        """
+        if not 0.0 <= rate <= 1.0:
+            raise ValueError(f"decay rate must be within [0, 1], got {rate}")
+        self._episodic = [
+            m.model_copy(update={"importance": max(0.0, m.importance - rate)})
+            for m in self._episodic
+        ]
+
+    def prune(self, *, max_items: int | None = None, min_importance: float | None = None) -> int:
+        """Drop episodic memories, keeping the most important and most recent.
+
+        Only episodic memory is pruned: it grows once per turn and would otherwise
+        carry every trivial exchange into the prompt at equal weight. Semantic
+        beliefs are a small, deliberately curated set.
+
+        Returns the number of memories removed.
+        """
+        before = len(self._episodic)
+        kept = self._episodic
+
+        if min_importance is not None:
+            kept = [m for m in kept if m.importance >= min_importance]
+
+        if max_items is not None:
+            # Importance first, then recency as the tiebreaker: among equally
+            # salient memories the later one is the more useful to keep.
+            kept = sorted(kept, key=lambda m: (-m.importance, -m.occurred_at_day))[
+                : max(0, max_items)
+            ]
+            # Restore insertion order so retrieval's stable tiebreaker is unchanged.
+            keep_ids = {m.memory_id for m in kept}
+            kept = [m for m in self._episodic if m.memory_id in keep_ids]
+
+        self._episodic = kept
+        return before - len(self._episodic)
+
     # --- reads -------------------------------------------------------------
 
     @property
@@ -91,7 +211,9 @@ class MemoryStore:
         (npc, target) pair; if given, it is projected into a ``RelationshipMemory``
         for the prompt. The store neither owns nor persists it.
         """
-        query_vec = self._embedder.encode(query)
+        # Query side, not document side: instruction-tuned embedders encode the two
+        # asymmetrically (see ``Embedder``).
+        query_vec = self._embedder.encode_query(query)
 
         episodic = self._top_k(self._episodic, query_vec, top_k, importance=lambda m: m.importance)
         semantic = self._top_k(self._semantic, query_vec, top_k, importance=lambda m: m.confidence)

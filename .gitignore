@@ -9,6 +9,8 @@ venv/
 # runtime artifacts
 data/runtime/
 data/traces/
+# traces written by scripts/chat_demo.py — debugging output, not source
+traces/
 .env
 
 # local tooling / editor state

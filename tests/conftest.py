@@ -21,6 +21,18 @@ NPC_A = "npc_a"
 NPC_B = "npc_b"
 
 
+@pytest.fixture(autouse=True)
+def _force_offline(monkeypatch):
+    """Pin USE_MOCK_LLM=1 for every test.
+
+    The suite must make no network call even on a machine with a real key in
+    ``.env``; relying on each test to remember that would eventually fail. Tests
+    that need to exercise real-client behaviour construct it explicitly and serve
+    it through ``httpx.MockTransport``, which is offline by construction.
+    """
+    monkeypatch.setenv("USE_MOCK_LLM", "1")
+
+
 @pytest.fixture
 def world() -> WorldState:
     return WorldState(

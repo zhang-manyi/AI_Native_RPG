@@ -2,7 +2,7 @@
 never on a vendor SDK. See docs/06_NPC_Agent_Spec.md#5.
 """
 
-from .base import LLMClient, LLMResponse, Message, Role
+from .base import LLMClient, LLMResponse, Message, Role, ToolCall
 from .mock import MockLLMClient, MockLLMError
 
 __all__ = [
@@ -12,4 +12,5 @@ __all__ = [
     "MockLLMClient",
     "MockLLMError",
     "Role",
+    "ToolCall",
 ]

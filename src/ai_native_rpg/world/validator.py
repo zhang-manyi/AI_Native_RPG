@@ -117,6 +117,35 @@ def _reveal_requires_condition_met(proposal: ActionProposal, state: WorldState) 
     )
 
 
+def _target_must_be_present(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """Every current action type names something it acts on.
+
+    Rejecting a missing target is the point: an ``adjust_relationship`` with
+    ``target_id=None`` used to validate cleanly and then write to
+    ``relationships[actor][None]``, reporting success while changing nothing any
+    player view or ``reveal_condition`` could read. A silent no-op is the worst
+    outcome for the layer whose whole job is keeping dialogue and world state in
+    agreement, so it fails loudly instead and the NPC is told why.
+    """
+    if proposal.target_id is None or not str(proposal.target_id).strip():
+        return RuleOutcome.failed(
+            f"{proposal.action_type} requires a target_id, but none was given"
+        )
+    return RuleOutcome.passed()
+
+
+def _relationship_target_must_exist(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """The target of a relationship must be someone the world knows about.
+
+    A hallucinated id would create a relationship toward nobody: stored, but
+    unreachable by every condition path that reads ``relationships.<npc>.<target>``.
+    """
+    target = proposal.target_id
+    if target in state.npcs or target in state.player_locations:
+        return RuleOutcome.passed()
+    return RuleOutcome.failed(f"no such character {target!r} to hold a relationship with")
+
+
 # --- adjust_relationship ---------------------------------------------------
 
 
@@ -177,6 +206,20 @@ DEFAULT_RULES: tuple[Rule, ...] = (
     Rule("action_type_must_be_known", _action_type_is_known),
     Rule("actor_must_exist", _actor_must_exist),
     Rule("actor_must_be_alive", _actor_must_be_alive),
+    # Ordered before every target-dereferencing rule below, so those can assume a
+    # target is present rather than each re-checking it.
+    Rule(
+        "target_must_be_present",
+        _target_must_be_present,
+        frozenset(
+            {
+                ActionType.REVEAL_FACT.value,
+                ActionType.ADJUST_RELATIONSHIP.value,
+                ActionType.MOVE.value,
+                ActionType.ADVANCE_QUEST.value,
+            }
+        ),
+    ),
     Rule(
         "reveal_target_must_exist",
         _reveal_target_must_exist,
@@ -186,6 +229,11 @@ DEFAULT_RULES: tuple[Rule, ...] = (
         "reveal_requires_condition_met",
         _reveal_requires_condition_met,
         frozenset({ActionType.REVEAL_FACT.value}),
+    ),
+    Rule(
+        "relationship_target_must_exist",
+        _relationship_target_must_exist,
+        frozenset({ActionType.ADJUST_RELATIONSHIP.value}),
     ),
     Rule(
         "relationship_dimensions_are_known",

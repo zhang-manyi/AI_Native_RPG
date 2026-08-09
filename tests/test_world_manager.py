@@ -102,10 +102,19 @@ class TestSubmitProposal:
         assert manager.get_trust(NPC_A, PLAYER) == 100.0
 
     def test_adjustment_creates_missing_relationship_entry(self, manager):
-        manager.submit(
-            proposal(actor=NPC_B, action_type="adjust_relationship", target="stranger", fear=5.0)
+        """An absent (actor, target) pair is created on first write rather than
+        requiring every pair to be pre-declared in the scenario.
+
+        The target must still be a real character: the Validator rejects unknown
+        ids, since a relationship toward nobody is stored but unreadable by every
+        condition path. NPC_B -> NPC_A is undeclared in the fixture, which is what
+        makes this a genuine first write.
+        """
+        result = manager.submit(
+            proposal(actor=NPC_B, action_type="adjust_relationship", target=NPC_A, fear=5.0)
         )
-        assert manager.get_relationship(NPC_B, "stranger").fear == 5.0
+        assert result.approved
+        assert manager.get_relationship(NPC_B, NPC_A).fear == 5.0
 
     def test_move_updates_location(self, manager):
         result = manager.submit(proposal(action_type="move", target="village_square"))
