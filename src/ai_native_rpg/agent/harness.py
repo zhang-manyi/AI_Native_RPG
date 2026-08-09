@@ -14,11 +14,18 @@ rejection reason becomes the constraint fed into dialogue generation
 
 The Harness reaches models only through the ``LLMClient`` Protocol and reads its
 prompts from files (never inlined) so prompt selection stays in the Prompt Lab
-(docs/06 §5, docs/01 §7). Tool Use (Function Calling) is slice 2 and absent here.
+(docs/06 §5, docs/01 §7).
+
+LLM call #1 is wrapped in a bounded tool-use loop: the model may request tools
+(relationship values, its own memories, public facts) before committing to a plan,
+and each result is fed back for the next call. The bound matters because a player
+is waiting — on the final iteration tools are withheld, forcing an answer rather
+than another request.
 """
 
 from __future__ import annotations
 
+import json
 import time
 import uuid
 from pathlib import Path
@@ -26,13 +33,14 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from ..llm.base import LLMClient, Message
+from ..llm.base import LLMClient, Message, ToolCall
 from ..schemas.agent_trace import AgentTrace, TraceStep
 from ..schemas.memory import EpisodicMemory, MemoryRetrievalResult
 from ..schemas.npc_agent import AgentPlan, NPCAgentResponse, NPCState
 from ..schemas.world_state import ActionProposal
 from ..world.manager import WorldStateManager
 from .memory_store import MemoryStore
+from .tools import ToolError, ToolRegistry
 
 _PROMPTS_ROOT = Path(__file__).resolve().parents[3] / "prompts"
 
@@ -89,6 +97,8 @@ class Harness:
         memory: MemoryStore,
         prompts: PromptLibrary | None = None,
         top_k: int = 3,
+        tools: ToolRegistry | None = None,
+        max_tool_iterations: int = 3,
     ) -> None:
         self._npc = npc_state
         self._manager = manager
@@ -96,6 +106,8 @@ class Harness:
         self._memory = memory
         self._prompts = prompts or PromptLibrary()
         self._top_k = top_k
+        self._tools = tools
+        self._max_tool_iterations = max_tool_iterations
 
     def respond(
         self, observation: str, *, player_id: str, session_id: str | None = None
@@ -165,24 +177,79 @@ class Harness:
     def _plan(
         self, observation: str, retrieval: MemoryRetrievalResult, steps: list[TraceStep]
     ) -> PlanningOutput:
-        start = time.perf_counter()
+        """LLM call #1, wrapped in the tool-use loop.
+
+        The model may ask for tools before committing to a plan; each result is fed
+        back and the call repeats. The loop is bounded because a player is waiting:
+        on the last iteration tools are withheld, which forces an answer instead of
+        another request (docs/06 §4).
+        """
         messages = self._planning_messages(observation, retrieval)
-        resp = self._llm.complete(messages, schema=PlanningOutput)
-        planning: PlanningOutput = resp.parsed  # type: ignore[assignment]
+        tool_specs = self._tools.specs() if self._tools is not None else None
+
+        for iteration in range(self._max_tool_iterations + 1):
+            # Withhold tools on the final iteration so the model must answer.
+            offer_tools = tool_specs if iteration < self._max_tool_iterations else None
+            start = time.perf_counter()
+            resp = self._llm.complete(messages, schema=PlanningOutput, tools=offer_tools)
+            latency_ms = (time.perf_counter() - start) * 1000.0
+
+            if resp.wants_tools and offer_tools is not None:
+                # Echo the assistant's request before the results: providers reject
+                # a tool message that is not paired with the call that asked for it.
+                messages.append(
+                    Message(role="assistant", content="", tool_calls=list(resp.tool_calls))
+                )
+                for call in resp.tool_calls:
+                    messages.append(self._run_tool(call, steps))
+                continue
+
+            planning: PlanningOutput = resp.parsed  # type: ignore[assignment]
+            steps.append(
+                TraceStep(
+                    step_name="planning",
+                    input_summary={"observation": observation, "tool_iterations": iteration},
+                    output_summary={
+                        "strategy": planning.strategy,
+                        "proposes_action": planning.action is not None,
+                    },
+                    latency_ms=latency_ms,
+                    model_used=resp.model,
+                    token_usage=resp.token_usage,
+                )
+            )
+            return planning
+
+        # Unreachable: the final iteration withholds tools, so it must parse.
+        raise RuntimeError("planning loop ended without a plan")
+
+    def _run_tool(self, call: ToolCall, steps: list[TraceStep]) -> Message:
+        """Execute one tool call and render the result as a ``tool`` message.
+
+        A failed call is *reported*, not raised: an unknown name or bad arguments
+        is the model drifting, and handing the error back costs one iteration
+        instead of failing the player's turn. The trace records success either way,
+        which is what docs/08's Tool Use Success Rate counts.
+        """
+        assert self._tools is not None
+        start = time.perf_counter()
+        try:
+            result = self._tools.call(call.name, call.arguments)
+        except ToolError as exc:
+            content, summary = str(exc), {"ok": False, "error": str(exc)}
+        else:
+            content = json.dumps(result, ensure_ascii=False)
+            summary = {"ok": True, "result_keys": sorted(result)}
+
         steps.append(
             TraceStep(
-                step_name="planning",
-                input_summary={"observation": observation},
-                output_summary={
-                    "strategy": planning.strategy,
-                    "proposes_action": planning.action is not None,
-                },
+                step_name="tool_call",
+                input_summary={"tool": call.name, "arguments": call.arguments},
+                output_summary=summary,
                 latency_ms=(time.perf_counter() - start) * 1000.0,
-                model_used=resp.model,
-                token_usage=resp.token_usage,
             )
         )
-        return planning
+        return Message(role="tool", content=content, tool_call_id=call.id)
 
     def _act_and_regenerate(
         self, planning: PlanningOutput, npc_id: str, steps: list[TraceStep]

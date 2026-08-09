@@ -6,6 +6,9 @@ back a pre-set script of responses in order (Planning first, Dialogue second in 
 two-call turn) and records the messages it received so tests can assert how the
 prompt was assembled without asserting on generated prose.
 
+A scripted entry may also be a ``ToolCall`` list, which stands in for "the model
+asked for a tool this turn" — that is how the tool loop is driven offline.
+
 The mock is intentionally strict: an exhausted script or a scripted payload that
 does not fit the requested schema raises, because a silent wrong-shape response
 is exactly the failure a real client's parsing must also surface.
@@ -13,9 +16,11 @@ is exactly the failure a real client's parsing must also surface.
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ValidationError
 
-from .base import LLMClient, LLMResponse, Message
+from .base import LLMClient, LLMResponse, Message, ToolCall
 
 
 class MockLLMError(RuntimeError):
@@ -29,22 +34,31 @@ class RecordedCall(BaseModel):
     messages: list[Message]
     schema_name: str
     temperature: float
+    tools: list[dict[str, Any]] | None = None
 
     model_config = {"arbitrary_types_allowed": True}
+
+    @property
+    def tool_names(self) -> list[str]:
+        """Names of the tools offered on this call, for convenient assertions."""
+        return [spec["function"]["name"] for spec in self.tools or []]
 
 
 class MockLLMClient(LLMClient):
     """Plays back ``responses`` in order.
 
-    Each scripted response may be a ``BaseModel`` instance or a plain ``dict``; in
-    both cases it is re-validated against the schema the caller passed to
-    ``complete``, so the script cannot smuggle in a shape the real contract would
-    reject.
+    Each scripted response may be:
+
+    * a ``BaseModel`` instance or plain ``dict`` — re-validated against the schema
+      the caller passed to ``complete``, so the script cannot smuggle in a shape
+      the real contract would reject;
+    * a list of ``ToolCall`` — returned as a tool request, standing in for a model
+      that wants data before answering.
     """
 
     def __init__(
         self,
-        responses: list[BaseModel | dict] | None = None,
+        responses: list[BaseModel | dict | list[ToolCall]] | None = None,
         *,
         model: str = "mock-model",
         token_usage: dict[str, int] | None = None,
@@ -65,10 +79,14 @@ class MockLLMClient(LLMClient):
         *,
         schema: type[BaseModel],
         temperature: float = 0.7,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
         self.calls.append(
             RecordedCall(
-                messages=list(messages), schema_name=schema.__name__, temperature=temperature
+                messages=list(messages),
+                schema_name=schema.__name__,
+                temperature=temperature,
+                tools=tools,
             )
         )
 
@@ -80,6 +98,14 @@ class MockLLMClient(LLMClient):
 
         raw = self._responses[self._cursor]
         self._cursor += 1
+
+        if isinstance(raw, list):
+            # A scripted tool request: no parsed payload this turn.
+            return LLMResponse(
+                model=self._model,
+                token_usage=dict(self._token_usage),
+                tool_calls=list(raw),
+            )
 
         payload = raw.model_dump() if isinstance(raw, BaseModel) else raw
         try:
