@@ -59,6 +59,13 @@ QUERY_INSTRUCTION = (
 
 DEFAULT_CACHE_SIZE = 512
 
+#: llama.cpp context window. Deliberately small: the model *supports* 32K, but a
+#: memory entry is a sentence, and an oversized n_ctx makes llama.cpp allocate and
+#: walk a KV cache far larger than any input needs. Measured on CPU, dropping this
+#: from 8192 to 512 took one encode from ~250ms to ~80ms — a 3x latency win for
+#: capacity nothing here uses. Raise it only if memories become paragraphs.
+DEFAULT_N_CTX = 512
+
 
 def _configured_model_path() -> str | None:
     raw = os.environ.get(MODEL_PATH_VAR, "").strip()
@@ -122,7 +129,7 @@ class _GGUFEncoder:
     wrapper by hand, since llama.cpp has no prompt registry.
     """
 
-    def __init__(self, model_path: str, *, dim: int, n_ctx: int = 8192) -> None:
+    def __init__(self, model_path: str, *, dim: int, n_ctx: int = DEFAULT_N_CTX) -> None:
         try:
             from llama_cpp import Llama
         except ImportError as exc:  # pragma: no cover - depends on the environment
