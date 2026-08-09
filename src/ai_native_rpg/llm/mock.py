@@ -44,12 +44,12 @@ class MockLLMClient(LLMClient):
 
     def __init__(
         self,
-        responses: list[BaseModel | dict],
+        responses: list[BaseModel | dict] | None = None,
         *,
         model: str = "mock-model",
         token_usage: dict[str, int] | None = None,
     ) -> None:
-        self._responses = list(responses)
+        self._responses = list(responses or [])
         self._cursor = 0
         self._model = model
         self._token_usage = token_usage or {"prompt_tokens": 0, "completion_tokens": 0}
