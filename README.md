@@ -28,22 +28,55 @@
 
 ## 状态
 
-切片 1 已完成：World State Manager（含剧本包加载与交叉引用校验）+ NPC Agent Harness 端到端窄链路（Memory 检索 → Planning → Validator → Dialogue → Reflection），全程 mock LLM 零网络请求，Trace 落盘可查。当前进度见 [docs/09_Reference_Scenario.md](docs/09_Reference_Scenario.md) 的切片表。
+切片 1-2 已完成：World State Manager（含剧本包加载与交叉引用校验）+ NPC Agent Harness 端到端链路（Memory 检索 → Tool Use → Planning → Validator → Dialogue → Reflection）+ 真实 DeepSeek 客户端与 Function Calling，Trace 落盘可查。当前进度见 [docs/09_Reference_Scenario.md](docs/09_Reference_Scenario.md) 的切片表。
 
 ## 快速开始
 
 ```bash
 uv venv && uv pip install -e ".[dev]"
-.venv/bin/python -m pytest        # 全部测试，不需要 API key
+python -m pytest        # 全部测试，不需要 API key，零网络请求
 ```
 
-需要真实 LLM 时（对话生成、剧情生成、LLM-as-judge 评分）：
+跑一轮真实对话（这是唯一会联网的入口）：
 
 ```bash
-cp .env.example .env              # 填入 DEEPSEEK_API_KEY
+cp .env.example .env                   # 填入 DEEPSEEK_API_KEY
+python scripts/chat_demo.py            # 和玛尔塔（npc_a）说话
+python scripts/chat_demo.py --mock     # 离线脚本，没有 key 也能看完整链路
+python scripts/chat_demo.py --npc npc_b   # 换成猎人洛伦
 ```
 
-模型是 `deepseek-v4-flash`（OpenAI 兼容端点）。`.env` 已在 `.gitignore` 中，不会入库。测试一律走 mock client，不发网络请求。
+每回合会打印完整决策链：检索到几条记忆、调了哪些工具、计划与策略、行动校验结果、
+信任值变化、几次 LLM 调用、token 与延迟、Trace 落盘路径。
+
+模型是 `deepseek-v4-flash`（OpenAI 兼容端点）。`.env` 已在 `.gitignore` 中，不会入库。
+自动化测试一律走 mock client，`tests/conftest.py` 里的 autouse fixture 强制
+`USE_MOCK_LLM=1`，因此即使本机有真 key 也不会发出请求。
+
+### 语义检索（可选）
+
+默认用 `HashingEmbedder`——它只匹配字面，"那晚你看到什么" 和 "失踪当夜我目击了有人
+返回村庄" 几乎不共享字符，该召回的记忆召不回来。换成真模型才有语义检索：
+
+```bash
+# 方式一：GGUF（量化，不需要 torch）
+pip install llama-cpp-python
+export EMBEDDING_MODEL_PATH=/path/to/Qwen3-Embedding-0.6B-Q8_0.gguf
+
+# 方式二：HuggingFace 权重（会拖 torch，约几百 MB）
+uv pip install -e ".[embedding]"
+```
+
+后端由文件扩展名决定（`.gguf` 走 llama.cpp，否则走 sentence-transformers）。两种都没装
+时自动回退到 `HashingEmbedder`，demo 的页头会写明当前用的是哪个。
+
+### Windows / WSL 注意
+
+`.venv` 是 Windows 布局（`Scripts/`，不是 `bin/`），WSL 下可以直接调
+`./.venv/Scripts/python.exe`。但**环境变量不会跨过 WSL 到 Windows exe 的边界**：
+`USE_MOCK_LLM=1 ./.venv/Scripts/python.exe ...` 里的变量到不了 Python，要么用
+`WSLENV=USE_MOCK_LLM` 传递，要么直接用 `--mock` 参数。demo 脚本会把 stdio 强制成
+UTF-8，否则 Windows 控制台默认的 GBK 编不出剧本里的中文。
 
 ## 结构
 
@@ -55,14 +88,22 @@ src/ai_native_rpg/
 │   ├── validator.py    规则列表（非规则引擎）
 │   ├── player_view.py  信息不对称投影
 │   └── manager.py      唯一写入口
-├── scenario.py         剧本包加载 + 校验
+├── scenario.py         剧本包加载 + 校验（世界 / persona / 初始记忆）
+├── config.py           环境变量 → Settings → LLMClient（密钥只在这里）
+├── llm/                LLMClient Protocol + DeepSeek / Mock 两个实现
 ├── narrative/          Narrative Engine + 叙事算子
 ├── agent/              NPC Agent Runtime [Agent]
+│   ├── harness.py      运行时循环（含 Tool Use 工具循环）
+│   ├── tools.py        3 个只读工具 + 注册表
+│   ├── memory_store.py 检索 / 更新 / 遗忘
+│   └── embedding*.py   Embedder Protocol：哈希 与 Qwen3
 ├── player/             Player Model
 └── observability/      Trace / Eval
 
+prompts/                运行时只读的 prompt 文件，不在代码里内联
 scenarios/<name>/       剧情内容（YAML），换剧本不改代码
-docs/                   架构设计（01-10）
+scripts/chat_demo.py    手动跑一轮对话，打印完整决策链
+docs/                   架构设计（01-11）
 ```
 
 ## 文档

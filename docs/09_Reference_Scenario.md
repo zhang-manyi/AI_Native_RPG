@@ -56,12 +56,14 @@
 | 切片 | 状态 | 内容 | 结束时能演示什么 |
 |---|---|---|---|
 | 1 | 完成 | World State（完成）+ 1 个 NPC + mock LLM + Trace 落盘 | 玩家问一句话拿到一句回复，Trace 可查 |
-| 2 | 未开始 | 真实 LLM + embedding 记忆检索 + Tool Use | NPC 会查关系值/世界事实再回答 |
+| 2 | 完成 | 真实 LLM + embedding 记忆检索 + Tool Use | NPC 会查关系值/世界事实再回答 |
 | 3 | 未开始 | Narrative Engine + 算子 + 伏笔账本 + `StoryBeats` | 线索按节奏逐步解锁，伏笔有回收 |
 | 4 | 未开始 | Player Model 影响披露方式 + 调试面板 | 两种玩法风格拿到不同的线索呈现 |
 | 5 | 未开始 | Eval 脚本 + 数据回流一轮 | 改 prompt 前后的指标对比 |
 
-**下一步从这里继续**：切片 2 —— 真实 LLM client（`DeepSeekClient`，OpenAI 兼容接口，挂在切片 1 已就位的 `LLMClient` Protocol 上）、把 `HashingEmbedder` 换成真 embedding 模型（`Embedder` Protocol 已留好接口）、Tool Use（Function Calling）工具循环。切片 1 已就绪的挂点：`Harness.respond()` 走完 Memory 检索 → Planning → Validator → Dialogue → Reflection 并产出 `AgentTrace`，`TraceStore` 负责落盘；`WorldStateManager.player_view()` / `dry_run()` / `submit()` / `get_relationship()` 提供确定性世界层。
+**下一步从这里继续**：切片 3 —— Narrative Engine + 叙事算子 + 伏笔账本 + `StoryBeats`（见 [05_Narrative_Engine.md](./05_Narrative_Engine.md) 与 [10_Narrative_Operators.md](./10_Narrative_Operators.md)）。切片 1-2 已就绪的挂点：`Harness.respond()` 走完 Memory 检索 → Tool Use → Planning → Validator → Dialogue → Reflection 并产出 `AgentTrace`；`DeepSeekClient` / `MockLLMClient` 同实现 `LLMClient` Protocol，`USE_MOCK_LLM` 或 `--mock` 切换；`WorldStateManager.player_view()` / `dry_run()` / `submit()` / `get_relationship()` 提供确定性世界层；`scripts/chat_demo.py` 可手动跑一轮真实对话。
+
+切片 2 的实测结论（2026-08-09，`deepseek-v4-flash`）：无 Action 回合 1 次调用约 4s、2100 tokens；有 Action 回合 2 次调用约 7.4s、3200 tokens。都在 [02 §5](./02_Sequence_Diagram.md) 的延迟预算内（p50 1.5-3s 偏高一点，p95 4s 达标），暂不需要 Model Router。
 
 ## 5. 测试策略
 
