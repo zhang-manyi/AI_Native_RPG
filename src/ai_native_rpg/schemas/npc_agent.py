@@ -52,8 +52,12 @@ class NPCState(BaseModel):
 
 
 class ToolCall(BaseModel):
-    """A Function Calling request. Reserved for slice 2 (Tool Use); the Harness
-    does not execute a tool loop yet."""
+    """A Function Calling request recorded on a plan, with its result.
+
+    This is the *record* kept for inspection; the live wire shape the Harness
+    executes against is ``llm.base.ToolCall``. Traces are the primary place tool
+    activity is read from (``TraceStep`` with ``step_name="tool_call"``).
+    """
 
     tool_name: str
     arguments: dict[str, Any] = Field(default_factory=dict)

@@ -83,11 +83,59 @@ npc_personas:
         - 留意玩家的调查进度
         - 必要时施压让目击者闭口
 
+# What each NPC already remembered before the player arrived. Agent-private, so
+# this loads via load_seed_memories() and never enters WorldState. These are the
+# NPC's *beliefs*: unlike facts, they may be mistaken or self-serving, which is
+# what lets an NPC be wrong on purpose. They are also why query_memory has
+# anything to find on turn one. See docs/06 §Memory.
+#
+# episodic = something that happened to them (importance drives retrieval rank)
+# semantic = an abstract belief they hold (confidence, not truth)
+npc_seed_memories:
+  npc_a:
+    episodic:
+      - id: npc_a_sighting
+        description: 失踪那天深夜雨刚停，我起夜时看见有人从森林入口的方向走回村里，走路的样子很像猎人洛伦
+        importance: 0.95
+        emotion: fear
+      - id: npc_a_threat
+        description: 第二天洛伦来我家门口站了很久，说"孩子乱跑是很危险的"，然后看着我儿子的房间
+        importance: 0.9
+        emotion: fear
+      - id: npc_a_search
+        description: 村民们一起去森林边缘搜过一遍，什么也没找到，大家回来都不说话
+        importance: 0.4
+    semantic:
+      - id: npc_a_belief_son
+        fact: 如果我把那晚看见的事说出去，我儿子会是下一个
+        confidence: 0.9
+      - id: npc_a_belief_lying
+        fact: 我不愿意直接说谎，但我可以只说一部分
+        confidence: 0.8
+      - id: npc_a_belief_stranger
+        fact: 外来人问得越急，越可能只是想看热闹，不会留下来保护我们
+        confidence: 0.6
+  npc_b:
+    episodic:
+      - id: npc_b_that_night
+        description: 那晚我从森林回村的时候，看见玛尔塔家的窗帘动了一下
+        importance: 0.95
+        emotion: calm
+      - id: npc_b_warning
+        description: 我去玛尔塔家门口提醒过她，孩子乱跑很危险。她听懂了
+        importance: 0.85
+    semantic:
+      - id: npc_b_belief_quiet
+        fact: 只要玛尔塔不开口，没有人能把这件事查到我头上
+        confidence: 0.8
+      - id: npc_b_belief_helpful
+        fact: 主动配合搜寻比躲着不出面更不容易被怀疑
+        confidence: 0.9
+
 factions:
   villagers:
     power: 0.4
     stability: 0.6
-
 # Directional: npc_id -> target_id. Absent pairs default to all-zero.
 relationships:
   npc_a:
