@@ -67,6 +67,36 @@ class MemoryStore:
                 "each NPC's memory is private"
             )
 
+    def rebind_embedder(self, embedder: Embedder) -> int:
+        """Swap the embedder, re-encoding any memory whose vector no longer fits.
+
+        Changing embedder (or MRL width) invalidates stored vectors: comparing a
+        64-dim saved vector against a 256-dim query raises a length mismatch deep
+        inside ``cosine_similarity``. Re-encoding is what keeps an existing save
+        file usable across the swap, which is the whole point of having this seam.
+
+        Returns the number of memories re-encoded.
+        """
+        self._embedder = embedder
+        expected = embedder.dim
+        recoded = 0
+
+        for index, memory in enumerate(self._episodic):
+            if memory.embedding is None or len(memory.embedding) != expected:
+                self._episodic[index] = memory.model_copy(
+                    update={"embedding": embedder.encode(memory.event_description)}
+                )
+                recoded += 1
+
+        for index, memory in enumerate(self._semantic):
+            if memory.embedding is None or len(memory.embedding) != expected:
+                self._semantic[index] = memory.model_copy(
+                    update={"embedding": embedder.encode(memory.fact)}
+                )
+                recoded += 1
+
+        return recoded
+
     # --- mutation ----------------------------------------------------------
 
     def update_semantic(
@@ -181,7 +211,9 @@ class MemoryStore:
         (npc, target) pair; if given, it is projected into a ``RelationshipMemory``
         for the prompt. The store neither owns nor persists it.
         """
-        query_vec = self._embedder.encode(query)
+        # Query side, not document side: instruction-tuned embedders encode the two
+        # asymmetrically (see ``Embedder``).
+        query_vec = self._embedder.encode_query(query)
 
         episodic = self._top_k(self._episodic, query_vec, top_k, importance=lambda m: m.importance)
         semantic = self._top_k(self._semantic, query_vec, top_k, importance=lambda m: m.confidence)

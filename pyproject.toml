@@ -16,6 +16,14 @@ dev = [
     "pytest-asyncio>=0.24,<1",
     "ruff>=0.7,<1",
 ]
+# Real semantic retrieval (Qwen3-Embedding-0.6B). Kept optional because
+# sentence-transformers pulls torch (hundreds of MB) and the weights are ~1.2GB.
+# Everything including the whole test suite runs without it: HashingEmbedder
+# stays the default and the model-dependent tests skip themselves.
+embedding = [
+    "sentence-transformers>=3.0,<6",
+    "modelscope>=1.18,<2",
+]
 
 [build-system]
 requires = ["hatchling"]
