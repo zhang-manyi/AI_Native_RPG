@@ -124,7 +124,7 @@ class Harness:
 
         retrieval = self._retrieve(observation, npc_id, player_id, steps)
 
-        planning = self._plan(observation, retrieval, steps)
+        planning = self._plan(observation, retrieval, steps, player_id)
 
         if planning.action is None:
             plan = AgentPlan(reasoning=planning.reasoning, strategy=planning.strategy)
@@ -175,7 +175,11 @@ class Harness:
         return retrieval
 
     def _plan(
-        self, observation: str, retrieval: MemoryRetrievalResult, steps: list[TraceStep]
+        self,
+        observation: str,
+        retrieval: MemoryRetrievalResult,
+        steps: list[TraceStep],
+        player_id: str,
     ) -> PlanningOutput:
         """LLM call #1, wrapped in the tool-use loop.
 
@@ -184,7 +188,7 @@ class Harness:
         on the last iteration tools are withheld, which forces an answer instead of
         another request (docs/06 §4).
         """
-        messages = self._planning_messages(observation, retrieval)
+        messages = self._planning_messages(observation, retrieval, player_id)
         tool_specs = self._tools.specs() if self._tools is not None else None
 
         for iteration in range(self._max_tool_iterations + 1):
@@ -332,10 +336,10 @@ class Harness:
     # --- prompt assembly ---------------------------------------------------
 
     def _planning_messages(
-        self, observation: str, retrieval: MemoryRetrievalResult
+        self, observation: str, retrieval: MemoryRetrievalResult, player_id: str
     ) -> list[Message]:
         system = self._prompts.load("npc_planning.txt")
-        context = self._context_block(retrieval)
+        context = self._context_block(retrieval, player_id)
         return [
             Message(role="system", content=f"{system}\n\n{self._persona_block()}"),
             Message(role="user", content=f"{context}\n\n玩家说：{observation}"),
@@ -365,15 +369,21 @@ class Harness:
             f"目标：{self._npc.goal.primary}"
         )
 
-    def _context_block(self, retrieval: MemoryRetrievalResult) -> str:
-        lines = ["可见信息与记忆："]
+    def _context_block(self, retrieval: MemoryRetrievalResult, player_id: str) -> str:
+        # Name the interlocutor explicitly. Actions reference characters by id, and
+        # a model that was never shown the id will invent one ("player" instead of
+        # "player_1"), which the Validator then rejects for a reason that has
+        # nothing to do with the NPC's intent.
+        lines = [f"你正在和 {player_id} 说话（行动里要用这个 id 指代他）。", "", "可见信息与记忆："]
         if retrieval.relationship is not None:
             rel = retrieval.relationship
-            lines.append(f"- 对玩家：trust={rel.trust}, fear={rel.fear}, respect={rel.respect}")
+            lines.append(
+                f"- 对 {player_id}：trust={rel.trust}, fear={rel.fear}, respect={rel.respect}"
+            )
         for mem in retrieval.episodic:
             lines.append(f"- 回忆：{mem.event_description}")
         for mem in retrieval.semantic:
             lines.append(f"- 信念：{mem.fact}")
-        if len(lines) == 1:
+        if len(lines) == 3:
             lines.append("- （暂无相关记忆）")
         return "\n".join(lines)

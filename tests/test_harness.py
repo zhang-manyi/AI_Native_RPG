@@ -150,6 +150,39 @@ class TestRejectedActionTurn:
         assert any(reason in m.content for m in dialogue_call.messages)
 
 
+class TestPlayerIdentityInPrompt:
+    """The model must be told who it is talking to.
+
+    Found live: a model proposed ``adjust_relationship`` with ``target_id='player'``
+    while the world's id is ``player_1``, so the Validator rejected an otherwise
+    reasonable action. The Harness knew the id all along and simply never passed it
+    on, leaving the model to invent an identifier it had never been shown.
+    """
+
+    def test_player_id_appears_in_the_planning_prompt(self, martha, manager):
+        llm = MockLLMClient([PlanningOutput(reasoning="r", strategy="s", dialogue="d")])
+        harness = Harness(
+            npc_state=martha, manager=manager, llm=llm, memory=MemoryStore(martha.npc_id)
+        )
+
+        harness.respond("你好", player_id=PLAYER)
+
+        prompt = " ".join(m.content for m in llm.calls[0].messages)
+        assert PLAYER in prompt
+
+    def test_a_different_player_id_is_carried_through(self, martha, manager):
+        """Guards against hardcoding: the id must come from the call, not a literal."""
+        llm = MockLLMClient([PlanningOutput(reasoning="r", strategy="s", dialogue="d")])
+        harness = Harness(
+            npc_state=martha, manager=manager, llm=llm, memory=MemoryStore(martha.npc_id)
+        )
+
+        harness.respond("你好", player_id="detective_7")
+
+        prompt = " ".join(m.content for m in llm.calls[0].messages)
+        assert "detective_7" in prompt
+
+
 class TestReflectionAndTrace:
     def test_each_turn_writes_one_episodic_memory(self, martha, manager):
         memory = MemoryStore(martha.npc_id)
