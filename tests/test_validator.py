@@ -3,7 +3,10 @@ per docs/04 §5 — a rule list, not a rule engine."""
 
 from __future__ import annotations
 
+import pytest
+
 from ai_native_rpg.schemas.world_state import ActionProposal
+from ai_native_rpg.world.manager import WorldStateManager
 from ai_native_rpg.world.validator import DEFAULT_RULES, Validator
 
 PLAYER = "player_1"
@@ -126,6 +129,59 @@ class TestAdjustRelationship:
             proposal(action_type="adjust_relationship", target=PLAYER, admiration=1.0), world
         )
         assert not result.approved
+
+
+class TestTargetIsRequired:
+    """Every action but one needs a target, and a missing one must be *rejected*
+    rather than approved.
+
+    Found live: a real model proposed adjust_relationship with no target_id. It was
+    approved, then wrote to ``relationships[actor][None]`` — reported as a success
+    while changing nothing the player or any reveal_condition could observe. A
+    silent no-op is the worst failure mode for the layer whose entire job is
+    guaranteeing that dialogue and world state agree.
+    """
+
+    @pytest.mark.parametrize(
+        "action_type",
+        ["reveal_fact", "adjust_relationship", "move", "advance_quest"],
+    )
+    def test_missing_target_is_rejected(self, world, action_type):
+        payload = {"trust": 5.0} if action_type == "adjust_relationship" else {}
+        result = Validator(DEFAULT_RULES).validate(
+            proposal(action_type=action_type, target=None, **payload), world
+        )
+        assert not result.approved
+        assert result.reason is not None
+
+    def test_relationship_target_must_exist_in_the_world(self, world):
+        """A hallucinated target would create a relationship toward nobody, which
+        no condition path can ever read."""
+        result = Validator(DEFAULT_RULES).validate(
+            proposal(action_type="adjust_relationship", target="nobody_at_all", trust=5.0),
+            world,
+        )
+        assert not result.approved
+
+    def test_relationship_toward_an_npc_is_still_allowed(self, world):
+        """NPC-to-NPC relationships are legitimate; only unknown ids are refused."""
+        result = Validator(DEFAULT_RULES).validate(
+            proposal(action_type="adjust_relationship", target=NPC_B, trust=5.0), world
+        )
+        assert result.approved
+
+    def test_approved_relationship_change_is_observable(self, world):
+        """The regression that matters: an approved change must actually move the
+        value the rest of the system reads."""
+        manager = WorldStateManager(world)
+        before = manager.get_trust(NPC_A, PLAYER)
+
+        result = manager.submit(
+            proposal(action_type="adjust_relationship", target=PLAYER, trust=5.0)
+        )
+
+        assert result.approved
+        assert manager.get_trust(NPC_A, PLAYER) == pytest.approx(before + 5.0)
 
 
 class TestMoveNPC:

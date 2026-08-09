@@ -1,0 +1,90 @@
+{
+  "trace_id": "c37f42e013214d3c8e8f2e385da9b0cb",
+  "npc_id": "npc_a",
+  "player_id": "player_1",
+  "session_id": "1a25a74a8e9c4d69869c869340784840",
+  "steps": [
+    {
+      "step_name": "memory_retrieval",
+      "input_summary": {
+        "observation": "我不是来逼你的。我只是想让艾拉回家，如果你害怕，我可以先不问。",
+        "top_k": 3
+      },
+      "output_summary": {
+        "episodic_hits": 3,
+        "semantic_hits": 3,
+        "trust": 10.0
+      },
+      "latency_ms": 0.1857000170275569,
+      "model_used": null,
+      "token_usage": null
+    },
+    {
+      "step_name": "planning",
+      "input_summary": {
+        "observation": "我不是来逼你的。我只是想让艾拉回家，如果你害怕，我可以先不问。",
+        "tool_iterations": 0
+      },
+      "output_summary": {
+        "strategy": "warm_up",
+        "proposes_action": true
+      },
+      "latency_ms": 5153.817899990827,
+      "model_used": "deepseek-v4-flash",
+      "token_usage": {
+        "prompt_tokens": 1952,
+        "completion_tokens": 452,
+        "total_tokens": 2404,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1952
+      }
+    },
+    {
+      "step_name": "action_validation",
+      "input_summary": {
+        "action_type": "adjust_relationship",
+        "target_id": null
+      },
+      "output_summary": {
+        "approved": true,
+        "reason": null,
+        "rule_name": null
+      },
+      "latency_ms": 1.4900999376550317,
+      "model_used": null,
+      "token_usage": null
+    },
+    {
+      "step_name": "dialogue_generation",
+      "input_summary": {
+        "validation_approved": true
+      },
+      "output_summary": {
+        "regenerated": true
+      },
+      "latency_ms": 2200.176400016062,
+      "model_used": "deepseek-v4-flash",
+      "token_usage": {
+        "prompt_tokens": 670,
+        "completion_tokens": 151,
+        "total_tokens": 821,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 670
+      }
+    },
+    {
+      "step_name": "reflection",
+      "input_summary": {},
+      "output_summary": {
+        "episodic_written": 1
+      },
+      "latency_ms": 0.6481000455096364,
+      "model_used": null,
+      "token_usage": null
+    }
+  ],
+  "total_latency_ms": 7359.079000074416,
+  "final_dialogue": "我……我年纪大了，那晚的事，我只记得风声很大，别的真不记得了。",
+  "eval_flags": {},
+  "created_at": "2026-08-09T15:25:47.863670Z"
+}

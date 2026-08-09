@@ -1,0 +1,57 @@
+{
+  "trace_id": "4fc6437139cd4984a951684373cab74f",
+  "npc_id": "npc_a",
+  "player_id": "player_1",
+  "session_id": "2e5e232bf63f4f50bdc948b3ff4ca38d",
+  "steps": [
+    {
+      "step_name": "memory_retrieval",
+      "input_summary": {
+        "observation": "你那晚看到了什么？",
+        "top_k": 3
+      },
+      "output_summary": {
+        "episodic_hits": 3,
+        "semantic_hits": 3,
+        "trust": 10.0
+      },
+      "latency_ms": 0.16830000095069408,
+      "model_used": null,
+      "token_usage": null
+    },
+    {
+      "step_name": "planning",
+      "input_summary": {
+        "observation": "你那晚看到了什么？",
+        "tool_iterations": 0
+      },
+      "output_summary": {
+        "strategy": "half_answer",
+        "proposes_action": false
+      },
+      "latency_ms": 4178.433299995959,
+      "model_used": "deepseek-v4-flash",
+      "token_usage": {
+        "prompt_tokens": 1782,
+        "completion_tokens": 335,
+        "total_tokens": 2117,
+        "prompt_cache_hit_tokens": 0,
+        "prompt_cache_miss_tokens": 1782
+      }
+    },
+    {
+      "step_name": "reflection",
+      "input_summary": {},
+      "output_summary": {
+        "episodic_written": 1
+      },
+      "latency_ms": 1.366599928587675,
+      "model_used": null,
+      "token_usage": null
+    }
+  ],
+  "total_latency_ms": 4182.488200021908,
+  "final_dialogue": "那晚……雨刚停那会儿我是醒过一回，可黑灯瞎火的，我老婆子能看见什么呀。你……你问这个做什么？",
+  "eval_flags": {},
+  "created_at": "2026-08-09T15:23:56.097292Z"
+}

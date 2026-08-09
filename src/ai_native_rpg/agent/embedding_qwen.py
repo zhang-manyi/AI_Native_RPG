@@ -16,19 +16,29 @@ Two model-specific details drive the design:
 
   * **Asymmetric encoding.** The model is trained with a task instruction on the
     query side only; documents get none. ``sentence-transformers`` exposes this as
-    ``prompt_name="query"``.
+    ``prompt_name="query"``; llama.cpp has no prompt registry, so there the same
+    wrapping is applied by hand (``format_query``).
   * **MRL.** Output dimensionality is configurable from 32 to 1024. The default
     here is 256: at the scale of one NPC's memories, 1024 floats per memory buys
     nothing measurable and costs four times the storage in every save file.
 
-Requires the optional ``embedding`` extra (``sentence-transformers``, which pulls
-torch). Everything above the Protocol is unaffected when it is absent.
+Two backends, chosen by what the weights actually are rather than by a config
+flag — the file extension is the one signal that cannot disagree with reality:
+
+  * ``.gguf`` -> llama.cpp via ``llama-cpp-python``. Quantised, CPU-only, no torch.
+  * a directory or HF id -> ``sentence-transformers`` (the ``embedding`` extra).
+
+Point ``EMBEDDING_MODEL_PATH`` at local weights to use them. Everything above the
+Protocol is unaffected when no backend is installed: ``HashingEmbedder`` stays the
+default.
 """
 
 from __future__ import annotations
 
 import math
+import os
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any, Protocol
 
 #: Default MRL output width. See the module docstring for why not 1024.
@@ -36,6 +46,9 @@ DEFAULT_DIM = 256
 
 #: ModelScope/HuggingFace id. ModelScope mirrors it for faster access from China.
 DEFAULT_MODEL_ID = "Qwen/Qwen3-Embedding-0.6B"
+
+#: Points at local weights: either a .gguf file (llama.cpp) or a model directory.
+MODEL_PATH_VAR = "EMBEDDING_MODEL_PATH"
 
 #: Query-side task instruction. English on purpose: the model's training
 #: instructions were overwhelmingly English, so an English instruction retrieves
@@ -45,6 +58,34 @@ QUERY_INSTRUCTION = (
 )
 
 DEFAULT_CACHE_SIZE = 512
+
+
+def _configured_model_path() -> str | None:
+    raw = os.environ.get(MODEL_PATH_VAR, "").strip()
+    return raw or None
+
+
+def _is_gguf(path: str) -> bool:
+    return path.lower().endswith(".gguf")
+
+
+def _has_llama_cpp() -> bool:
+    try:
+        import llama_cpp  # noqa: F401
+    except Exception:
+        return False
+    return True
+
+
+def format_query(text: str) -> str:
+    """Wrap a query in the instruction format Qwen3-Embedding was trained on.
+
+    ``sentence-transformers`` applies this itself via ``prompt_name="query"``.
+    llama.cpp has no prompt registry, so it must be applied by hand there, or the
+    two backends would encode queries differently and their vectors would not be
+    comparable.
+    """
+    return f"Instruct: {QUERY_INSTRUCTION}\nQuery:{text}"
 
 
 def truncate_and_renormalise(vector: list[float], dim: int) -> list[float]:
@@ -72,6 +113,58 @@ class _SentenceEncoder(Protocol):
     def get_sentence_embedding_dimension(self) -> int: ...
 
 
+class _GGUFEncoder:
+    """llama.cpp backend, presenting the same surface as ``SentenceTransformer``.
+
+    Adapting to the sentence-transformers shape rather than the reverse keeps the
+    branch confined to construction: ``Qwen3Embedder`` never learns which backend
+    it holds. ``prompt_name="query"`` is honoured by applying the instruction
+    wrapper by hand, since llama.cpp has no prompt registry.
+    """
+
+    def __init__(self, model_path: str, *, dim: int, n_ctx: int = 8192) -> None:
+        try:
+            from llama_cpp import Llama
+        except ImportError as exc:  # pragma: no cover - depends on the environment
+            raise RuntimeError(
+                f"{model_path} is a GGUF file, which needs llama-cpp-python: "
+                "pip install llama-cpp-python"
+            ) from exc
+
+        if not Path(model_path).exists():
+            raise FileNotFoundError(f"embedding model not found: {model_path}")
+
+        self._model = Llama(
+            model_path=model_path,
+            embedding=True,
+            n_ctx=n_ctx,
+            verbose=False,
+        )
+        self._dim = dim
+
+    def get_sentence_embedding_dimension(self) -> int:
+        return self._dim
+
+    def encode(self, text: Any, prompt_name: str | None = None, **kwargs: Any) -> Any:
+        single = isinstance(text, str)
+        texts = [text] if single else list(text)
+        prepared = [format_query(item) if prompt_name == "query" else item for item in texts]
+
+        vectors = [self._embed_one(item) for item in prepared]
+        return vectors[0] if single else vectors
+
+    def _embed_one(self, text: str) -> list[float]:
+        raw = self._model.create_embedding(text)
+        embedding = raw["data"][0]["embedding"]
+        # llama.cpp returns token-level vectors for some models and a single
+        # pooled vector for others; mean-pool the former so both shapes reduce to
+        # one vector per text.
+        if embedding and isinstance(embedding[0], list):
+            columns = zip(*embedding, strict=True)
+            return [sum(col) / len(embedding) for col in columns]
+        return [float(x) for x in embedding]
+
+
 class Qwen3Embedder:
     """Instruction-tuned embedder with MRL truncation and an LRU text cache.
 
@@ -93,17 +186,21 @@ class Qwen3Embedder:
         self._dim = dim
         self._cache_size = max(0, cache_size)
         self._cache: OrderedDict[tuple[bool, str], list[float]] = OrderedDict()
-        self._encoder = encoder if encoder is not None else self._load(model_id, model_path)
+        self._encoder = encoder if encoder is not None else self._load(model_id, model_path, dim)
 
     # --- loading -----------------------------------------------------------
 
     @staticmethod
-    def is_available() -> bool:
-        """Whether the optional dependency is importable.
+    def is_available(model_path: str | None = None) -> bool:
+        """Whether some backend can actually encode right now.
 
-        Used to skip the model-dependent tests rather than fail CI, which
-        deliberately installs neither torch nor the weights.
+        Checked rather than assumed, because two independent things can be missing:
+        the runtime library and the weights. Tests skip on this instead of failing,
+        since CI installs neither.
         """
+        path = model_path or _configured_model_path()
+        if path is not None and _is_gguf(path):
+            return _has_llama_cpp() and Path(path).exists()
         try:
             import sentence_transformers  # noqa: F401
         except Exception:
@@ -111,16 +208,32 @@ class Qwen3Embedder:
         return True
 
     @staticmethod
-    def _load(model_id: str, model_path: str | None) -> _SentenceEncoder:
+    def _load(model_id: str, model_path: str | None, dim: int) -> _SentenceEncoder:
+        """Pick a backend from what the weights actually are.
+
+        GGUF is a llama.cpp format: ``sentence-transformers`` cannot read it, and
+        conversely a llama.cpp build has no use for a safetensors directory. So the
+        file extension, not a config flag, decides — that is the one signal that
+        cannot be set inconsistently with reality.
+        """
+        source = model_path or _configured_model_path()
+
+        if source is not None and _is_gguf(source):
+            return _GGUFEncoder(source, dim=dim)
+
+        if source is None:
+            source = Qwen3Embedder._resolve_from_modelscope(model_id)
+
         try:
             from sentence_transformers import SentenceTransformer
         except ImportError as exc:  # pragma: no cover - depends on the environment
             raise RuntimeError(
-                "Qwen3Embedder needs the optional 'embedding' extra: "
+                "Qwen3Embedder needs a backend. For a GGUF file set "
+                f"{MODEL_PATH_VAR}=<path to .gguf> and install llama-cpp-python; "
+                "for HuggingFace weights install the optional extra: "
                 "uv pip install -e '.[embedding]'"
             ) from exc
 
-        source = model_path or Qwen3Embedder._resolve_from_modelscope(model_id)
         return SentenceTransformer(source)
 
     @staticmethod

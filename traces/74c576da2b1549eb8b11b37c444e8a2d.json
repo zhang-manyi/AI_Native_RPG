@@ -1,0 +1,57 @@
+{
+  "trace_id": "74c576da2b1549eb8b11b37c444e8a2d",
+  "npc_id": "npc_a",
+  "player_id": "player_1",
+  "session_id": "af433fb7b2054e0d9e103f947c5cd167",
+  "steps": [
+    {
+      "step_name": "memory_retrieval",
+      "input_summary": {
+        "observation": "我是从城里来的调查员，我可以保护你和你儿子的安全，你信我一次。",
+        "top_k": 3
+      },
+      "output_summary": {
+        "episodic_hits": 3,
+        "semantic_hits": 3,
+        "trust": 10.0
+      },
+      "latency_ms": 0.19509997218847275,
+      "model_used": null,
+      "token_usage": null
+    },
+    {
+      "step_name": "planning",
+      "input_summary": {
+        "observation": "我是从城里来的调查员，我可以保护你和你儿子的安全，你信我一次。",
+        "tool_iterations": 0
+      },
+      "output_summary": {
+        "strategy": "deflect",
+        "proposes_action": false
+      },
+      "latency_ms": 3977.0254000322893,
+      "model_used": "deepseek-v4-flash",
+      "token_usage": {
+        "prompt_tokens": 1796,
+        "completion_tokens": 301,
+        "total_tokens": 2097,
+        "prompt_cache_hit_tokens": 1664,
+        "prompt_cache_miss_tokens": 132
+      }
+    },
+    {
+      "step_name": "reflection",
+      "input_summary": {},
+      "output_summary": {
+        "episodic_written": 1
+      },
+      "latency_ms": 3.75729997176677,
+      "model_used": null,
+      "token_usage": null
+    }
+  ],
+  "total_latency_ms": 3983.452499960549,
+  "final_dialogue": "城里来的……那正好，城里人最会说漂亮话。我这儿真没什么可查的，那晚雨大，我早早就睡下了，什么都没看见。您请回吧。",
+  "eval_flags": {},
+  "created_at": "2026-08-09T15:24:30.707782Z"
+}

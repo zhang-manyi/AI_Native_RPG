@@ -22,8 +22,10 @@ import pytest
 
 from ai_native_rpg.agent.embedding import HashingEmbedder, cosine_similarity
 from ai_native_rpg.agent.embedding_qwen import (
+    MODEL_PATH_VAR,
     QUERY_INSTRUCTION,
     Qwen3Embedder,
+    format_query,
     truncate_and_renormalise,
 )
 from ai_native_rpg.agent.memory_store import MemoryStore
@@ -208,11 +210,64 @@ class TestDimensionMismatch:
         assert len(store.retrieve("森林", top_k=3).episodic) == 3
 
 
+class TestQueryFormatting:
+    def test_wraps_query_in_the_trained_instruction_format(self):
+        out = format_query("那晚你看到了什么")
+        assert out.startswith("Instruct: ")
+        assert QUERY_INSTRUCTION in out
+        assert out.endswith("那晚你看到了什么")
+
+    def test_document_text_is_never_wrapped(self):
+        """Only the query side carries an instruction; wrapping documents too would
+        push both sides off the format the model was trained on."""
+        embedder, encoder = _stub_embedder()
+        embedder.encode("玛尔塔那晚看见有人回村")
+        assert "Instruct:" not in encoder.seen[-1][0]
+
+
+class TestBackendSelection:
+    def test_gguf_path_requires_llama_cpp(self, monkeypatch, tmp_path):
+        """A .gguf file cannot be read by sentence-transformers, so the error must
+        name the right missing dependency rather than the wrong one."""
+        weights = tmp_path / "model-Q8_0.gguf"
+        weights.write_bytes(b"not a real model")
+        monkeypatch.setenv(MODEL_PATH_VAR, str(weights))
+
+        try:
+            import llama_cpp  # noqa: F401
+        except ImportError:
+            with pytest.raises(RuntimeError, match="llama-cpp-python"):
+                Qwen3Embedder()
+        else:  # pragma: no cover - only when the runtime is installed
+            # With the runtime present, the bytes above are not a loadable model;
+            # what matters is that it fails on the weights, not on the backend pick.
+            with pytest.raises(Exception, match=r".+"):
+                Qwen3Embedder()
+
+    def test_missing_gguf_file_is_reported_clearly(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(MODEL_PATH_VAR, str(tmp_path / "absent.gguf"))
+        # Whichever dependency is missing first, the message must not be a bare
+        # KeyError or a torch import failure.
+        with pytest.raises((RuntimeError, FileNotFoundError)):
+            Qwen3Embedder()
+
+    def test_is_available_is_false_for_a_nonexistent_gguf(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(MODEL_PATH_VAR, str(tmp_path / "absent.gguf"))
+        assert Qwen3Embedder.is_available() is False
+
+    def test_injected_encoder_bypasses_backend_selection(self, monkeypatch):
+        """The stub path must not consult the environment at all, or these tests
+        would depend on the developer's local model layout."""
+        monkeypatch.setenv(MODEL_PATH_VAR, "/nonexistent/model.gguf")
+        embedder, _ = _stub_embedder()
+        assert len(embedder.encode("x")) == 8
+
+
 # --- tests that need the real model ---------------------------------------
 
 model_required = pytest.mark.skipif(
     not Qwen3Embedder.is_available(),
-    reason="Qwen3-Embedding-0.6B not installed; see README for the optional extra",
+    reason="no embedding backend available; see README for GGUF or the optional extra",
 )
 
 
