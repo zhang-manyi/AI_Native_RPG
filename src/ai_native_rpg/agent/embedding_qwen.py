@@ -38,6 +38,7 @@ from __future__ import annotations
 import math
 import os
 from collections import OrderedDict
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -95,6 +96,35 @@ def format_query(text: str) -> str:
     return f"Instruct: {QUERY_INSTRUCTION}\nQuery:{text}"
 
 
+def fit_to_token_budget(text: str, budget: int, tokenize: Callable[[str], Sequence[Any]]) -> str:
+    """Cut ``text`` down to ``budget`` tokens, keeping the start.
+
+    llama.cpp does not raise when input exceeds ``n_ctx`` — it drops the excess
+    silently, and two inputs sharing a long prefix then encode to cosine 1.000000
+    however much their tails differ (measured). A memory whose vector covers only
+    its first half retrieves for the wrong queries while the prompt still shows the
+    whole text: a wrong answer wearing the costume of a working one. Truncating here
+    reaches the same outcome deliberately — bounded, documented and testable.
+
+    The start is kept because a memory opens with its subject. Cutting is a binary
+    search over characters rather than arithmetic, since CJK token boundaries have
+    no fixed ratio to characters.
+    """
+    if budget <= 0:
+        raise ValueError(f"budget must be positive, got {budget}")
+    if len(tokenize(text)) <= budget:
+        return text
+
+    low, high = 0, len(text)
+    while low < high:
+        mid = (low + high + 1) // 2
+        if len(tokenize(text[:mid])) <= budget:
+            low = mid
+        else:
+            high = mid - 1
+    return text[:low]
+
+
 def truncate_and_renormalise(vector: list[float], dim: int) -> list[float]:
     """Apply MRL truncation, then restore unit length.
 
@@ -148,9 +178,14 @@ class _GGUFEncoder:
             verbose=False,
         )
         self._dim = dim
+        self._n_ctx = n_ctx
 
     def get_sentence_embedding_dimension(self) -> int:
         return self._dim
+
+    @property
+    def n_ctx(self) -> int:
+        return self._n_ctx
 
     def encode(self, text: Any, prompt_name: str | None = None, **kwargs: Any) -> Any:
         single = isinstance(text, str)
@@ -161,7 +196,7 @@ class _GGUFEncoder:
         return vectors[0] if single else vectors
 
     def _embed_one(self, text: str) -> list[float]:
-        raw = self._model.create_embedding(text)
+        raw = self._model.create_embedding(self._fit_to_window(text))
         embedding = raw["data"][0]["embedding"]
         # llama.cpp returns token-level vectors for some models and a single
         # pooled vector for others; mean-pool the former so both shapes reduce to
@@ -170,6 +205,15 @@ class _GGUFEncoder:
             columns = zip(*embedding, strict=True)
             return [sum(col) / len(embedding) for col in columns]
         return [float(x) for x in embedding]
+
+    def _fit_to_window(self, text: str) -> str:
+        """Apply the token budget, tolerating builds whose tokenizer differs."""
+        try:
+            return fit_to_token_budget(
+                text, self._n_ctx, lambda s: self._model.tokenize(s.encode("utf-8"))
+            )
+        except Exception:  # pragma: no cover - tokenizer shape varies by build
+            return text
 
 
 class Qwen3Embedder:
