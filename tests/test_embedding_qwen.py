@@ -25,6 +25,7 @@ from ai_native_rpg.agent.embedding_qwen import (
     MODEL_PATH_VAR,
     QUERY_INSTRUCTION,
     Qwen3Embedder,
+    fit_to_token_budget,
     format_query,
     truncate_and_renormalise,
 )
@@ -263,6 +264,66 @@ class TestBackendSelection:
         assert len(embedder.encode("x")) == 8
 
 
+class _CountingStubEncoder(_StubEncoder):
+    """Stub that also reports a token count, for exercising truncation."""
+
+    def tokenize(self, raw: bytes) -> list[int]:
+        # One "token" per character is enough to drive the length logic.
+        return list(range(len(raw.decode("utf-8"))))
+
+
+def _char_tokens(text: str) -> list[int]:
+    """Tokenizer stand-in: one token per character."""
+    return list(range(len(text)))
+
+
+class TestFitToTokenBudget:
+    """Overflow must be our decision, not llama.cpp's silence.
+
+    Measured against the real model: text past ``n_ctx`` is dropped with no error,
+    and two inputs sharing a long prefix then encode *identically* (cosine
+    1.000000) even when their tails differ. A memory whose vector covers only its
+    first half would retrieve for the wrong queries while the prompt still shows the
+    full text — a wrong answer wearing the costume of a working one. Reflection text
+    embeds raw player input, so the input is genuinely unbounded.
+    """
+
+    def test_short_text_is_returned_unchanged(self):
+        assert fit_to_token_budget("短句", 64, _char_tokens) == "短句"
+
+    def test_text_at_the_budget_is_untouched(self):
+        text = "字" * 64
+        assert fit_to_token_budget(text, 64, _char_tokens) == text
+
+    def test_long_text_is_cut_to_the_budget(self):
+        assert len(fit_to_token_budget("字" * 500, 64, _char_tokens)) == 64
+
+    def test_truncation_keeps_the_start(self):
+        """A memory opens with its subject; cutting from the front would lose it."""
+        out = fit_to_token_budget("开头很重要" + "填" * 200, 32, _char_tokens)
+        assert out.startswith("开头很重要")
+
+    def test_works_with_a_ratio_other_than_one(self):
+        """Real CJK tokenizers emit fewer tokens than characters, so the search must
+        not assume a 1:1 mapping."""
+        two_chars_per_token = lambda s: list(range(len(s) // 2))  # noqa: E731
+        out = fit_to_token_budget("字" * 400, 50, two_chars_per_token)
+        assert len(two_chars_per_token(out)) <= 50
+        assert len(out) > 50  # more characters than tokens, i.e. the ratio was used
+
+    def test_rejects_a_non_positive_budget(self):
+        with pytest.raises(ValueError, match="budget"):
+            fit_to_token_budget("x", 0, _char_tokens)
+
+
+class TestGGUFTruncationWiring:
+    def test_encoder_without_tokenize_is_left_alone(self):
+        """sentence-transformers handles its own truncation, so the plain stub (which
+        has no tokenize method) must keep working."""
+        embedder, _ = _stub_embedder()
+        assert len(embedder.encode("字" * 500)) == 8
+
+
 # --- tests that need the real model ---------------------------------------
 
 model_required = pytest.mark.skipif(
@@ -291,3 +352,14 @@ class TestRealModel:
 
     def test_truncated_dim_is_honoured(self):
         assert len(Qwen3Embedder(dim=256).encode("x")) == 256
+
+    def test_overlong_inputs_do_not_collapse_to_one_vector(self):
+        """The bug this guards: with silent truncation, two long texts sharing a
+        prefix encoded to cosine 1.000000 regardless of their tails. Explicit
+        truncation makes that a deliberate, documented loss rather than a surprise —
+        but within a reasonable length, tails must still be distinguished."""
+        embedder = Qwen3Embedder()
+        prefix = "那晚的事我记得很清楚，" * 20  # ~220 chars, comfortably inside 512
+        a = embedder.encode(prefix + "凶手是猎人洛伦。")
+        b = embedder.encode(prefix + "那天我在集市上卖鸡蛋。")
+        assert cosine_similarity(a, b) < 0.999

@@ -183,6 +183,60 @@ class TestPlayerIdentityInPrompt:
         assert "detective_7" in prompt
 
 
+class TestReflectionIsBounded:
+    """A reflection memory embeds raw player input, the one unbounded text in the
+    loop. Left alone, a pasted wall of text becomes a memory whose embedding covers
+    only its opening (the encoder truncates at its context window), so it would be
+    retrieved for the wrong queries while the prompt shows the whole thing. Capping
+    it here keeps the stored text and its vector describing the same content.
+    """
+
+    def test_a_long_utterance_is_summarised_not_stored_whole(self, martha, manager):
+        memory = MemoryStore(martha.npc_id)
+        llm = MockLLMClient([PlanningOutput(reasoning="r", strategy="s", dialogue="嗯。")])
+        harness = Harness(npc_state=martha, manager=manager, llm=llm, memory=memory)
+
+        harness.respond("那晚的事我想知道全部细节。" * 60, player_id=PLAYER)
+
+        stored = memory.retrieve("那晚", top_k=1).episodic[0].event_description
+        assert len(stored) < 400
+
+    def test_the_beginning_of_what_was_said_is_kept(self, martha, manager):
+        memory = MemoryStore(martha.npc_id)
+        llm = MockLLMClient([PlanningOutput(reasoning="r", strategy="s", dialogue="嗯。")])
+        harness = Harness(npc_state=martha, manager=manager, llm=llm, memory=memory)
+
+        harness.respond("关于洛伦" + "啊" * 500, player_id=PLAYER)
+
+        stored = memory.retrieve("洛伦", top_k=1).episodic[0].event_description
+        assert "关于洛伦" in stored
+
+    def test_the_npcs_own_line_survives_a_long_player_turn(self, martha, manager):
+        """Truncating the player's half must not push the NPC's reply out: what it
+        said is the part it needs to stay consistent with next turn."""
+        memory = MemoryStore(martha.npc_id)
+        llm = MockLLMClient(
+            [PlanningOutput(reasoning="r", strategy="s", dialogue="我不知道你在说什么。")]
+        )
+        harness = Harness(npc_state=martha, manager=manager, llm=llm, memory=memory)
+
+        harness.respond("废话" * 500, player_id=PLAYER)
+
+        stored = memory.retrieve("说", top_k=1).episodic[0].event_description
+        assert "我不知道你在说什么。" in stored
+
+    def test_a_normal_turn_is_stored_verbatim(self, martha, manager):
+        memory = MemoryStore(martha.npc_id)
+        llm = MockLLMClient([PlanningOutput(reasoning="r", strategy="s", dialogue="我睡了。")])
+        harness = Harness(npc_state=martha, manager=manager, llm=llm, memory=memory)
+
+        harness.respond("那晚你在哪？", player_id=PLAYER)
+
+        stored = memory.retrieve("那晚", top_k=1).episodic[0].event_description
+        assert "那晚你在哪？" in stored
+        assert "我睡了。" in stored
+
+
 class TestReflectionAndTrace:
     def test_each_turn_writes_one_episodic_memory(self, martha, manager):
         memory = MemoryStore(martha.npc_id)

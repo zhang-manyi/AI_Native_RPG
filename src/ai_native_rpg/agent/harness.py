@@ -48,6 +48,15 @@ _PROMPTS_ROOT = Path(__file__).resolve().parents[3] / "prompts"
 # §implementation: "async, low-frequency, one episodic memory per turn").
 _REFLECTION_IMPORTANCE = 0.4
 
+#: Character cap on each half of a reflection memory. Player input is the only
+#: unbounded text in the loop, and an embedder truncates at its context window
+#: without saying so — a pasted wall of text would become a memory whose vector
+#: describes just its opening while the prompt shows the whole thing, so it would be
+#: retrieved for the wrong queries. Capping keeps the stored text and its vector
+#: describing the same content. Both halves are capped, since what the NPC said is
+#: what it must stay consistent with next turn.
+_REFLECTION_HALF_LIMIT = 160
+
 
 class ProposedAction(BaseModel):
     """The action intent the model may emit. The Harness — not the model — sets
@@ -319,7 +328,7 @@ class Harness:
             EpisodicMemory(
                 memory_id=uuid.uuid4().hex,
                 npc_id=npc_id,
-                event_description=f"玩家说：{observation}；我回应：{dialogue}",
+                event_description=self._reflection_text(observation, dialogue),
                 importance=_REFLECTION_IMPORTANCE,
                 emotion=self._npc.emotion,
                 occurred_at_day=day,
@@ -332,6 +341,23 @@ class Harness:
                 latency_ms=(time.perf_counter() - start) * 1000.0,
             )
         )
+
+    @staticmethod
+    def _reflection_text(observation: str, dialogue: str) -> str:
+        """Build the reflection memory, capping each half independently.
+
+        Capping the halves separately rather than the joined string means a long
+        player turn cannot push the NPC's own line out of its memory — that line is
+        what the NPC has to stay consistent with next turn.
+        """
+
+        def clip(text: str) -> str:
+            text = text.strip()
+            if len(text) <= _REFLECTION_HALF_LIMIT:
+                return text
+            return text[:_REFLECTION_HALF_LIMIT] + "…"
+
+        return f"玩家说：{clip(observation)}；我回应：{clip(dialogue)}"
 
     # --- prompt assembly ---------------------------------------------------
 
