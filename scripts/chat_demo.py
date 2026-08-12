@@ -34,14 +34,19 @@ from ai_native_rpg.agent import Harness, HashingEmbedder, MemoryStore, build_npc
 from ai_native_rpg.agent.embedding import Embedder
 from ai_native_rpg.config import Settings, build_llm_client
 from ai_native_rpg.observability import TraceStore
-from ai_native_rpg.scenario import load_personas, load_scenario, load_seed_memories
+from ai_native_rpg.agent.harness import PromptLibrary
+from ai_native_rpg.scenario import (
+    list_scenarios,
+    load_personas,
+    load_scenario,
+    load_seed_memories,
+    pack_prompts_dir,
+)
 from ai_native_rpg.schemas.agent_trace import AgentTrace
 from ai_native_rpg.schemas.npc_agent import NPCAgentResponse
 from ai_native_rpg.world import WorldStateManager
 
-SCENARIO = "village_disappearance"
-PLAYER = "player_1"
-DEFAULT_NPC = "npc_a"
+DEFAULT_SCENARIO = "village_disappearance"
 TRACE_DIR = Path("traces")
 
 #: Scripted replies for USE_MOCK_LLM=1, so the chain is watchable with no key.
@@ -76,14 +81,23 @@ def build_embedder() -> tuple[Embedder, str]:
     return HashingEmbedder(), "HashingEmbedder (字面匹配，非语义)"
 
 
-def print_header(settings: Settings, npc_id: str, embedder_label: str, tool_names: list[str]):
+def print_header(
+    settings: Settings,
+    scenario: str,
+    npc_id: str,
+    player_id: str,
+    embedder_label: str,
+    prompt_source: str,
+    tool_names: list[str],
+):
     backend = (
         f"DeepSeek {settings.model}" if settings.has_real_backend else "MockLLMClient (离线脚本)"
     )
     print("=" * 72)
-    print(f"剧本：{SCENARIO}    NPC：{npc_id}    玩家：{PLAYER}")
+    print(f"剧本：{scenario}    NPC：{npc_id}    玩家：{player_id}")
     print(f"模型：{backend}")
     print(f"检索：{embedder_label}")
+    print(f"提示词：{prompt_source}")
     print(f"工具：{', '.join(tool_names)}")
     print("=" * 72)
     print("直接输入你想说的话。输入 /quit 退出，/mem 查看记忆，/trust 查看关系值。\n")
@@ -109,6 +123,10 @@ def print_turn(
             f"  检索      episodic={out.get('episodic_hits', 0)} "
             f"semantic={out.get('semantic_hits', 0)}  ({retrieval.latency_ms:.0f}ms)"
         )
+        for m in out.get("episodic", []):
+            print(f"            - [{m['importance']:.2f}] {m['id']}  {m['text']}")
+        for m in out.get("semantic", []):
+            print(f"            ~ [{m['confidence']:.2f}] {m['id']}  {m['text']}")
 
     for step in [s for s in trace.steps if s.step_name == "tool_call"]:
         ok = step.output_summary.get("ok")
@@ -146,7 +164,17 @@ def print_turn(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Chat with one NPC end to end.")
-    parser.add_argument("--npc", default=DEFAULT_NPC, help="npc id, e.g. npc_a (玛尔塔)")
+    parser.add_argument(
+        "--scenario",
+        default=DEFAULT_SCENARIO,
+        help="scenario pack under scenarios/ (or a path to one)",
+    )
+    parser.add_argument("--npc", default=None, help="npc id, e.g. npc_a; defaults to the pack's first")
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="list the available scenario packs and exit",
+    )
     parser.add_argument(
         "--mock",
         action="store_true",
@@ -155,31 +183,57 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.list:
+        available = list_scenarios()
+        print("可用剧本：" + ("、".join(available) if available else "（scenarios/ 下没有剧本包）"))
+        return 0
+
     settings = Settings.from_env()
     if args.mock:
         settings = settings.model_copy(update={"use_mock": True})
-    world = load_scenario(SCENARIO)
-    personas = load_personas(SCENARIO)
-    seeds = load_seed_memories(SCENARIO)
 
-    if args.npc not in personas:
-        print(f"未知 NPC {args.npc!r}，可选：{', '.join(personas)}")
+    try:
+        world = load_scenario(args.scenario)
+        personas = load_personas(args.scenario)
+        seeds = load_seed_memories(args.scenario)
+    except Exception as exc:
+        print(f"无法加载剧本 {args.scenario!r}：{exc}")
+        print("用 --list 查看可用剧本。")
         return 2
 
-    npc_state = personas[args.npc]
+    # The pack, not the code, decides who the player is. Fall back to a sane
+    # default only when the pack names no player at all.
+    player_id = next(iter(world.player_locations), "player_1")
+
+    npc_id = args.npc or next(iter(personas), None)
+    if npc_id not in personas:
+        print(f"未知 NPC {npc_id!r}，可选：{', '.join(personas)}")
+        return 2
+
+    npc_state = personas[npc_id]
     manager = WorldStateManager(world)
 
     embedder, embedder_label = build_embedder()
-    memory = MemoryStore(args.npc, embedder=embedder)
-    seeds[args.npc].load_into(memory)
+    memory = MemoryStore(npc_id, embedder=embedder)
+    seeds[npc_id].load_into(memory)
 
-    tools = build_npc_tools(npc_id=args.npc, manager=manager, memory=memory, player_id=PLAYER)
+    # A pack may ship its own prompts/ to restyle NPC voice; otherwise the shared
+    # templates are used. The header reports which is live.
+    overlay = pack_prompts_dir(args.scenario)
+    prompts = PromptLibrary(overlay=overlay if overlay.is_dir() else None)
+    prompt_source = f"{args.scenario} 覆盖 + 全局回退" if overlay.is_dir() else "全局默认"
+
+    tools = build_npc_tools(npc_id=npc_id, manager=manager, memory=memory, player_id=player_id)
     # The mock needs a script; the real client ignores these kwargs.
     llm = build_llm_client(settings, responses=list(_MOCK_SCRIPT) * 20)
-    harness = Harness(npc_state=npc_state, manager=manager, llm=llm, memory=memory, tools=tools)
+    harness = Harness(
+        npc_state=npc_state, manager=manager, llm=llm, memory=memory, prompts=prompts, tools=tools
+    )
     traces = TraceStore(TRACE_DIR)
 
-    print_header(settings, args.npc, embedder_label, tools.names)
+    print_header(
+        settings, args.scenario, npc_id, player_id, embedder_label, prompt_source, tools.names
+    )
 
     while True:
         try:
@@ -202,19 +256,19 @@ def main() -> int:
             print()
             continue
         if said == "/trust":
-            rel = manager.get_relationship(args.npc, PLAYER)
+            rel = manager.get_relationship(npc_id, player_id)
             print(f"  trust={rel.trust:.1f} fear={rel.fear:.1f} respect={rel.respect:.1f}\n")
             continue
 
-        trust_before = manager.get_trust(args.npc, PLAYER)
+        trust_before = manager.get_trust(npc_id, player_id)
         try:
-            response, trace = harness.respond(said, player_id=PLAYER)
+            response, trace = harness.respond(said, player_id=player_id)
         except Exception as exc:  # keep the REPL alive across API errors
             print(f"\n[!] 这一回合失败了：{type(exc).__name__}: {exc}\n")
             continue
 
         trace_path = traces.save(trace)
-        print_turn(response, trace, trust_before, manager.get_trust(args.npc, PLAYER), trace_path)
+        print_turn(response, trace, trust_before, manager.get_trust(npc_id, player_id), trace_path)
 
 
 if __name__ == "__main__":

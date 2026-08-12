@@ -51,6 +51,32 @@ def _resolve_pack(name_or_path: str | Path) -> Path:
     return world_file
 
 
+def list_scenarios() -> list[str]:
+    """Names of every pack under ``scenarios/`` (a dir holding a ``world.yaml``).
+
+    This is what makes packs *discoverable*: dropping a new story directory in
+    ``scenarios/`` is enough for an entry point to offer it, with no code change.
+    """
+    if not SCENARIOS_ROOT.is_dir():
+        return []
+    return sorted(
+        child.name
+        for child in SCENARIOS_ROOT.iterdir()
+        if child.is_dir() and (child / "world.yaml").is_file()
+    )
+
+
+def pack_prompts_dir(name_or_path: str | Path) -> Path:
+    """Path to a pack's optional ``prompts/`` overlay (may not exist).
+
+    A pack that wants a different planning/dialogue voice drops templates here;
+    the Harness's PromptLibrary prefers them over the shared ``prompts/`` and
+    falls back when a given template is absent, so a pack overrides only what it
+    cares to.
+    """
+    return _resolve_pack(name_or_path).parent / "prompts"
+
+
 def _build_world(raw: dict[str, Any]) -> WorldState:
     """Map the YAML shape onto the schema.
 

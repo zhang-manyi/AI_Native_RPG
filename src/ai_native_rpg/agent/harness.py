@@ -84,12 +84,26 @@ class DialogueOutput(BaseModel):
 
 
 class PromptLibrary:
-    """Loads prompt templates from files. The Harness never inlines prompt text."""
+    """Loads prompt templates from files. The Harness never inlines prompt text.
 
-    def __init__(self, root: str | Path = _PROMPTS_ROOT) -> None:
+    An optional ``overlay`` directory (a scenario pack's own ``prompts/``) is
+    consulted first, so a story can restyle its NPCs' planning/dialogue voice
+    without touching the shared templates. A template missing from the overlay
+    falls back to ``root``; this way a pack overrides only what it cares to,
+    rather than having to copy every template to change one.
+    """
+
+    def __init__(
+        self, root: str | Path = _PROMPTS_ROOT, overlay: str | Path | None = None
+    ) -> None:
         self._root = Path(root)
+        self._overlay = Path(overlay) if overlay is not None else None
 
     def load(self, name: str) -> str:
+        if self._overlay is not None:
+            override = self._overlay / name
+            if override.is_file():
+                return override.read_text(encoding="utf-8")
         return (self._root / name).read_text(encoding="utf-8")
 
 
@@ -176,6 +190,20 @@ class Harness:
                 output_summary={
                     "episodic_hits": len(retrieval.episodic),
                     "semantic_hits": len(retrieval.semantic),
+                    # Full recall, in rank order, so a trace shows *which* memories
+                    # were retrieved and how they sorted -- not just how many.
+                    "episodic": [
+                        {
+                            "id": m.memory_id,
+                            "importance": m.importance,
+                            "text": m.event_description,
+                        }
+                        for m in retrieval.episodic
+                    ],
+                    "semantic": [
+                        {"id": m.memory_id, "confidence": m.confidence, "text": m.fact}
+                        for m in retrieval.semantic
+                    ],
                     "trust": relationship.trust,
                 },
                 latency_ms=(time.perf_counter() - start) * 1000.0,
