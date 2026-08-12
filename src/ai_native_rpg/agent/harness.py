@@ -93,9 +93,7 @@ class PromptLibrary:
     rather than having to copy every template to change one.
     """
 
-    def __init__(
-        self, root: str | Path = _PROMPTS_ROOT, overlay: str | Path | None = None
-    ) -> None:
+    def __init__(self, root: str | Path = _PROMPTS_ROOT, overlay: str | Path | None = None) -> None:
         self._root = Path(root)
         self._overlay = Path(overlay) if overlay is not None else None
 
