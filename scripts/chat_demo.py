@@ -32,9 +32,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ai_native_rpg.agent import Harness, HashingEmbedder, MemoryStore, build_npc_tools
 from ai_native_rpg.agent.embedding import Embedder
+from ai_native_rpg.agent.harness import PromptLibrary
 from ai_native_rpg.config import Settings, build_llm_client
 from ai_native_rpg.observability import TraceStore
-from ai_native_rpg.agent.harness import PromptLibrary
 from ai_native_rpg.scenario import (
     list_scenarios,
     load_personas,
@@ -169,7 +169,9 @@ def main() -> int:
         default=DEFAULT_SCENARIO,
         help="scenario pack under scenarios/ (or a path to one)",
     )
-    parser.add_argument("--npc", default=None, help="npc id, e.g. npc_a; defaults to the pack's first")
+    parser.add_argument(
+        "--npc", default=None, help="npc id, e.g. npc_a; defaults to the pack's first"
+    )
     parser.add_argument(
         "--list",
         action="store_true",
