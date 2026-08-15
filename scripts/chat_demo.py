@@ -37,6 +37,7 @@ from ai_native_rpg.config import Settings, build_llm_client
 from ai_native_rpg.observability import TraceStore
 from ai_native_rpg.scenario import (
     list_scenarios,
+    load_intro,
     load_personas,
     load_scenario,
     load_seed_memories,
@@ -162,6 +163,75 @@ def print_turn(
     print(f"  Trace     {trace_path}\n")
 
 
+def _display_name(npc_state, fallback: str) -> str:
+    """A player-facing name for an NPC, without leaking persona internals.
+
+    Backgrounds open with the character's name ("玛尔塔，村里的接生婆……"), so the
+    span before the first separator is a safe public label — it stops before the
+    parts of the background the player is not meant to know yet.
+    """
+    if npc_state is None:
+        return fallback
+    background = npc_state.persona.background.strip()
+    for sep in ("，", "、", ",", "。"):
+        if sep in background:
+            head = background.split(sep, 1)[0].strip()
+            if head:
+                return head
+    return fallback
+
+
+def render_intro(world, view, personas, npc_id: str, intro: dict[str, str]) -> None:
+    """Deterministic opening: orient the player from public state alone.
+
+    Assembled straight from the scenario pack (public facts, the player's current
+    location, who they are talking to) — no LLM. It renders only what PlayerView
+    exposes, so it can never spoil a hidden clue, and it works for any pack.
+
+    Genre-specific wording (title, headers, the goal line) comes from the pack's
+    optional ``intro`` block; anything it omits falls back to a neutral default,
+    so a non-detective pack is not stuck with detective phrasing.
+    """
+    title = intro.get("title", "当前情况")
+    premise = intro.get("premise", "").strip()
+    facts_header = intro.get("facts_header", "目前已知")
+    goal = intro.get("goal", "你想和这个人谈谈，看看能问出些什么。")
+
+    line = "─" * 72
+    print(line)
+    print(f"  {title} · 第 {view.time_day} 天")
+    print(line)
+
+    # premise (if any) frames the scene first, so the facts below read as
+    # supporting detail rather than a bare list of disconnected values.
+    if premise:
+        print(premise)
+        print()
+
+    if view.visible_facts:
+        print(f"【{facts_header}】")
+        for value in view.visible_facts.values():
+            print(f"  · {value}")
+        print()
+
+    location = world.locations.get(view.current_location)
+    if location is not None:
+        print(f"【你所在的地方】{location.name}")
+        if location.description:
+            print(f"  {location.description}")
+        print()
+
+    npc_world = world.npcs.get(npc_id)
+    name = _display_name(personas.get(npc_id), npc_id)
+    where = ""
+    if npc_world is not None and npc_world.location in world.locations:
+        where = f"（在{world.locations[npc_world.location].name}）"
+    print(f"【眼前的人】{name}{where}")
+    print(f"  {goal}")
+    print(line)
+    print()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Chat with one NPC end to end.")
     parser.add_argument(
@@ -198,6 +268,7 @@ def main() -> int:
         world = load_scenario(args.scenario)
         personas = load_personas(args.scenario)
         seeds = load_seed_memories(args.scenario)
+        intro = load_intro(args.scenario)
     except Exception as exc:
         print(f"无法加载剧本 {args.scenario!r}：{exc}")
         print("用 --list 查看可用剧本。")
@@ -233,6 +304,7 @@ def main() -> int:
     )
     traces = TraceStore(TRACE_DIR)
 
+    render_intro(world, manager.player_view(player_id), personas, npc_id, intro)
     print_header(
         settings, args.scenario, npc_id, player_id, embedder_label, prompt_source, tools.names
     )
@@ -250,7 +322,13 @@ def main() -> int:
             return 0
         if said == "/mem":
             result = memory.retrieve("", top_k=20)
-            print(f"  episodic={memory.episodic_count} semantic={memory.semantic_count}")
+            # Name the owner: memory is per-NPC and private, not a global store.
+            # Each NPC has its own; try --npc npc_b to see a different one.
+            owner = _display_name(npc_state, npc_id)
+            print(
+                f"  【{owner}】的私有记忆  "
+                f"episodic={memory.episodic_count} semantic={memory.semantic_count}"
+            )
             for m in result.episodic:
                 print(f"   - [{m.importance:.2f}] {m.event_description}")
             for m in result.semantic:

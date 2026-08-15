@@ -10,6 +10,21 @@
 world_id: village_disappearance
 time_day: 1
 
+# Presentation-only text for the opening screen. Optional and genre-specific: a
+# pack that omits it gets neutral defaults, so the renderer stays story-agnostic
+# (a detective pack calls it a "调查笔记", a wuxia pack would not). Not world
+# state — purely how the intro reads.
+intro:
+  title: 调查笔记
+  # premise binds the scattered public facts into one readable scene, so the
+  # opening reads as a story rather than a list of disconnected values. Author-
+  # written; optional (a pack without it just shows the facts).
+  # One line on purpose: YAML's '>' folding turns newlines into spaces, which in
+  # Chinese text (no inter-word spaces) would insert stray gaps after punctuation.
+  premise: "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。流言比雨后的雾还散得快，可没人愿意把话说透。作为受托查案的人，你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。"
+  facts_header: 已知线索
+  goal: 你想从她口中问出关于这起失踪案的线索。
+
 locations:
   village_square:
     name: 村庄广场
@@ -29,8 +44,11 @@ locations:
     connected_to: [village_square]
 
 players:
+  # The player starts where the witness is: PlayerView only surfaces NPCs in the
+  # same location, so co-locating them is what makes NPC_A visible on turn one
+  # (docs/04 §PlayerView). Marta hides at home, so the player comes to her door.
   player_1:
-    location: village_square
+    location: npc_a_house
 
 quests:
   investigation:
@@ -39,7 +57,7 @@ quests:
 
 npcs:
   npc_a:
-    location: tavern
+    location: npc_a_house
     faction_id: villagers
   npc_b:
     location: forest_edge

@@ -66,6 +66,21 @@ def list_scenarios() -> list[str]:
     )
 
 
+def load_intro(name_or_path: str | Path) -> dict[str, str]:
+    """A pack's optional opening-screen text, or ``{}`` when it ships none.
+
+    Presentation only, so it is a plain string mapping rather than a schema: the
+    renderer supplies neutral defaults for any absent key. Keeping it out of
+    ``WorldState`` is deliberate — genre-specific labels ("调查笔记") are not world
+    facts and must not leak into the deterministic world layer.
+    """
+    _, raw = _read_pack(name_or_path)
+    intro = raw.get("intro") or {}
+    if not isinstance(intro, dict):
+        raise ScenarioError(f"{name_or_path}: 'intro' must be a mapping if present")
+    return {str(k): str(v) for k, v in intro.items()}
+
+
 def pack_prompts_dir(name_or_path: str | Path) -> Path:
     """Path to a pack's optional ``prompts/`` overlay (may not exist).
 

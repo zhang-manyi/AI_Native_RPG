@@ -43,7 +43,9 @@ class TestReferenceScenario:
 
     def test_player_start_location_is_loaded(self):
         world = load_scenario(SCENARIO)
-        assert world.player_locations["player_1"] == "village_square"
+        # The player starts at NPC_A's house, co-located with the witness, so
+        # PlayerView surfaces her on turn one (see the pack's players: comment).
+        assert world.player_locations["player_1"] == "npc_a_house"
 
 
 class TestValidation:
