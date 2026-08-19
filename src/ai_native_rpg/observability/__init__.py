@@ -3,6 +3,6 @@
 Consumes data the runtime produces; never on the player's critical path.
 """
 
-from .trace_store import TraceStore
+from .trace_store import NarrativeTickStore, TraceStore
 
-__all__ = ["TraceStore"]
+__all__ = ["NarrativeTickStore", "TraceStore"]

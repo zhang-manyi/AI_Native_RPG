@@ -18,6 +18,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
+from ..schemas.common import Condition
 from ..schemas.world_state import (
     ActionProposal,
     ActionValidationResult,
@@ -25,13 +26,17 @@ from ..schemas.world_state import (
     WorldState,
 )
 from .actions import (
+    FORESHADOW_PAYOFF_PATH_PREFIXES,
     KNOWN_ACTION_TYPES,
+    KNOWN_OPERATORS,
+    MAX_CHAPTER_STEP,
     MAX_RELATIONSHIP_STEP,
+    NARRATIVE_ACTION_TYPES,
     RELATIONSHIP_DIMENSIONS,
     SYSTEM_ACTORS,
     ActionType,
 )
-from .conditions import evaluate
+from .conditions import UnknownPathError, evaluate, resolve_path
 
 
 @dataclass(frozen=True)
@@ -202,6 +207,223 @@ def _quest_must_be_advanceable(proposal: ActionProposal, state: WorldState) -> R
     return RuleOutcome.passed()
 
 
+# --- narrative actions -----------------------------------------------------
+# Operators reach the world as ordinary proposals (docs/10 §2.1), so these rules
+# are what keeps "the Engine schedules structure" from becoming "the Engine writes
+# whatever it likes".
+
+#: Payload keys ``advance_story_beat`` can act on. ``spend_one_shot`` is here
+#: because ``reverse`` has no other effect to carry it: it re-reads information the
+#: player already has, so the marker recording that it happened is the entire
+#: write. Routing it through a proposal keeps the Manager's single write path
+#: intact rather than adding a setter that skips validation.
+_BEAT_ADVANCE_KEYS = frozenset({"chapter", "tension", "spend_one_shot"})
+
+
+def _narrative_actions_are_system_only(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """Only the Engine may move narrative state.
+
+    An NPC able to advance the turn counter could age out the pacing cooldowns
+    that exist to constrain it, and one able to plant a foreshadowing could install
+    its own disclosure channel.
+    """
+    if proposal.actor_id in SYSTEM_ACTORS:
+        return RuleOutcome.passed()
+    return RuleOutcome.failed(
+        f"{proposal.action_type} may only be proposed by the narrative engine, "
+        f"not by {proposal.actor_id!r}"
+    )
+
+
+def _operator_must_be_known(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    operator = proposal.payload.get("operator")
+    if operator not in KNOWN_OPERATORS:
+        return RuleOutcome.failed(
+            f"unknown narrative operator {operator!r}; expected one of {sorted(KNOWN_OPERATORS)}"
+        )
+    return RuleOutcome.passed()
+
+
+def _beat_advance_must_change_something(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    # A proposal that validates and writes nothing would report success while
+    # leaving the world untouched — the silent no-op _target_must_be_present
+    # rejects for the same reason.
+    if not _BEAT_ADVANCE_KEYS & set(proposal.payload):
+        return RuleOutcome.failed(
+            f"advance_story_beat requires at least one of {sorted(_BEAT_ADVANCE_KEYS)}, "
+            "but none was given"
+        )
+    return RuleOutcome.passed()
+
+
+def _chapter_advances_monotonically(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """Chapters move forward, one at a time.
+
+    Backwards would un-tell whatever the chapter unlocked; skipping ahead would
+    satisfy every chapter-gated condition in one go. See MAX_CHAPTER_STEP.
+    """
+    if "chapter" not in proposal.payload:
+        return RuleOutcome.passed()
+
+    requested = proposal.payload["chapter"]
+    if isinstance(requested, bool) or not isinstance(requested, int):
+        return RuleOutcome.failed(f"chapter must be an integer, got {requested!r}")
+
+    current = state.story_beats.chapter
+    if not current <= requested <= current + MAX_CHAPTER_STEP:
+        return RuleOutcome.failed(
+            f"chapter may go from {current} to at most {current + MAX_CHAPTER_STEP}, "
+            f"but {requested} was requested"
+        )
+    return RuleOutcome.passed()
+
+
+def _tension_must_be_a_unit_fraction(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    if "tension" not in proposal.payload:
+        return RuleOutcome.passed()
+
+    tension = proposal.payload["tension"]
+    if isinstance(tension, bool) or not isinstance(tension, int | float):
+        return RuleOutcome.failed(f"tension must be numeric, got {tension!r}")
+    if not 0.0 <= float(tension) <= 1.0:
+        return RuleOutcome.failed(f"tension must lie in [0, 1], got {tension}")
+    return RuleOutcome.passed()
+
+
+def _planted_fact_id_must_be_new(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    if proposal.target_id in state.facts:
+        return RuleOutcome.failed(
+            f"fact {proposal.target_id!r} already exists; planting would overwrite it"
+        )
+    return RuleOutcome.passed()
+
+
+def _participants_must_exist(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """Generated content may only name characters the world actually has.
+
+    The gap this closes was found in play: a run planted a detail about a village
+    miller talking to the player, in a scenario whose cast is two NPCs. Every other
+    rule passed — the fact id was new, the condition was checkable — because nothing
+    inspected the names. The invented character then entered the ledger with a payoff
+    condition, owing the player a resolution about someone who does not exist.
+
+    This is docs/10 §5 priority 1 ("never contradict itself"), which the design
+    describes as mostly guaranteed by architecture. It is, but only for what the
+    architecture can see: the single source of truth stops an NPC *misreporting* the
+    world, and says nothing about the Engine adding to its cast.
+
+    Ids and display names are both accepted: the generator is prompted with names
+    (ids leak into prose, and a fact's value can *be* an id), so rejecting names here
+    would reject the very vocabulary the prompt hands out.
+
+    Empty is fine — a beat need not involve anyone.
+    """
+    raw = proposal.payload.get("participants")
+    if not raw:
+        return RuleOutcome.passed()
+    if not isinstance(raw, list):
+        return RuleOutcome.failed("participants must be a list of npc ids or names")
+
+    known = set(state.npcs) | {npc.display_name for npc in state.npcs.values()}
+    unknown = [str(p) for p in raw if str(p) not in known]
+    if unknown:
+        return RuleOutcome.failed(
+            f"participants name characters absent from the world: {unknown}; "
+            f"the cast is {sorted(npc.display_name for npc in state.npcs.values())}"
+        )
+    return RuleOutcome.passed()
+
+
+def _parse_payoff_condition(proposal: ActionProposal) -> Condition | None:
+    raw = proposal.payload.get("payoff_condition")
+    if raw is None:
+        return None
+    if isinstance(raw, Condition):
+        return raw
+    try:
+        return Condition.model_validate(raw)
+    except Exception:
+        return None
+
+
+def _payoff_condition_must_be_checkable(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """The generated condition must be one the ledger can actually evaluate.
+
+    This is the Validator half of "the LLM writes the loop, the Validator gates
+    it". Three ways a generated condition fails to be a loop at all: it is empty
+    (``evaluate`` fails closed, so it would never come due), it addresses something
+    that does not exist, or it reads a channel the player cannot influence.
+    """
+    condition = _parse_payoff_condition(proposal)
+    if condition is None:
+        return RuleOutcome.failed(
+            "plant_foreshadowing requires a structured payoff_condition "
+            "({mode, clauses:[{path, op, value}]})"
+        )
+    if not condition.clauses:
+        return RuleOutcome.failed(
+            "payoff_condition has no clauses, so it would never come due "
+            "(an empty condition evaluates False)"
+        )
+
+    for clause in condition.clauses:
+        if not clause.path.startswith(FORESHADOW_PAYOFF_PATH_PREFIXES):
+            return RuleOutcome.failed(
+                f"payoff_condition path {clause.path!r} is not a channel a foreshadowing may "
+                f"wait on; use one of {list(FORESHADOW_PAYOFF_PATH_PREFIXES)}"
+            )
+        try:
+            resolve_path(state, clause.path)
+        except UnknownPathError as exc:
+            return RuleOutcome.failed(
+                f"payoff_condition path {clause.path!r} cannot be resolved, so the ledger "
+                f"could never check it: {exc}"
+            )
+    return RuleOutcome.passed()
+
+
+def _foreshadowing_must_not_be_due_yet(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """A loop that is already satisfied is not a loop.
+
+    Planting one would register a debt and immediately be payable, producing a
+    payoff rate that looks perfect while nothing was ever actually withheld.
+    """
+    condition = _parse_payoff_condition(proposal)
+    if condition is None:  # reported by _payoff_condition_must_be_checkable
+        return RuleOutcome.passed()
+    try:
+        already_due = evaluate(condition, state)
+    except (UnknownPathError, TypeError, ValueError):
+        # Also reported by the checkability rule, which runs first.
+        return RuleOutcome.passed()
+    if already_due:
+        return RuleOutcome.failed(
+            "payoff_condition already holds, so this foreshadowing would be due the moment "
+            "it is planted; pick a threshold the player has yet to reach"
+        )
+    return RuleOutcome.passed()
+
+
+def _payoff_target_must_be_open(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    if proposal.target_id not in state.story_beats.open_foreshadowings:
+        return RuleOutcome.failed(f"no open foreshadowing {proposal.target_id!r} to pay off")
+    return RuleOutcome.passed()
+
+
+def _payoff_must_be_due(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """Settling early would claim a payoff the player has not reached.
+
+    Uses the same evaluator as PlayerView, so "the ledger says settled" and "the
+    player can see it" cannot disagree.
+    """
+    entry = state.story_beats.open_foreshadowings[proposal.target_id]  # guarded above
+    if not evaluate(entry.payoff_condition, state):
+        return RuleOutcome.failed(
+            f"foreshadowing {proposal.target_id!r} is not due yet: its payoff condition is unmet"
+        )
+    return RuleOutcome.passed()
+
+
 DEFAULT_RULES: tuple[Rule, ...] = (
     Rule("action_type_must_be_known", _action_type_is_known),
     Rule("actor_must_exist", _actor_must_exist),
@@ -217,6 +439,11 @@ DEFAULT_RULES: tuple[Rule, ...] = (
                 ActionType.ADJUST_RELATIONSHIP.value,
                 ActionType.MOVE.value,
                 ActionType.ADVANCE_QUEST.value,
+                # The two narrative actions that name a fact id. advance_turn and
+                # advance_story_beat carry their whole request in the payload, so
+                # they legitimately have no target.
+                ActionType.PLANT_FORESHADOWING.value,
+                ActionType.PAY_OFF_FORESHADOWING.value,
             }
         ),
     ),
@@ -250,6 +477,64 @@ DEFAULT_RULES: tuple[Rule, ...] = (
         "quest_must_be_advanceable",
         _quest_must_be_advanceable,
         frozenset({ActionType.ADVANCE_QUEST.value}),
+    ),
+    # Narrative actions. The system-only check comes first so that the reported
+    # reason for an NPC's attempt is "you may not do this" rather than a detail of
+    # a payload it should not have been submitting at all.
+    Rule(
+        "narrative_actions_are_system_only",
+        _narrative_actions_are_system_only,
+        NARRATIVE_ACTION_TYPES,
+    ),
+    Rule(
+        "operator_must_be_known",
+        _operator_must_be_known,
+        frozenset({ActionType.ADVANCE_TURN.value}),
+    ),
+    Rule(
+        "beat_advance_must_change_something",
+        _beat_advance_must_change_something,
+        frozenset({ActionType.ADVANCE_STORY_BEAT.value}),
+    ),
+    Rule(
+        "chapter_advances_monotonically",
+        _chapter_advances_monotonically,
+        frozenset({ActionType.ADVANCE_STORY_BEAT.value}),
+    ),
+    Rule(
+        "tension_must_be_a_unit_fraction",
+        _tension_must_be_a_unit_fraction,
+        frozenset({ActionType.ADVANCE_STORY_BEAT.value}),
+    ),
+    Rule(
+        "planted_fact_id_must_be_new",
+        _planted_fact_id_must_be_new,
+        frozenset({ActionType.PLANT_FORESHADOWING.value}),
+    ),
+    Rule(
+        "participants_must_exist",
+        _participants_must_exist,
+        frozenset({ActionType.PLANT_FORESHADOWING.value}),
+    ),
+    Rule(
+        "payoff_condition_must_be_checkable",
+        _payoff_condition_must_be_checkable,
+        frozenset({ActionType.PLANT_FORESHADOWING.value}),
+    ),
+    Rule(
+        "foreshadowing_must_not_be_due_yet",
+        _foreshadowing_must_not_be_due_yet,
+        frozenset({ActionType.PLANT_FORESHADOWING.value}),
+    ),
+    Rule(
+        "payoff_target_must_be_open",
+        _payoff_target_must_be_open,
+        frozenset({ActionType.PAY_OFF_FORESHADOWING.value}),
+    ),
+    Rule(
+        "payoff_must_be_due",
+        _payoff_must_be_due,
+        frozenset({ActionType.PAY_OFF_FORESHADOWING.value}),
     ),
 )
 

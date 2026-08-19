@@ -131,12 +131,22 @@ class Harness:
         self._max_tool_iterations = max_tool_iterations
 
     def respond(
-        self, observation: str, *, player_id: str, session_id: str | None = None
+        self,
+        observation: str,
+        *,
+        player_id: str,
+        session_id: str | None = None,
+        narrative_event: dict[str, Any] | None = None,
     ) -> tuple[NPCAgentResponse, AgentTrace]:
         """Handle one player utterance. Returns the response and its trace.
 
         Persisting the trace is the caller's job (fire-and-forget, off the player's
         critical path per docs/07 §2.1); the Harness only builds it.
+
+        ``narrative_event`` is structured content the Narrative Engine generated
+        after the previous turn (``NarrativeEngine.take_pending_event``). It is
+        material for this turn's line, not a script: the NPC still decides in
+        character whether and how to use it.
         """
         npc_id = self._npc.npc_id
         session_id = session_id or uuid.uuid4().hex
@@ -145,14 +155,16 @@ class Harness:
 
         retrieval = self._retrieve(observation, npc_id, player_id, steps)
 
-        planning = self._plan(observation, retrieval, steps, player_id)
+        planning = self._plan(observation, retrieval, steps, player_id, narrative_event)
 
         if planning.action is None:
             plan = AgentPlan(reasoning=planning.reasoning, strategy=planning.strategy)
             dialogue = planning.dialogue
             action_proposal_id = None
         else:
-            plan, dialogue, action_proposal_id = self._act_and_regenerate(planning, npc_id, steps)
+            plan, dialogue, action_proposal_id = self._act_and_regenerate(
+                planning, npc_id, steps, narrative_event
+            )
 
         self._reflect(observation, dialogue, npc_id, steps)
 
@@ -215,6 +227,7 @@ class Harness:
         retrieval: MemoryRetrievalResult,
         steps: list[TraceStep],
         player_id: str,
+        narrative_event: dict[str, Any] | None = None,
     ) -> PlanningOutput:
         """LLM call #1, wrapped in the tool-use loop.
 
@@ -223,7 +236,7 @@ class Harness:
         on the last iteration tools are withheld, which forces an answer instead of
         another request (docs/06 §4).
         """
-        messages = self._planning_messages(observation, retrieval, player_id)
+        messages = self._planning_messages(observation, retrieval, player_id, narrative_event)
         tool_specs = self._tools.specs() if self._tools is not None else None
 
         for iteration in range(self._max_tool_iterations + 1):
@@ -291,7 +304,11 @@ class Harness:
         return Message(role="tool", content=content, tool_call_id=call.id)
 
     def _act_and_regenerate(
-        self, planning: PlanningOutput, npc_id: str, steps: list[TraceStep]
+        self,
+        planning: PlanningOutput,
+        npc_id: str,
+        steps: list[TraceStep],
+        narrative_event: dict[str, Any] | None = None,
     ) -> tuple[AgentPlan, str, str | None]:
         assert planning.action is not None
         proposal = ActionProposal(
@@ -327,7 +344,7 @@ class Harness:
         # an approved reveal must now voice the fact, a rejected one must deflect
         # without leaking it. docs/02 §4.1.
         start = time.perf_counter()
-        messages = self._dialogue_messages(plan, result.reason)
+        messages = self._dialogue_messages(plan, result.reason, narrative_event)
         resp = self._llm.complete(messages, schema=DialogueOutput)
         dialogue_out: DialogueOutput = resp.parsed  # type: ignore[assignment]
         steps.append(
@@ -388,16 +405,26 @@ class Harness:
     # --- prompt assembly ---------------------------------------------------
 
     def _planning_messages(
-        self, observation: str, retrieval: MemoryRetrievalResult, player_id: str
+        self,
+        observation: str,
+        retrieval: MemoryRetrievalResult,
+        player_id: str,
+        narrative_event: dict[str, Any] | None = None,
     ) -> list[Message]:
         system = self._prompts.load("npc_planning.txt")
         context = self._context_block(retrieval, player_id)
+        beat = self._narrative_block(narrative_event)
         return [
             Message(role="system", content=f"{system}\n\n{self._persona_block()}"),
-            Message(role="user", content=f"{context}\n\n玩家说：{observation}"),
+            Message(role="user", content=f"{context}{beat}\n\n玩家说：{observation}"),
         ]
 
-    def _dialogue_messages(self, plan: AgentPlan, validation_reason: str | None) -> list[Message]:
+    def _dialogue_messages(
+        self,
+        plan: AgentPlan,
+        validation_reason: str | None,
+        narrative_event: dict[str, Any] | None = None,
+    ) -> list[Message]:
         system = self._prompts.load("npc_dialogue.txt")
         verdict = validation_reason or "（无被拒约束）"
         return [
@@ -405,10 +432,35 @@ class Harness:
             Message(
                 role="user",
                 content=(
-                    f"你的计划：{plan.reasoning}（策略：{plan.strategy}）\n校验结果：{verdict}"
+                    f"你的计划：{plan.reasoning}（策略：{plan.strategy}）\n"
+                    f"校验结果：{verdict}{self._narrative_block(narrative_event)}"
                 ),
             ),
         ]
+
+    @staticmethod
+    def _narrative_block(narrative_event: dict[str, Any] | None) -> str:
+        """Render pending narrative content, or nothing at all.
+
+        Only ``dialogue_hook`` is passed on. The other keys are for developers or
+        for the world: ``summary`` describes the beat from outside (handing it over
+        invites the NPC to narrate the beat rather than play it), and a
+        ``planted_*`` value is hidden world state that reaches the player through
+        the condition table when it comes due — putting it here would place a fact
+        in the NPC's context that the world says is not yet knowable.
+
+        An absent or empty event renders as ``""`` rather than an empty section: a
+        heading with nothing under it is something the model tries to account for.
+        """
+        hook = (narrative_event or {}).get("dialogue_hook")
+        if not hook:
+            return ""
+        return (
+            "\n\n【本回合的剧情铺垫】\n"
+            f"{hook}\n"
+            "这是这一场戏可以带到的一个点。用不用、怎么用由你这个人物决定，"
+            "不要照抄，也不要为了用它而跳出人设。"
+        )
 
     def _persona_block(self) -> str:
         persona = self._npc.persona

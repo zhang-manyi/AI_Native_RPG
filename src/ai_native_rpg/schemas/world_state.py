@@ -10,6 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from .common import Condition, utc_now
+from .narrative import StoryBeats
 
 
 class Visibility(str, Enum):
@@ -45,9 +46,21 @@ class NPCWorldState(BaseModel):
     """
 
     npc_id: str
+    name: str = Field(
+        default="",
+        description="public display name, e.g. '玛尔塔'. Objective and externally "
+        "observable, exactly like Location.name — anyone in the village knows what "
+        "the midwife is called. Distinct from persona.background, which opens with "
+        "the same name but continues into things the player has not earned. Blank "
+        "falls back to npc_id.",
+    )
     alive: bool = True
     location: str
     faction_id: str | None = None
+
+    @property
+    def display_name(self) -> str:
+        return self.name or self.npc_id
 
 
 class RelationshipState(BaseModel):
@@ -108,6 +121,12 @@ class WorldState(BaseModel):
 
     player_locations: dict[str, str] = Field(
         default_factory=dict, description="player_id -> location_id"
+    )
+
+    story_beats: StoryBeats = Field(
+        default_factory=StoryBeats,
+        description="narrative progress; the only thing the Narrative Engine may advance "
+        "(docs/04 §3.3). Defaulted so that worlds saved before slice 3 still load.",
     )
 
     last_updated: datetime = Field(default_factory=utc_now)

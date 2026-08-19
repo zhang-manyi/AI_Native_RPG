@@ -1,8 +1,11 @@
 # Scenario pack: the village disappearance case (docs/09_Reference_Scenario.md).
 #
 # Static story setup lives here, not in code. Three-layer split:
-#   1. this file          — locations, NPCs, initial facts/visibility/trust, quests
-#   2. narrative rules    — Python, src/ai_native_rpg/narrative/rules.py
+#   1. this file          — locations, NPCs, initial facts/visibility/trust, quests,
+#                           plus the `narrative:` block below (what to pace, what to
+#                           withhold, which language to write in)
+#   2. narrative rules    — Python, src/ai_native_rpg/narrative/rules.py: structure
+#                           only ("no two reveals in a row"), never this story's names
 #   3. runtime generation — LLM output via the Narrative Engine
 #
 # Swapping the story means swapping this directory, with no code change.
@@ -55,11 +58,16 @@ quests:
     stage: 0
     status: active
 
+# `name` is the public label, known to anyone in the village. It is what the
+# narrative generator is given to write with — ids like npc_a would otherwise leak
+# into generated prose.
 npcs:
   npc_a:
+    name: 玛尔塔
     location: npc_a_house
     faction_id: villagers
   npc_b:
+    name: 洛伦
     location: forest_edge
     faction_id: villagers
 
@@ -150,6 +158,33 @@ npc_seed_memories:
         fact: 主动配合搜寻比躲着不出面更不容易被怀疑
         confidence: 0.9
 
+# What the narrative operators work on in *this* story. The rules in
+# narrative/rules.py decide pacing and read this for content, so the engine never
+# needs to know a fact id or speak a word of Chinese. A translated pack changes
+# only this block.
+narrative:
+  # Language the generator writes in. Without it a model will occasionally answer
+  # in English mid-Chinese-scenario — it has no way to know which is intended.
+  language: 中文
+
+  # Clues whose *telling* is paced, in narrative order. `constraint` is what must
+  # not be said while the clue is still being withheld — the explicit prohibition
+  # of docs/10 §2.3, which is more reliable than hoping the model infers it.
+  paced_clues:
+    - fact_id: clue_1_witness
+      constraint: 不要说出你看见的那个人是谁，只说你看见了有人
+    - fact_id: clue_2_identity
+      constraint: 不要提任何人的名字，只描述身形和走路的样子
+
+  # The fact whose disclosure re-reads everything before it (docs/10 §5 priority 2):
+  # once the threat is known, Marta's evasions stop reading as shielding a killer.
+  reversal_fact: npc_a_threatened
+
+  # Hold for every generated scene, whatever the operator.
+  universal_constraints:
+    - 不要写出任何角色的内心独白，只写外部可观察的事
+    - 不要替玩家决定他做了什么或想什么
+
 factions:
   villagers:
     power: 0.4
@@ -215,6 +250,23 @@ facts:
         - path: quests.investigation.stage
           op: gte
           value: 3
+
+  # --- the escalate channel (docs/10 §3.2) ---
+  # Gated on story_beats.tension, which only `escalate` moves. This is docs/04 §3.3
+  # in miniature: the Engine raises tension and the condition table decides what
+  # that unlocks, so the Engine never knows it revealed this. Note the clue chain
+  # above has no tension clause, so escalating can never leak the witness or the
+  # killer — an author has to open each channel deliberately.
+  npc_b_aware_of_investigation:
+    value: 洛伦已经知道有人在村里打听那天晚上的事
+    visibility: hidden
+    partial_value: 你走过村道时，有种被人留意着的感觉
+    reveal_condition:
+      mode: any
+      clauses:
+        - path: story_beats.tension
+          op: gte
+          value: 0.6
 
   # --- NPC_A's motive: why she is afraid to talk ---
   npc_a_threatened:

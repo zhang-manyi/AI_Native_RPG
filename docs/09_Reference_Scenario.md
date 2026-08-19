@@ -57,13 +57,43 @@
 |---|---|---|---|
 | 1 | 完成 | World State（完成）+ 1 个 NPC + mock LLM + Trace 落盘 | 玩家问一句话拿到一句回复，Trace 可查 |
 | 2 | 完成 | 真实 LLM + embedding 记忆检索 + Tool Use | NPC 会查关系值/世界事实再回答 |
-| 3 | 未开始 | Narrative Engine + 算子 + 伏笔账本 + `StoryBeats` | 线索按节奏逐步解锁，伏笔有回收 |
+| 3 | 完成 | Narrative Engine + 算子 + 伏笔账本 + `StoryBeats` | 线索按节奏逐步解锁，伏笔有回收 |
 | 4 | 未开始 | Player Model 影响披露方式 + 调试面板 | 两种玩法风格拿到不同的线索呈现 |
 | 5 | 未开始 | Eval 脚本 + 数据回流一轮 | 改 prompt 前后的指标对比 |
 
-**下一步从这里继续**：切片 3 —— Narrative Engine + 叙事算子 + 伏笔账本 + `StoryBeats`（见 [05_Narrative_Engine.md](./05_Narrative_Engine.md) 与 [10_Narrative_Operators.md](./10_Narrative_Operators.md)）。切片 1-2 已就绪的挂点：`Harness.respond()` 走完 Memory 检索 → Tool Use → Planning → Validator → Dialogue → Reflection 并产出 `AgentTrace`；`DeepSeekClient` / `MockLLMClient` 同实现 `LLMClient` Protocol，`USE_MOCK_LLM` 或 `--mock` 切换；`WorldStateManager.player_view()` / `dry_run()` / `submit()` / `get_relationship()` 提供确定性世界层；`scripts/chat_demo.py` 可手动跑一轮真实对话。
+**下一步从这里继续**：切片 4 的调试面板那一半，做成 Web 界面替代 `scripts/chat_demo.py`（设计见 [12_Web_Interface.md](./12_Web_Interface.md)，待写；面板内容契约见 [07 §2.3](./07_Observability.md#23-narrative-state-panel叙事状态面板)）。**叙事 tick 的异步化在这一步一并解决**——理由和并发约束见 §4 末尾的实测延迟表。Player Model 那一半（Behavior Tracker 写入 `PlayerProfile`）随后再做，它不依赖 Web。
 
-切片 2 的实测结论（2026-08-09，`deepseek-v4-flash`）：无 Action 回合 1 次调用约 4s、2100 tokens；有 Action 回合 2 次调用约 7.4s、3200 tokens。都在 [02 §5](./02_Sequence_Diagram.md) 的延迟预算内（p50 1.5-3s 偏高一点，p95 4s 达标），暂不需要 Model Router。
+切片 1-3 已就绪的挂点：
+
+- `Harness.respond(observation, player_id=..., narrative_event=...)` 走完 Memory 检索 → Tool Use → Planning → Validator → Dialogue → Reflection 并产出 `AgentTrace`；`narrative_event` 注入 planning 与 dialogue 两个 prompt（无 action 的快路径只有第 1 次调用，只注入 dialogue 会在这类回合整个丢掉铺垫）。
+- `NarrativeEngine.tick(player_id=..., profile=None)` 走完 `check_triggers()` → `select_candidate()` → `generate_content()` → Action Proposal，产出 `NarrativeTick`；候选为空时**零 LLM 调用**。生成内容存为 `pending_event`，由下一回合 `take_pending_event()` 取走——叙事生成因此永远不在玩家等待的路径上（[02 §4](./02_Sequence_Diagram.md)）。
+- `PlayerProfile`（`schemas/narrative.py`）已定义且被 `select_candidate()` 消费，但**还没有写入方**：`profile=None` 时全部偏好按 0.5 中性处理。切片 4 补 Behavior Tracker 即可接上，`weight_for()` 是唯一接口。
+- `WorldStateManager.player_view()` / `dry_run()` / `submit()` / `get_relationship()` 提供确定性世界层；`WorldState.story_beats` 承载叙事进度，`story_beats.chapter` / `.tension` 是合法 condition path。
+- `scripts/chat_demo.py` 可手动跑真实对话，`/beats` `/ledger` `/unlock` 三个命令对应 [07 §2.3](./07_Observability.md#23-narrative-state-panel叙事状态面板) 的前三块面板内容——切片 4 的可视化页面可以直接照这三个渲染函数搬。
+- `OpenAICompatibleClient` / `MockLLMClient` 同实现 `LLMClient` Protocol，`USE_MOCK_LLM` 或 `--mock` 切换。前者走通用 OpenAI 兼容 `chat/completions`，`LLM_PROVIDER=deepseek|openai` 选一组 `*_API_KEY` / `*_BASE_URL` / `*_MODEL`（表在 `config._PROVIDERS`）。换 provider 是配置项而非第二个实现，这是当初不用 vendor SDK 换来的。
+- 剧本包已承载叙事内容：`world.yaml` 的 `narrative:` 块给出 `language` / `paced_clues`（fact_id + 该线索被压着时的禁止项）/ `reversal_fact` / `universal_constraints`，由 `load_narrative_directives()` 读出并在加载时做交叉引用校验。`rules.py` 因此不含任何具体 fact id 或中文字符串——**结构留在 Python，内容属于剧本**。省掉 `directives` 参数的调用方会退化成「什么都不铺垫」，不会继承别的剧本的 fact id。
+- `NPCWorldState.name` 是公开显示名（`玛尔塔` / `洛伦`），与 `Location.name` 同性质的客观事实。叙事生成 prompt 只给名字不给 id：id 会漏进生成的散文，而且 fact 的值本身可能就是一个 id（本场景 `killer_identity` 的值是 `npc_b`），按 id 列出场名单等于把未披露的值写进 prompt。
+
+切片 3 实现时发现、值得记住的四件事：
+
+**张力上限必须随 `quests.investigation.stage` 抬升**（`rules.py` 的 `_TENSION_CEILING_BY_STAGE`）。最初用一个常量阈值，结果 `escalate` 一旦把张力顶过常量就不再触发，张力永久停在略高于常量处——任何以更高张力为条件的 fact 就成了永远解锁不了的死内容。这类错误剧本加载器抓不到：它校验 `path` 能否解析，不校验阈值能否达到。
+
+**同时可以有几条伏笔未回收，不是一条。** 最初的上限是「同时 1 条 + 一局总配额 2」，理由是防止欠下还不清的债。但账本变长恰恰是账本该显示的东西（`is_overdue` 就是为此存在），用「不许欠第二笔」来保证「不会欠太多笔」，是把温度计当空调用。推理类型的标准做法是多条线索指向一个结论——Justin Alexander 的 Three Clue Rule 从故障率立论：一条线索承担一个结论就是个 chokepoint，而这里最后一环是 LLM 愿不愿意把 hook 用出来，比桌面上的检定更不可靠。现在是 `MAX_OPEN_FORESHADOWINGS = 3` 作失控保护 + `FORESHADOW_SPACING` 不许连着两回合埋（后者顺带防住「回收清空账本后立刻又提供埋点、模型复用刚用掉的 id 白烧一次调用」，那才是原配额真正在防的事）。
+
+**生成内容必须校验它提到的人存在。** 一次真实对局里模型埋了一条关于「磨坊主」的伏笔——剧本只有两个 NPC，没有磨坊主。其他规则全过：fact id 是新的、条件可求值，因为没有任何规则看名字。凭空的角色于是进了账本，欠玩家一个关于不存在的人的回收。这是 [10 §5](./10_Narrative_Operators.md#5-结构质量优先级) 优先级 1「不自相矛盾」的一个缺口：架构保证的是 NPC 不会误报世界，管不了 Engine 给自己加演员。现在由 `participants_must_exist` 拦下，id 和显示名都接受。根因有两层，prompt 不给出场名单是另一层——模型无法遵守一个没人描述过的边界。
+
+**`pending_event` 必须跟着「这个 beat 到底发生了吗」一起判定。** 生成先于 Validator 裁决，所以被拒的 beat 手上仍握着一句 hook。原先只用这个判断决定要不要记 cooldown，结果一个记成 `relieve` 的回合照样把 hook 交给下一回合，NPC 于是去铺垫一件没发生的事——伏笔的话还是一条永远不会被回收的坑，正是账本要防的失败从后门进来。
+
+实测延迟（[02 §5](./02_Sequence_Diagram.md) 预算：p50 1.5-3s，p95 4s）：
+
+| 链路 | 时间 | tokens | 备注 |
+|---|---|---|---|
+| 对话，无 Action | ~4s / 1 次调用 | 2100 | 2026-08-09，`deepseek-v4-flash` |
+| 对话，有 Action | ~7.4s / 2 次调用 | 3200 | 同上 |
+| 叙事生成，压短前 | **50s** | completion 1675 | `deepseek-v4-flash`。不是推理开销（`token_usage` 无 `reasoning_tokens`），是输出真有那么长 |
+| 叙事生成，压短后 | **8.7s** | completion 356 | `gpt-5.6-sol`。prompt 明确「直接给 JSON、不写推导过程」+ 各字段字数上限 + 收紧 `GeneratedContent` 的 Field description（它作为 JSON Schema 进请求，是指令的另一半） |
+
+叙事生成这一类调用不在原预算里，且仍超预算。**架构上它已经不在玩家等待路径上**（生成存 `pending_event`，下一回合才用），但 `chat_demo.py` 是同步调用，所以那几秒实际全压在玩家身上。终端版故意不做异步——留给 Web 界面一次做对，见 [12](./12_Web_Interface.md)（待写）。注意 `WorldStateManager` 不是线程安全的，而 tick 每轮至少写一次 `advance_turn`。
 
 ## 5. 测试策略
 

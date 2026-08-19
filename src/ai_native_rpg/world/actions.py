@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from enum import Enum
 
+from ..schemas.narrative import NarrativeOperator
+
 #: Actors that may propose actions without existing as NPCs in the world.
 SYSTEM_ACTORS = frozenset({"narrative_engine", "system"})
 
@@ -21,11 +23,56 @@ RELATIONSHIP_DIMENSIONS = frozenset({"trust", "fear", "respect"})
 MAX_RELATIONSHIP_STEP = 15.0
 
 
+#: Operator names ``advance_turn`` accepts. Shared with the schema so the two
+#: vocabularies cannot drift.
+KNOWN_OPERATORS = frozenset(op.value for op in NarrativeOperator)
+
+#: Condition paths a *generated* ``payoff_condition`` may read.
+#:
+#: Resolvability alone is too weak a gate. ``time_day`` resolves cleanly and would
+#: let a loop pay off by merely waiting, with no player involvement; a path into
+#: ``facts.*`` would let the model gate one secret on another. These three are the
+#: channels the reference scenario actually earns progress through: what the player
+#: built with an NPC, how far the investigation got, and where the plot stands.
+#: Author-written conditions in a scenario pack are not restricted this way — an
+#: author can be trusted with the whole state; a generator cannot.
+FORESHADOW_PAYOFF_PATH_PREFIXES = ("relationships.", "quests.", "story_beats.")
+
+
 class ActionType(str, Enum):
     REVEAL_FACT = "reveal_fact"
     ADJUST_RELATIONSHIP = "adjust_relationship"
     MOVE = "move"
     ADVANCE_QUEST = "advance_quest"
+
+    # --- narrative actions (slice 3) ---------------------------------------
+    # An operator is "a set of Action Proposals" (docs/10 §2.1), so operators reach
+    # the world through these rather than through a new permission mechanism.
+    # System actors only: an NPC that could advance the turn counter would be able
+    # to age out the pacing cooldowns that constrain it.
+    ADVANCE_TURN = "advance_turn"
+    ADVANCE_STORY_BEAT = "advance_story_beat"
+    PLANT_FORESHADOWING = "plant_foreshadowing"
+    PAY_OFF_FORESHADOWING = "pay_off_foreshadowing"
+
+
+#: Actions only ``SYSTEM_ACTORS`` may propose.
+NARRATIVE_ACTION_TYPES = frozenset(
+    {
+        ActionType.ADVANCE_TURN.value,
+        ActionType.ADVANCE_STORY_BEAT.value,
+        ActionType.PLANT_FORESHADOWING.value,
+        ActionType.PAY_OFF_FORESHADOWING.value,
+    }
+)
+
+#: Largest chapter jump a single proposal may make.
+#:
+#: Same reasoning as ``MAX_RELATIONSHIP_STEP``. Chapters are a disclosure channel
+#: (docs/04 §3.3): a jump from 1 to 9 would satisfy every chapter-gated condition
+#: at once, disabling pacing in one approved proposal. Advancing repeatedly across
+#: turns is still allowed.
+MAX_CHAPTER_STEP = 1
 
 
 #: No action type bypasses ``reveal_condition`` — not even for system actors.

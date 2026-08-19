@@ -13,33 +13,83 @@ that scheduling decision to the caller.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING, Generic, TypeVar
+
+from pydantic import BaseModel
 
 from ..schemas.agent_trace import AgentTrace
 
+if TYPE_CHECKING:
+    from ..narrative.engine import NarrativeTick
 
-class TraceStore:
-    """Reads and writes ``AgentTrace`` records as JSON files, one per trace."""
+#: Older TypeVar syntax rather than PEP 695 (``class Store[T: BaseModel]``):
+#: pyproject declares ``requires-python = ">=3.11"`` and type parameter lists are
+#: 3.12+.
+RecordT = TypeVar("RecordT", bound=BaseModel)
 
-    def __init__(self, root: str | Path) -> None:
+
+class _JsonRecordStore(Generic[RecordT]):
+    """One JSON file per record, written atomically.
+
+    Shared by the agent-trace and narrative-tick stores: both want the same
+    durability property (a crash mid-write must not leave a half-written file that
+    later fails to parse) and neither wants a database at this scale.
+    """
+
+    def __init__(self, root: str | Path, model: type[RecordT], id_field: str) -> None:
         self._root = Path(root)
+        self._model = model
+        self._id_field = id_field
 
-    def _path(self, trace_id: str) -> Path:
-        return self._root / f"{trace_id}.json"
+    def _path(self, record_id: str) -> Path:
+        return self._root / f"{record_id}.json"
 
-    def save(self, trace: AgentTrace) -> Path:
-        """Persist a trace atomically and return the path it was written to."""
+    def save(self, record: RecordT) -> Path:
+        """Persist a record atomically and return the path it was written to."""
         self._root.mkdir(parents=True, exist_ok=True)
-        path = self._path(trace.trace_id)
+        path = self._path(getattr(record, self._id_field))
         tmp = path.with_suffix(path.suffix + ".tmp")
-        tmp.write_text(trace.model_dump_json(indent=2), encoding="utf-8")
+        tmp.write_text(record.model_dump_json(indent=2), encoding="utf-8")
         tmp.replace(path)
         return path
 
-    def load(self, trace_id: str) -> AgentTrace:
-        path = self._path(trace_id)
-        return AgentTrace.model_validate_json(path.read_text(encoding="utf-8"))
+    def load(self, record_id: str) -> RecordT:
+        return self._model.model_validate_json(self._path(record_id).read_text(encoding="utf-8"))
 
-    def list_trace_ids(self) -> list[str]:
+    def _ids(self) -> list[str]:
         if not self._root.is_dir():
             return []
         return sorted(p.stem for p in self._root.glob("*.json"))
+
+
+class TraceStore(_JsonRecordStore[AgentTrace]):
+    """Reads and writes ``AgentTrace`` records as JSON files, one per trace."""
+
+    def __init__(self, root: str | Path) -> None:
+        super().__init__(root, AgentTrace, "trace_id")
+
+    def list_trace_ids(self) -> list[str]:
+        return self._ids()
+
+
+class NarrativeTickStore(_JsonRecordStore["NarrativeTick"]):
+    """Reads and writes ``NarrativeTick`` records (docs/07 §2.3).
+
+    Separate from ``TraceStore`` rather than a subtype of one record kind: a tick is
+    not an agent turn, and the narrative panel reads a different question ("what
+    shape is the story in") than the Trace Viewer does ("how did this NPC decide").
+    Keeping them in separate directories means either can be cleared alone.
+    """
+
+    def __init__(self, root: str | Path) -> None:
+        # Imported here, not at module scope: ``narrative.engine`` imports the
+        # Harness, which would make this a cycle at import time.
+        from ..narrative.engine import NarrativeTick
+
+        super().__init__(root, NarrativeTick, "tick_id")
+
+    def load(self, record_id: str) -> NarrativeTick:
+        return super().load(record_id)
+
+    def list_tick_ids(self) -> list[str]:
+        return self._ids()

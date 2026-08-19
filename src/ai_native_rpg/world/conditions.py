@@ -98,6 +98,21 @@ def evaluate_clause(clause: ConditionClause, state: WorldState) -> bool:
     return _compare(resolve_path(state, clause.path), clause.op, clause.value)
 
 
+def clause_holds_for(actual: Any, clause: ConditionClause) -> bool:
+    """Whether ``actual`` satisfies ``clause``, reporting False instead of raising.
+
+    The loud-failure stance above is right for gameplay: a silent False becomes a
+    clue that never unlocks with nothing in the logs. It is wrong for the unlock
+    progress board, which shows every gated fact at once — there, one malformed
+    clause raising would hide the twenty well-formed rows around it. So the
+    tolerant variant is separate and named, rather than a flag on the strict path.
+    """
+    try:
+        return _compare(actual, clause.op, clause.value)
+    except (TypeError, ValueError):
+        return False
+
+
 def evaluate(condition: Condition, state: WorldState) -> bool:
     """Evaluate a condition. An empty clause list is always False.
 

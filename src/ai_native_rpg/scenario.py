@@ -81,6 +81,86 @@ def load_intro(name_or_path: str | Path) -> dict[str, str]:
     return {str(k): str(v) for k, v in intro.items()}
 
 
+class PacedClue(BaseModel):
+    """A fact whose *telling* the operators pace, and what to withhold until then.
+
+    The constraint is prose aimed at the generator, so it belongs to the story
+    rather than the engine. It lived in ``rules.py`` as a Chinese string literal,
+    which made the engine carry one scenario's wording — an English pack would have
+    received Chinese prohibitions from framework code it never edited.
+    """
+
+    fact_id: str
+    constraint: str = Field(
+        default="",
+        description="what may not be said while this clue is still being withheld",
+    )
+
+
+class NarrativeDirectives(BaseModel):
+    """Per-pack narrative content: what to pace, what reverses, how to write.
+
+    Everything here is authored material the trigger rules *read*; the rules
+    themselves stay in Python (docs/05 §6). The split is deliberate: which facts
+    exist and what may not be said about them is story, while "no two reveals in a
+    row" is structure.
+    """
+
+    language: str = Field(
+        default="",
+        description="language the generator must write in, e.g. '中文' or 'English'. Blank "
+        "leaves the shared prompt's default. Declared per pack because a translated "
+        "pack should need no code change.",
+    )
+    paced_clues: list[PacedClue] = Field(
+        default_factory=list,
+        description="clues to reveal on a schedule, in narrative order",
+    )
+    reversal_fact: str | None = Field(
+        default=None,
+        description="fact whose disclosure re-reads everything before it (docs/10 §5)",
+    )
+    universal_constraints: list[str] = Field(
+        default_factory=list,
+        description="prohibitions that hold for every generated scene in this pack",
+    )
+
+
+def load_narrative_directives(name_or_path: str | Path) -> NarrativeDirectives:
+    """A pack's ``narrative:`` block, or empty defaults when it ships none.
+
+    Absence is valid: a pack with no paced clues simply gets no reveal candidates,
+    and the engine still runs its other operators.
+    """
+    world_file, raw = _read_pack(name_or_path)
+    block = raw.get("narrative") or {}
+    if not isinstance(block, dict):
+        raise ScenarioError(f"{world_file}: 'narrative' must be a mapping if present")
+
+    try:
+        directives = NarrativeDirectives.model_validate(block)
+    except ValidationError as exc:
+        raise ScenarioError(
+            f"{world_file}: 'narrative' does not match the expected shape: {exc}"
+        ) from exc
+
+    # Cross-reference now rather than at trigger time. A clue naming a fact that
+    # does not exist would otherwise just never produce a candidate, and a clue
+    # silently absent from the story is the exact failure this loader exists to
+    # turn into a startup message.
+    known = set(raw.get("facts") or {})
+    for clue in directives.paced_clues:
+        if clue.fact_id not in known:
+            raise ScenarioError(
+                f"{world_file}: narrative.paced_clues names unknown fact {clue.fact_id!r}"
+            )
+    if directives.reversal_fact is not None and directives.reversal_fact not in known:
+        raise ScenarioError(
+            f"{world_file}: narrative.reversal_fact names unknown fact {directives.reversal_fact!r}"
+        )
+    return directives
+
+
 def pack_prompts_dir(name_or_path: str | Path) -> Path:
     """Path to a pack's optional ``prompts/`` overlay (may not exist).
 
@@ -132,6 +212,7 @@ def _build_world(raw: dict[str, Any]) -> WorldState:
         npcs={
             npc_id: NPCWorldState(
                 npc_id=npc_id,
+                name=spec.get("name", ""),
                 location=spec.get("location", ""),
                 alive=spec.get("alive", True),
                 faction_id=spec.get("faction_id"),

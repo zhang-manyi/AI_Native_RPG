@@ -34,10 +34,12 @@ from ai_native_rpg.agent import Harness, HashingEmbedder, MemoryStore, build_npc
 from ai_native_rpg.agent.embedding import Embedder
 from ai_native_rpg.agent.harness import PromptLibrary
 from ai_native_rpg.config import Settings, build_llm_client
-from ai_native_rpg.observability import TraceStore
+from ai_native_rpg.narrative.engine import NarrativeEngine, NarrativeTick
+from ai_native_rpg.observability import NarrativeTickStore, TraceStore
 from ai_native_rpg.scenario import (
     list_scenarios,
     load_intro,
+    load_narrative_directives,
     load_personas,
     load_scenario,
     load_seed_memories,
@@ -45,22 +47,55 @@ from ai_native_rpg.scenario import (
 )
 from ai_native_rpg.schemas.agent_trace import AgentTrace
 from ai_native_rpg.schemas.npc_agent import NPCAgentResponse
+from ai_native_rpg.schemas.world_state import Visibility, WorldState
 from ai_native_rpg.world import WorldStateManager
+from ai_native_rpg.world.conditions import (
+    UnknownPathError,
+    clause_holds_for,
+    resolve_path,
+)
 
 DEFAULT_SCENARIO = "village_disappearance"
 TRACE_DIR = Path("traces")
+NARRATIVE_TRACE_DIR = TRACE_DIR / "narrative"
 
 #: Scripted replies for USE_MOCK_LLM=1, so the chain is watchable with no key.
+#:
+#: The Harness and the Narrative Engine share one client here, and the mock plays
+#: its script back in order regardless of who asks. So each entry has to satisfy
+#: whichever schema comes next: NPC entries carry reasoning/strategy/dialogue,
+#: narrative entries carry summary/dialogue_hook. Extra keys are ignored by
+#: validation, so entries that serve both are merged rather than interleaved —
+#: guessing the call order would break the moment a turn takes the 2-call path.
 _MOCK_SCRIPT = [
     {
         "reasoning": "他在打探那天晚上的事，我不能直说，但也不想撒谎。",
         "strategy": "deflect",
         "dialogue": "……那晚我睡得早。你问这些做什么？",
+        "summary": "玛尔塔提到那晚雨停得早",
+        "dialogue_hook": "……那天的雨，停得比往常早些。",
+        "planted_fact_id": "rain_stopped_early",
+        "planted_value": "失踪那晚的雨停得比往常早，地上还没干透",
+        "payoff_condition": {
+            "mode": "any",
+            "clauses": [{"path": "relationships.npc_a.player_1.trust", "op": "gte", "value": 45}],
+        },
     },
     {
         "reasoning": "他看起来是真心想帮忙，可以稍微松一点。",
         "strategy": "warm_up",
         "dialogue": "你要是真想帮忙……算了，我不知道该不该说。",
+        "summary": "玛尔塔看了一眼儿子的房间",
+        "dialogue_hook": "（她朝里屋看了一眼，没说话。）",
+        # Also carried here: whichever entry the Engine happens to draw must be able
+        # to satisfy a foreshadow, or the plant is rejected as incomplete for a
+        # reason that says nothing about the system under demonstration.
+        "planted_fact_id": "curtain_moved",
+        "planted_value": "那晚玛尔塔家的窗帘动过一下",
+        "payoff_condition": {
+            "mode": "any",
+            "clauses": [{"path": "relationships.npc_a.player_1.trust", "op": "gte", "value": 45}],
+        },
     },
 ]
 
@@ -91,8 +126,13 @@ def print_header(
     prompt_source: str,
     tool_names: list[str],
 ):
+    # Name the provider, not just the model: with a relay the model string alone
+    # does not say which endpoint is being billed, and "why is it slow" is usually
+    # answered by knowing which backend answered.
     backend = (
-        f"DeepSeek {settings.model}" if settings.has_real_backend else "MockLLMClient (离线脚本)"
+        f"{settings.provider} {settings.model}"
+        if settings.has_real_backend
+        else "MockLLMClient (离线脚本)"
     )
     print("=" * 72)
     print(f"剧本：{scenario}    NPC：{npc_id}    玩家：{player_id}")
@@ -101,7 +141,8 @@ def print_header(
     print(f"提示词：{prompt_source}")
     print(f"工具：{', '.join(tool_names)}")
     print("=" * 72)
-    print("直接输入你想说的话。输入 /quit 退出，/mem 查看记忆，/trust 查看关系值。\n")
+    print("直接输入你想说的话。/quit 退出，/mem 记忆，/trust 关系值，")
+    print("/beats 叙事进度，/ledger 伏笔账本，/unlock 解锁进度。\n")
 
 
 def print_turn(
@@ -161,6 +202,116 @@ def print_turn(
         f"  开销      LLM 调用={llm_calls}  tokens={tokens}  总延迟={trace.total_latency_ms:.0f}ms"
     )
     print(f"  Trace     {trace_path}\n")
+
+
+def print_narrative_tick(tick: NarrativeTick, tick_path: Path) -> None:
+    """One line per narrative decision, including the decision to do nothing.
+
+    A quiet turn is printed rather than skipped: "pacing held a candidate back" is
+    the Engine's least visible and most informative outcome (docs/07 §2.3).
+    """
+    if tick.selected is not None:
+        mark = f"{tick.selected.operator.value} · {tick.selected.event_type}"
+    else:
+        mark = "relieve（本轮不触发）"
+    starved = "  [已停摆，放松冷却]" if tick.starved else ""
+    print(f"  算子      {mark}{starved}")
+
+    if tick.selected is not None:
+        print(f"            触发：{tick.selected.trigger_reason}")
+    for blocked in tick.rejected:
+        print(f"            被挡：{blocked['operator']} · {blocked['reason']}")
+
+    for result in tick.proposals:
+        if not result.approved:
+            print(f"            提议被拒：{result.rule_name} — {result.reason}")
+
+    if tick.event is not None:
+        hook = tick.event.generated_content.get("dialogue_hook", "")
+        print(f"            生成：{hook}")
+    if tick.model_used:
+        print(f"            叙事调用 {tick.model_used}  ({tick.latency_ms:.0f}ms)")
+    print(f"  叙事Tick  {tick_path}\n")
+
+
+def print_beats(world: WorldState) -> None:
+    """Chapter, tension and the operator timeline (docs/07 §2.3 block 4)."""
+    beats = world.story_beats
+    print(f"  第 {beats.chapter} 章 · 回合 {beats.turn} · 张力 {beats.tension:.2f}")
+    if beats.recent_operators:
+        print(f"  最近算子  {' → '.join(beats.recent_operators)}")
+    else:
+        print("  最近算子  （还没有任何回合）")
+    if beats.spent_one_shots:
+        print(f"  已用一次性 {', '.join(beats.spent_one_shots)}")
+    print()
+
+
+def print_ledger(world: WorldState) -> None:
+    """The foreshadowing ledger (docs/07 §2.3 block 1).
+
+    Turns "the model planted something and forgot it" from a thing you find by
+    re-reading transcripts into a thing you see at a glance.
+    """
+    beats = world.story_beats
+    if not beats.open_foreshadowings:
+        print("  伏笔账本  （没有未回收的伏笔）\n")
+        return
+
+    print(f"  伏笔账本  {len(beats.open_foreshadowings)} 条未回收")
+    for fact_id, entry in beats.open_foreshadowings.items():
+        owed = entry.turns_owed(current_turn=beats.turn)
+        status = "⚠️ 超期" if entry.is_overdue(current_turn=beats.turn) else "正常"
+        condition = " / ".join(
+            f"{c.path} {c.op.value} {c.value}" for c in entry.payoff_condition.clauses
+        )
+        label = entry.note or fact_id
+        print(f"   - {label}")
+        print(
+            f"     埋于第 {entry.planted_at_turn} 回合，已欠 {owed} 轮"
+            f"（阈值 {entry.overdue_after_turns}）  {status}"
+        )
+        print(f"     回收条件：{condition}")
+    print()
+
+
+def print_unlock_board(world: WorldState) -> None:
+    """Per-clause progress toward each hidden fact (docs/07 §2.3 block 2).
+
+    This is the evaluator's intermediate result made visible. Tuning a threshold is
+    otherwise pure guesswork — is 40 too high, will the player stall forever — and
+    this is the evidence for that call.
+
+    Reads WorldState directly rather than PlayerView, deliberately: it is a
+    developer tool and must show what the player cannot see (docs/07 §2.4). The
+    player-facing path never goes through here.
+    """
+    gated = [
+        f
+        for f in world.facts.values()
+        if f.visibility is not Visibility.REVEALED and f.reveal_condition is not None
+    ]
+    if not gated:
+        print("  解锁进度  （没有待解锁的事实）\n")
+        return
+
+    print("  解锁进度")
+    for fact in gated:
+        condition = fact.reveal_condition
+        assert condition is not None
+        parts = []
+        for clause in condition.clauses:
+            try:
+                actual = resolve_path(world, clause.path)
+            except UnknownPathError:
+                parts.append(f"{clause.path}=?(路径无法解析)")
+                continue
+            met = "✓" if clause_holds_for(actual, clause) else "·"
+            shown = f"{actual:.0f}" if isinstance(actual, float) else actual
+            parts.append(f"{met} {clause.path.split('.')[-1]} {shown}/{clause.value}")
+        mode = "任一" if condition.mode == "any" else "全部"
+        print(f"   - {fact.fact_id:<32}（{mode}）{'  '.join(parts)}")
+    print()
 
 
 def _display_name(npc_state, fallback: str) -> str:
@@ -269,6 +420,7 @@ def main() -> int:
         personas = load_personas(args.scenario)
         seeds = load_seed_memories(args.scenario)
         intro = load_intro(args.scenario)
+        directives = load_narrative_directives(args.scenario)
     except Exception as exc:
         print(f"无法加载剧本 {args.scenario!r}：{exc}")
         print("用 --list 查看可用剧本。")
@@ -302,7 +454,9 @@ def main() -> int:
     harness = Harness(
         npc_state=npc_state, manager=manager, llm=llm, memory=memory, prompts=prompts, tools=tools
     )
+    engine = NarrativeEngine(manager=manager, llm=llm, prompts=prompts, directives=directives)
     traces = TraceStore(TRACE_DIR)
+    narrative_traces = NarrativeTickStore(NARRATIVE_TRACE_DIR)
 
     render_intro(world, manager.player_view(player_id), personas, npc_id, intro)
     print_header(
@@ -339,16 +493,37 @@ def main() -> int:
             rel = manager.get_relationship(npc_id, player_id)
             print(f"  trust={rel.trust:.1f} fear={rel.fear:.1f} respect={rel.respect:.1f}\n")
             continue
+        if said == "/beats":
+            print_beats(manager.snapshot())
+            continue
+        if said == "/ledger":
+            print_ledger(manager.snapshot())
+            continue
+        if said == "/unlock":
+            print_unlock_board(manager.snapshot())
+            continue
 
         trust_before = manager.get_trust(npc_id, player_id)
+        # Content generated after the previous turn is woven into this one, so the
+        # player never waits on the narrative call (docs/02 §4).
+        pending = engine.take_pending_event()
         try:
-            response, trace = harness.respond(said, player_id=player_id)
+            response, trace = harness.respond(said, player_id=player_id, narrative_event=pending)
         except Exception as exc:  # keep the REPL alive across API errors
             print(f"\n[!] 这一回合失败了：{type(exc).__name__}: {exc}\n")
             continue
 
         trace_path = traces.save(trace)
         print_turn(response, trace, trust_before, manager.get_trust(npc_id, player_id), trace_path)
+
+        # Now that the world has moved, decide this turn's beat. Its content lands
+        # on the next turn.
+        try:
+            tick = engine.tick(player_id=player_id)
+        except Exception as exc:
+            print(f"[!] 叙事引擎这一轮失败了：{type(exc).__name__}: {exc}\n")
+            continue
+        print_narrative_tick(tick, narrative_traces.save(tick))
 
 
 if __name__ == "__main__":

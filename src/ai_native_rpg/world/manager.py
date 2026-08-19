@@ -19,9 +19,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ..schemas.common import Condition
+from ..schemas.narrative import Foreshadowing
 from ..schemas.world_state import (
     ActionProposal,
     ActionValidationResult,
+    Fact,
     RelationshipState,
     Visibility,
     VisibleState,
@@ -118,6 +121,14 @@ class WorldStateManager:
                 return self._apply_move(proposal)
             case ActionType.ADVANCE_QUEST:
                 return self._apply_quest(proposal)
+            case ActionType.ADVANCE_TURN:
+                return self._apply_advance_turn(proposal)
+            case ActionType.ADVANCE_STORY_BEAT:
+                return self._apply_story_beat(proposal)
+            case ActionType.PLANT_FORESHADOWING:
+                return self._apply_plant_foreshadowing(proposal)
+            case ActionType.PAY_OFF_FORESHADOWING:
+                return self._apply_pay_off_foreshadowing(proposal)
 
     def _apply_reveal(self, proposal: ActionProposal) -> dict[str, object]:
         fact = self._state.facts[proposal.target_id]
@@ -149,6 +160,86 @@ class WorldStateManager:
         return {
             f"quests.{quest.quest_id}.stage": quest.stage,
             f"quests.{quest.quest_id}.status": quest.status,
+        }
+
+    # --- narrative writes --------------------------------------------------
+
+    def _apply_advance_turn(self, proposal: ActionProposal) -> dict[str, object]:
+        """Close one turn, recording which operator ran (``relieve`` if none).
+
+        Every turn is recorded. See ``StoryBeats.record_operator`` for why quiet
+        turns must occupy a slot rather than be omitted.
+        """
+        beats = self._state.story_beats
+        beats.turn += 1
+        beats.record_operator(proposal.payload["operator"])
+        return {
+            "story_beats.turn": beats.turn,
+            "story_beats.recent_operators": list(beats.recent_operators),
+        }
+
+    def _apply_story_beat(self, proposal: ActionProposal) -> dict[str, object]:
+        beats = self._state.story_beats
+        changes: dict[str, object] = {}
+        if "chapter" in proposal.payload:
+            beats.chapter = int(proposal.payload["chapter"])
+            changes["story_beats.chapter"] = beats.chapter
+        if "tension" in proposal.payload:
+            beats.tension = float(proposal.payload["tension"])
+            changes["story_beats.tension"] = beats.tension
+        if "spend_one_shot" in proposal.payload:
+            key = str(proposal.payload["spend_one_shot"])
+            beats.spend_one_shot(key)
+            changes[f"story_beats.spent_one_shots.{key}"] = True
+        return changes
+
+    def _apply_plant_foreshadowing(self, proposal: ActionProposal) -> dict[str, object]:
+        """Write a hidden Fact and register the debt against it.
+
+        The payoff condition becomes the fact's ``reveal_condition``: the same
+        object gates disclosure and settles the ledger, so "time to pay off" and
+        "the player may see it" cannot drift apart. This installs a channel rather
+        than bypassing one, which is what keeps it inside docs/04 §3.3.
+        """
+        fact_id = str(proposal.target_id)
+        condition = Condition.model_validate(proposal.payload["payoff_condition"])
+        beats = self._state.story_beats
+
+        self._state.facts[fact_id] = Fact(
+            fact_id=fact_id,
+            value=proposal.payload.get("value"),
+            visibility=Visibility.HIDDEN,
+            partial_value=proposal.payload.get("partial_value"),
+            reveal_condition=condition,
+        )
+        entry = Foreshadowing(
+            fact_id=fact_id,
+            planted_at_turn=beats.turn,
+            payoff_condition=condition,
+            note=str(proposal.payload.get("note", "")),
+            **(
+                {"overdue_after_turns": int(proposal.payload["overdue_after_turns"])}
+                if proposal.payload.get("overdue_after_turns")
+                else {}
+            ),
+        )
+        beats.open_foreshadowings[fact_id] = entry
+        # Counted separately from the ledger's size: settling pops the entry but
+        # leaves the fact behind, so only a monotonic count can tell the trigger
+        # rules how many loops this story has actually opened.
+        beats.planted_total += 1
+        return {
+            f"facts.{fact_id}": "planted (hidden)",
+            f"story_beats.open_foreshadowings.{fact_id}": entry.planted_at_turn,
+            "story_beats.planted_total": beats.planted_total,
+        }
+
+    def _apply_pay_off_foreshadowing(self, proposal: ActionProposal) -> dict[str, object]:
+        fact_id = str(proposal.target_id)
+        entry = self._state.story_beats.open_foreshadowings.pop(fact_id)
+        return {
+            f"story_beats.open_foreshadowings.{fact_id}": "settled",
+            "payoff_span_turns": entry.turns_owed(current_turn=self._state.story_beats.turn),
         }
 
     # --- persistence -------------------------------------------------------

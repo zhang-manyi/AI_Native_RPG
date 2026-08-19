@@ -120,7 +120,14 @@ World State Update
 
 ## 5. 数据结构
 
-见 [schemas/narrative_event.py](./schemas/narrative_event.py)。
+事实源是 `src/ai_native_rpg/schemas/narrative.py`（`docs/schemas/narrative_event.py` 是早期草稿，已被它取代）。相对草稿的四处变化：
+
+| 变化 | 原因 |
+|---|---|
+| `EventCandidate` 加 `operator` | §4 要求候选带算子而非只有 `event_type` |
+| 加 `constraints` / `pays_off` | 显式禁止项（[10 §2.3](./10_Narrative_Operators.md)）；`pays_off` 标记这次 reveal 在回收哪条伏笔 |
+| `reveal_timing: str` → 账本的 `payoff_condition: Condition` | 自由字符串无法被求值器判定，账本就无法自动回答"到时机了吗"，见 §2.3 |
+| `PlayerProfile` 从 `player_model.py` 草稿移植过来 | Experience Controller 现在就要读它；`PlayerRawStats` 和 Behavior Tracker 等切片 4 有写入方时再移植 |
 
 ## 6. 当前实现范围
 

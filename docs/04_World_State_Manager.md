@@ -115,19 +115,27 @@ reveal_condition:
 - `ActionProposal` / `ActionValidationResult`：Agent 提交变更的标准接口。
 - `StoryBeats`：叙事进度状态，Narrative Engine 唯一能推进的东西（见 §3.3）。
 
-### 4.1 StoryBeats（切片 3 引入，当前未实现）
+### 4.1 StoryBeats
 
 ```python
 class StoryBeats(BaseModel):
     chapter: int = 1
+    turn: int = 0  # 玩家交互轮次，不是 time_day
     tension: float = 0.0  # 当前张力，[0, 1]
     open_foreshadowings: dict[str, Foreshadowing]  # 未回收的伏笔账本
-    recent_operators: list[str]  # 最近 N 轮触发的算子，供节奏规则判断
+    planted_total: int = 0  # 累计埋过多少条（含已回收的）
+    recent_operators: list[str]  # 每回合一条（含 relieve），窗口 5
+    spent_one_shots: list[str]  # 只能发生一次的 beat，如 reverse
 ```
 
-三个字段对应 [10_Narrative_Operators.md](./10_Narrative_Operators.md) 的三件事：`chapter` 是 Engine 的推进通道（§3.3），`open_foreshadowings` 是伏笔账本，`recent_operators` 供 Experience Controller 的节奏准入使用。
+对应 [10_Narrative_Operators.md](./10_Narrative_Operators.md) 的几件事：`chapter` 与 `tension` 是 Engine 的推进通道（§3.3），`open_foreshadowings` 是伏笔账本，`recent_operators` 供 Experience Controller 的节奏准入使用。
 
-**为什么推迟到切片 3**：切片 1-2 没有消费者，现在加就是加一个没人读的字段。`open_foreshadowings` 每条要存什么，到实现伏笔回收时才会清楚。当前剧本里没有任何条件引用 `story_beats.*`，因此推迟不会导致剧本改写——一旦剧本里出现了这类 `path`，schema 就应该立即定稿。
+实现时比原设计多了三个字段，各有一条算不出来的东西作为理由：
+
+- **`turn`**：账本条目要存 `planted_at_turn`、面板要显示「已欠 9 轮」，两者都无法从 `time_day` 推出——那个字段数的是游戏内的天数，不是交互次数。
+- **`recent_operators` 每回合都写一条，没触发算子时写 `relieve`**（正是 [10 §2.1](./10_Narrative_Operators.md) 里 `relieve` 的隐式形态）。只记「触发过的」会让第 3 轮和第 9 轮的两次 `reveal` 看起来相邻，而 §3.1 三条节奏规则全部基于相邻性判断。
+- **`spent_one_shots`**：`reverse` 不改变任何 `visibility`，因此和 `reveal` 不同，它不会因为自己的效果而失去触发条件。没有这个标记它会在余下每一轮重复触发。它不设窗口上限——忘记一条就等于让那个 beat 再演一次。
+- **`planted_total`**：不能用 `len(open_foreshadowings)` 代替。回收伏笔只 pop 账本条目，那条 fact 仍留在世界里（玩家已经看到了，不能凭空消失），所以「账本空了」不等于「还有位置埋新的」。只看账本会导致每次回收后的下一轮都重新提议 `foreshadow`，而生成器若复用已占用的 `fact_id`，这一次 LLM 调用就白花了。用累计数而不是查 id 是因为 id 是模型在那次调用里现场编的，触发规则跑在调用之前，不可能预知。
 
 ## 5. 实现约定
 
@@ -143,4 +151,6 @@ class StoryBeats(BaseModel):
 - **proposal_id 幂等去重**：同一个 `proposal_id` 第二次提交会被拒绝。重试的 LLM 调用不会把关系值加两次。
 - `dry_run()` 在不写入的前提下返回校验结论，供 Agent 在 Planning 阶段作为工具调用查询"这个行动会被允许吗"。规则是纯函数，因此这样做没有副作用。
 - **没有任何 actor 可以绕过 `reveal_condition`**（见 §3.3）。
-- `StoryBeats`（§4.1）及 `advance_story_beat` action 属于切片 3，届时同步加一条 `chapter` 单调递增的 Validator 规则。
+- **四个叙事 action 只有系统 actor 能提交**：`advance_turn` / `advance_story_beat` / `plant_foreshadowing` / `pay_off_foreshadowing`。NPC 若能推进回合计数，就能把约束自己的节奏冷却熬过去；若能埋伏笔，就能自己装一条披露通道。
+- **`MAX_CHAPTER_STEP = 1`**：`chapter` 单调不减，且一次最多 +1。理由与 `MAX_RELATIONSHIP_STEP` 相同——章节是披露通道，`1 → 9` 会一次性满足所有以 chapter 为通道的条件，等于用一个被批准的 proposal 关掉整个节奏系统。
+- **`plant_foreshadowing` 不是 §3.3 的例外**。§3.3 禁止的是绕过*既有* fact 的 `reveal_condition`；这里是新增一条自带条件的 hidden fact，且该条件同时成为它的 `reveal_condition`——装通道，不是拆通道。生成的条件另有三道校验：clauses 非空（空条件永远为假，等于永不回收）、path 落在 `relationships.*` / `quests.*` / `story_beats.*` 白名单内（`time_day` 能解析，但那会让伏笔靠干等回收）、且埋下时尚未满足（已经到期的不是伏笔）。剧本作者手写的条件不受白名单限制：作者可以信任，生成器不行。

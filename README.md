@@ -28,7 +28,7 @@
 
 ## 状态
 
-切片 1-2 已完成：World State Manager（含剧本包加载与交叉引用校验）+ NPC Agent Harness 端到端链路（Memory 检索 → Tool Use → Planning → Validator → Dialogue → Reflection）+ 真实 DeepSeek 客户端与 Function Calling，Trace 落盘可查。当前进度见 [docs/09_Reference_Scenario.md](docs/09_Reference_Scenario.md) 的切片表。
+切片 1-3 已完成：World State Manager（含剧本包加载与交叉引用校验）+ NPC Agent Harness 端到端链路（Memory 检索 → Tool Use → Planning → Validator → Dialogue → Reflection）+ 真实 DeepSeek 客户端与 Function Calling + Narrative Engine（4 个叙事算子、伏笔账本、节奏准入），Trace 落盘可查。当前进度见 [docs/09_Reference_Scenario.md](docs/09_Reference_Scenario.md) 的切片表。
 
 ## 快速开始
 
@@ -47,7 +47,20 @@ python scripts/chat_demo.py --npc npc_b   # 换成猎人洛伦
 ```
 
 每回合会打印完整决策链：检索到几条记忆、调了哪些工具、计划与策略、行动校验结果、
-信任值变化、几次 LLM 调用、token 与延迟、Trace 落盘路径。
+信任值变化、几次 LLM 调用、token 与延迟、Trace 落盘路径；以及这一轮触发了哪个叙事算子、
+哪些候选被节奏规则挡下。
+
+三个面板命令把叙事结构变成看得见的东西：
+
+```
+/beats     章节、张力、算子时间线
+/ledger    伏笔账本：埋于第几轮、回收条件、已欠几轮、是否超期
+/unlock    解锁进度板：每条 hidden fact 逐 clause 显示当前值与阈值
+```
+
+`/unlock` 回答的是"为什么玩家还看不到 X"——调阈值本来全靠猜（40 是不是太高？玩家会不会
+永远卡住），有它就有依据。这三个是开发者视角，故意绕开 `PlayerView` 直读世界状态；
+玩家接口只走 `PlayerView`（[docs/07 §2.4](docs/07_Observability.md)）。
 
 模型是 `deepseek-v4-flash`（OpenAI 兼容端点）。`.env` 已在 `.gitignore` 中，不会入库。
 自动化测试一律走 mock client，`tests/conftest.py` 里的 autouse fixture 强制
@@ -92,6 +105,9 @@ src/ai_native_rpg/
 ├── config.py           环境变量 → Settings → LLMClient（密钥只在这里）
 ├── llm/                LLMClient Protocol + DeepSeek / Mock 两个实现
 ├── narrative/          Narrative Engine + 叙事算子
+│   ├── rules.py        触发规则：现在允许发生什么 [确定性]
+│   ├── controller.py   张力准入 + 偏好排序（两段，不相乘）[确定性]
+│   └── engine.py       算子槽位填内容 → Action Proposal [1 次 LLM]
 ├── agent/              NPC Agent Runtime [Agent]
 │   ├── harness.py      运行时循环（含 Tool Use 工具循环）
 │   ├── tools.py        3 个只读工具 + 注册表
