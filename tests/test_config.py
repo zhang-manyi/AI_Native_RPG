@@ -20,6 +20,10 @@ DEEPSEEK_VARS = (
     "DEEPSEEK_API_KEY",
     "DEEPSEEK_BASE_URL",
     "DEEPSEEK_MODEL",
+    "OPENAI_API_KEY",
+    "OPENAI_BASE_URL",
+    "OPENAI_MODEL",
+    "LLM_PROVIDER",
     "JUDGE_MODEL",
     "USE_MOCK_LLM",
 )
@@ -27,7 +31,7 @@ DEEPSEEK_VARS = (
 
 @pytest.fixture
 def clean_env(monkeypatch):
-    """A pristine environment: no DeepSeek vars, and .env loading disabled.
+    """A pristine environment: no provider vars, and .env loading disabled.
 
     Without disabling .env the developer's real key would bleed into these tests
     and the assertions below would depend on whose machine runs them.
@@ -89,6 +93,72 @@ class TestSettingsParsing:
         assert settings.use_mock is False
 
 
+class TestProviderSelection:
+    """Switching provider selects a set of env vars, not a second client.
+
+    Both providers speak the same OpenAI-compatible surface, which is what makes
+    this a config concern rather than an implementation one.
+    """
+
+    def test_deepseek_is_the_default(self, clean_env):
+        assert Settings.from_env(load_dotenv=False).provider == "deepseek"
+
+    def test_openai_reads_its_own_variables(self, clean_env):
+        clean_env.setenv("LLM_PROVIDER", "openai")
+        clean_env.setenv("OPENAI_API_KEY", "sk-openai-key")
+        clean_env.setenv("OPENAI_BASE_URL", "https://relay.invalid/v1")
+        clean_env.setenv("OPENAI_MODEL", "gpt-5")
+        clean_env.setenv("USE_MOCK_LLM", "0")
+
+        settings = Settings.from_env(load_dotenv=False)
+
+        assert settings.provider == "openai"
+        assert settings.api_key.get_secret_value() == "sk-openai-key"
+        assert settings.base_url == "https://relay.invalid/v1"
+        assert settings.model == "gpt-5"
+        assert settings.has_real_backend is True
+
+    def test_deepseek_variables_are_ignored_when_openai_is_selected(self, clean_env):
+        """No cross-reading: a stale key from the other provider must not be used
+        against this provider's endpoint."""
+        clean_env.setenv("LLM_PROVIDER", "openai")
+        clean_env.setenv("DEEPSEEK_API_KEY", "sk-deepseek-key")
+        clean_env.setenv("USE_MOCK_LLM", "0")
+
+        settings = Settings.from_env(load_dotenv=False)
+
+        assert settings.api_key is None
+        assert settings.use_mock is True
+
+    def test_a_relay_without_a_url_is_not_configured(self, clean_env):
+        """A key alone is not a backend.
+
+        Unlike DeepSeek, a relay has no sensible default URL, so an unset one has to
+        read as "not configured" and degrade to the mock. Defaulting to
+        api.openai.com instead would send a relay's key to the wrong host, and the
+        failure would surface mid-conversation rather than at startup.
+        """
+        clean_env.setenv("LLM_PROVIDER", "openai")
+        clean_env.setenv("OPENAI_API_KEY", "sk-openai-key")
+        clean_env.setenv("OPENAI_MODEL", "gpt-5")
+        clean_env.setenv("USE_MOCK_LLM", "0")
+
+        settings = Settings.from_env(load_dotenv=False)
+
+        assert settings.has_real_backend is False
+
+    def test_an_unknown_provider_falls_back_instead_of_raising(self, clean_env):
+        """This runs at demo startup; a typo should not be a traceback."""
+        clean_env.setenv("LLM_PROVIDER", "gtp")
+        clean_env.setenv("DEEPSEEK_API_KEY", "sk-abc123")
+        clean_env.setenv("USE_MOCK_LLM", "0")
+
+        settings = Settings.from_env(load_dotenv=False)
+
+        assert settings.provider == "deepseek"
+        assert settings.has_real_backend is True
+
+
 class TestSecretHandling:
     def test_repr_and_str_mask_the_key(self, clean_env):
         clean_env.setenv("DEEPSEEK_API_KEY", "sk-supersecret-value")
@@ -131,14 +201,14 @@ class TestClientFactory:
         assert isinstance(client, MockLLMClient)
 
     def test_real_client_when_key_present_and_mock_disabled(self, clean_env):
-        from ai_native_rpg.llm.deepseek import DeepSeekClient
+        from ai_native_rpg.llm.openai_compatible import OpenAICompatibleClient
 
         clean_env.setenv("DEEPSEEK_API_KEY", "sk-abc123")
         clean_env.setenv("USE_MOCK_LLM", "0")
 
         client = build_llm_client(Settings.from_env(load_dotenv=False))
 
-        assert isinstance(client, DeepSeekClient)
+        assert isinstance(client, OpenAICompatibleClient)
 
     def test_blank_key_counts_as_missing(self, clean_env):
         """.env.example ships a placeholder; whitespace or empty is not a key."""

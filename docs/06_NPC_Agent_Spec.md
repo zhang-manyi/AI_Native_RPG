@@ -130,7 +130,7 @@ class LLMClient(Protocol):
     ) -> LLMResponse: ...
 ```
 
-两个实现：`DeepSeekClient`（OpenAI 兼容接口）和 `MockLLMClient`（返回预设的结构化输出）。测试一律用 mock，**不发任何网络请求**，因此 Harness 的循环、JSON 解析、重试、超时都可以单测。这也是后续 Model Router 的挂点。
+两个实现：`OpenAICompatibleClient`（通用 OpenAI 兼容 `chat/completions`，DeepSeek / OpenAI / 中转平台同一条路径，靠 `LLM_PROVIDER` 选配置）和 `MockLLMClient`（返回预设的结构化输出）。测试一律用 mock，**不发任何网络请求**，因此 Harness 的循环、JSON 解析、重试、超时都可以单测。这也是后续 Model Router 的挂点。
 
 ### 配置
 

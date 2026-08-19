@@ -2,7 +2,7 @@
 
 Why a local model rather than an API: DeepSeek's public surface is chat only — it
 has no embeddings endpoint (confirmed in its API docs and in DeepSeek-V3 issue
-#806) — so the real embedder is unrelated to ``DeepSeekClient``. Running locally
+#806) — so the real embedder is unrelated to ``OpenAICompatibleClient``. Running locally
 also keeps retrieval off the player's critical path in latency terms: docs/02 §5
 budgets ~30-60ms for the whole deterministic stretch, which a network round trip
 would blow.

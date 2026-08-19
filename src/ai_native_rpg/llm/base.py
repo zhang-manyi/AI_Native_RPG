@@ -1,7 +1,7 @@
 """LLM Client Protocol: the single seam between the Agent and any model.
 
 The Harness accesses models only through ``LLMClient``, never a vendor SDK
-directly. Two implementations sit behind it: ``DeepSeekClient`` (OpenAI-compatible,
+directly. Two implementations sit behind it: ``OpenAICompatibleClient`` (real HTTP,
 added in slice 2) and ``MockLLMClient`` (returns scripted structured output, used
 by every test so no network request is ever made). This is also the future hook
 for a Model Router. See docs/06_NPC_Agent_Spec.md#5.
