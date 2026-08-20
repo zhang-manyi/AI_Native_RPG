@@ -47,6 +47,49 @@ class TestReferenceScenario:
         # PlayerView surfaces her on turn one (see the pack's players: comment).
         assert world.player_locations["player_1"] == "npc_a_house"
 
+    def test_public_notes_are_loaded(self):
+        world = load_scenario(SCENARIO)
+        assert world.npcs["npc_a"].public_note
+        assert world.npcs["npc_b"].public_note
+
+    def test_public_note_reveals_nothing_the_player_must_earn(self):
+        """The note is what a stranger learns by asking around, nothing more.
+
+        It exists as its own authored field precisely so it cannot be an excerpt of
+        ``persona.background`` — that text runs on into what Marta saw that night, so
+        slicing it would leak the mystery by construction.
+        """
+        world = load_scenario(SCENARIO)
+        notes = " ".join(npc.public_note for npc in world.npcs.values())
+
+        for hidden in world.facts.values():
+            if hidden.visibility is Visibility.REVEALED:
+                continue
+            assert str(hidden.value) not in notes
+
+    def test_backdrops_are_loaded_as_kinds(self):
+        """The pack names a *kind* of place; the renderer owns what it looks like."""
+        world = load_scenario(SCENARIO)
+        assert world.locations["npc_a_house"].backdrop == "interior"
+        assert world.locations["forest_edge"].backdrop == "forest"
+
+    def test_backdrop_and_note_are_optional(self, tmp_path, monkeypatch):
+        """A pack predating these fields must still load."""
+        root = tmp_path / "scenarios" / "bare"
+        root.mkdir(parents=True)
+        (root / "world.yaml").write_text(
+            "world_id: bare\n"
+            "locations:\n  room:\n    name: Room\n"
+            "players:\n  p1:\n    location: room\n"
+            "npcs:\n  someone:\n    name: Someone\n    location: room\n",
+            encoding="utf-8",
+        )
+        monkeypatch.setattr("ai_native_rpg.scenario.SCENARIOS_ROOT", tmp_path / "scenarios")
+
+        world = load_scenario("bare")
+        assert world.locations["room"].backdrop == ""
+        assert world.npcs["someone"].public_note == ""
+
 
 class TestValidation:
     def _write(self, tmp_path, body: str):

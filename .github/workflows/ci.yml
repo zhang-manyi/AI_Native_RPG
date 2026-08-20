@@ -19,10 +19,16 @@ jobs:
       # A venv rather than --system: the runner's system Python is externally
       # managed (PEP 668) and refuses direct installs. This also matches how the
       # project is set up locally, so CI and local runs cannot diverge.
+      #
+      # ``web`` is installed too, otherwise the web interface's tests would skip
+      # themselves here (they guard on fastapi being importable) and the suite would
+      # look green while never exercising the SSE stream, the session executor or the
+      # player/developer isolation rules. The ``embedding`` extra stays out: it pulls
+      # torch and ~1.2GB of weights, and those tests are written to skip without it.
       - name: Create venv and install dependencies
         run: |
           uv venv --python 3.13
-          uv pip install -e ".[dev]"
+          uv pip install -e ".[dev,web]"
 
       - name: Lint
         run: |

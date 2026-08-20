@@ -58,10 +58,18 @@
 | 1 | 完成 | World State（完成）+ 1 个 NPC + mock LLM + Trace 落盘 | 玩家问一句话拿到一句回复，Trace 可查 |
 | 2 | 完成 | 真实 LLM + embedding 记忆检索 + Tool Use | NPC 会查关系值/世界事实再回答 |
 | 3 | 完成 | Narrative Engine + 算子 + 伏笔账本 + `StoryBeats` | 线索按节奏逐步解锁，伏笔有回收 |
-| 4 | 未开始 | Player Model 影响披露方式 + 调试面板 | 两种玩法风格拿到不同的线索呈现 |
+| 4 | 进行中 | Player Model 影响披露方式 + 调试面板 | 两种玩法风格拿到不同的线索呈现 |
 | 5 | 未开始 | Eval 脚本 + 数据回流一轮 | 改 prompt 前后的指标对比 |
 
-**下一步从这里继续**：切片 4 的调试面板那一半，做成 Web 界面替代 `scripts/chat_demo.py`（设计见 [12_Web_Interface.md](./12_Web_Interface.md)，待写；面板内容契约见 [07 §2.3](./07_Observability.md#23-narrative-state-panel叙事状态面板)）。**叙事 tick 的异步化在这一步一并解决**——理由和并发约束见 §4 末尾的实测延迟表。Player Model 那一半（Behavior Tracker 写入 `PlayerProfile`）随后再做，它不依赖 Web。
+切片 4 的**调试面板那一半已完成**：Web 界面（`src/ai_native_rpg/web/`，入口 `scripts/web.py`）替代了 `scripts/chat_demo.py` 作为主交互入口，实现见 [12_Web_Interface.md](./12_Web_Interface.md)。落地时确认的三件事：
+
+- **叙事 tick 的异步化已解决。** 台词就绪即推送，tick 的 ~8.6s 落在玩家读台词和打字的时间里。传输用 SSE，`POST /turn` 返回 `202`，台词/tick/场景/面板四类事件走同一条流。
+- **并发按会话串行。** 每个会话一个单线程执行器，世界因此只有一个写入者，`WorldStateManager` 不改。一个回合入队两个作业（对话、tick），所以 `dialogue` 事件不必等 tick。
+- **面板判定下沉到 `observability/panels.py`**（纯函数），`chat_demo.py` 的三个 print 改为消费同一份模型——终端与 Web 共享判定，各自只拥有渲染。终端版因此仍然可用，是无 JS 环境下最快的排查入口。
+
+**下一步从这里继续**：切片 4 剩下的 Player Model 那一半——Behavior Tracker 写入 `PlayerProfile`，`weight_for()` 是唯一接口，`select_candidate(profile=...)` 已经在消费它。它不依赖 Web；面板届时加一块「玩家画像」即可。
+
+实现时发现、值得记住的一件事：**`busy` 不能从 `queue.unfinished_tasks` 推导。** 那个计数在最后一个作业被*取走*时就减到 0，于是出现一个窗口——台词已完成、tick 还在写世界状态、而下一个回合被放行了，正是执行器要防的竞态。改成显式的在飞计数（两个作业都算），并由 `test_busy_stays_true_until_the_tick_completes` 钉住。
 
 切片 1-3 已就绪的挂点：
 
@@ -93,7 +101,7 @@
 | 叙事生成，压短前 | **50s** | completion 1675 | `deepseek-v4-flash`。不是推理开销（`token_usage` 无 `reasoning_tokens`），是输出真有那么长 |
 | 叙事生成，压短后 | **8.7s** | completion 356 | `gpt-5.6-sol`。prompt 明确「直接给 JSON、不写推导过程」+ 各字段字数上限 + 收紧 `GeneratedContent` 的 Field description（它作为 JSON Schema 进请求，是指令的另一半） |
 
-叙事生成这一类调用不在原预算里，且仍超预算。**架构上它已经不在玩家等待路径上**（生成存 `pending_event`，下一回合才用），但 `chat_demo.py` 是同步调用，所以那几秒实际全压在玩家身上。终端版故意不做异步——留给 Web 界面一次做对，见 [12](./12_Web_Interface.md)（待写）。注意 `WorldStateManager` 不是线程安全的，而 tick 每轮至少写一次 `advance_turn`。
+叙事生成这一类调用不在原预算里，且仍超预算。**架构上它已经不在玩家等待路径上**（生成存 `pending_event`，下一回合才用），但 `chat_demo.py` 是同步调用，所以那几秒实际全压在玩家身上。终端版故意不做异步——留给 Web 界面一次做对，见 [12](./12_Web_Interface.md)。注意 `WorldStateManager` 不是线程安全的，而 tick 每轮至少写一次 `advance_turn`。
 
 ## 5. 测试策略
 

@@ -46,6 +46,24 @@ python scripts/chat_demo.py --mock     # 离线脚本，没有 key 也能看完�
 python scripts/chat_demo.py --npc npc_b   # 换成猎人洛伦
 ```
 
+### Web 界面（推荐）
+
+```bash
+pip install -e ".[dev,web]"
+python scripts/web.py                  # http://127.0.0.1:8000
+python scripts/web.py --mock           # 离线
+python scripts/web.py --no-dev         # 只有玩家视图，/debug 不挂载
+```
+
+场景页面是玩家视角（小人立绘 + 台词出现在场景里 + 手打自由对话），右侧是开发者面板。
+和终端版最重要的区别是**叙事 tick 不再压在玩家等待上**：台词一就绪就推送，
+叙事结果（实测 ~8.6s）随后单独到达，面板同步刷新。传输用 SSE，一条流承载
+台词 / 叙事 tick / 场景 / 面板四类事件，`curl -N` 可直接看。设计见
+[docs/12](docs/12_Web_Interface.md)。
+
+⚠️ 这个服务**没有鉴权**，绑 loopback，`/debug/*` 暴露完整 `WorldState`（含全部隐藏线索
+和凶手是谁）。不要暴露到 `0.0.0.0` 或反代出去。
+
 每回合会打印完整决策链：检索到几条记忆、调了哪些工具、计划与策略、行动校验结果、
 信任值变化、几次 LLM 调用、token 与延迟、Trace 落盘路径；以及这一轮触发了哪个叙事算子、
 哪些候选被节奏规则挡下。
@@ -114,11 +132,20 @@ src/ai_native_rpg/
 │   ├── memory_store.py 检索 / 更新 / 遗忘
 │   └── embedding*.py   Embedder Protocol：哈希 与 Qwen3
 ├── player/             Player Model
-└── observability/      Trace / Eval
+├── observability/      Trace / Eval
+│   ├── trace_store.py  Trace / NarrativeTick 落盘
+│   └── panels.py       面板判定（纯函数）：终端与 Web 共用一份
+└── web/                Web 界面 [Observability]
+    ├── session.py      装配 + 每会话单线程执行器（世界只有一个写入者）
+    ├── events.py       事件模型 + SSE 封帧
+    ├── routes_player.py  /api/*    只接受 VisibleState
+    ├── routes_debug.py   /debug/*  直读 WorldState，非 dev 不挂载
+    └── static/         无构建步骤：一个 ES module + 一份 CSS + 内联 SVG 立绘
 
 prompts/                运行时只读的 prompt 文件，不在代码里内联
 scenarios/<name>/       剧情内容（YAML），换剧本不改代码
 scripts/chat_demo.py    手动跑一轮对话，打印完整决策链
+scripts/web.py          Web 界面入口（场景页面 + 开发者面板）
 docs/                   架构设计（01-11）
 ```
 
@@ -137,3 +164,4 @@ docs/                   架构设计（01-11）
 | [09 Reference Scenario](docs/09_Reference_Scenario.md) | 场景设定、切片计划、测试策略 |
 | [10 Narrative Operators](docs/10_Narrative_Operators.md) | 叙事结构调度、伏笔账本、张力与偏好分离 |
 | [11 Prompt Lab](docs/11_Prompt_Lab.md) | Prompt 离线实验：候选对比、评分、选定 |
+| [12 Web Interface](docs/12_Web_Interface.md) | Web 界面：场景页面 + 开发者面板、SSE、叙事 tick 异步化 |

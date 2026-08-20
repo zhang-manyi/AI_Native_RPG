@@ -205,6 +205,7 @@ def _build_world(raw: dict[str, Any]) -> WorldState:
                 location_id=loc_id,
                 name=spec.get("name", loc_id),
                 description=spec.get("description", ""),
+                backdrop=spec.get("backdrop", ""),
                 connected_to=list(spec.get("connected_to") or []),
             )
             for loc_id, spec in (raw.get("locations") or {}).items()
@@ -213,6 +214,7 @@ def _build_world(raw: dict[str, Any]) -> WorldState:
             npc_id: NPCWorldState(
                 npc_id=npc_id,
                 name=spec.get("name", ""),
+                public_note=spec.get("public_note", ""),
                 location=spec.get("location", ""),
                 alive=spec.get("alive", True),
                 faction_id=spec.get("faction_id"),

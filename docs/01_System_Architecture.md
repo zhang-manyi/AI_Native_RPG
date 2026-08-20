@@ -87,6 +87,7 @@ docs/
 ├── 09_Reference_Scenario.md           参考场景：模块范围、实现顺序、测试策略
 ├── 10_Narrative_Operators.md          叙事算子：结构调度、伏笔账本、张力与偏好的分离
 ├── 11_Prompt_Lab.md                   Prompt 离线实验：候选对比、评分、选定流程
+├── 12_Web_Interface.md                Web 界面：场景页面 + 开发者面板、SSE、tick 异步化
 └── schemas/                           设计期草稿（Pydantic）
     ├── player_model.py                实际实现以 src/ai_native_rpg/schemas/ 为准
     ├── world_state.py

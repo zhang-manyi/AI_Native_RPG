@@ -1,0 +1,1092 @@
+/* Scene page + developer panel (docs/12 §8).
+ *
+ * No build step: one stylesheet, custom properties for the scale, no preprocessor.
+ * The look aims at a lamplit room at night — the scenario is a rainy-night
+ * disappearance investigated at a witness's door — so the palette is warm light
+ * against cold dark, and the panel sits in a cooler, flatter register to read as
+ * instrumentation rather than as part of the fiction.
+ */
+
+:root {
+  /* One ratio (1.25) drives the type scale; sizes are not chosen ad hoc. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.563rem;
+  --text-2xl: 1.953rem;
+
+  /* Spacing on a 4px grid. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+
+  /* Night interior: cold shadows, warm lamp. */
+  --ink: #0b0e14;
+  --ink-2: #131824;
+  --ink-3: #1c2333;
+  --edge: #2a3345;
+  --edge-soft: #212a3a;
+
+  --lamp: #f0c07a;
+  --lamp-dim: #c79a5e;
+  --lamp-glow: rgba(240, 192, 122, 0.14);
+
+  --paper: #e8e3d9;
+  --paper-dim: #b3aca0;
+  --paper-faint: #7d776c;
+
+  --text: #e8e6e1;
+  --text-muted: #9aa3b2;
+  --text-faint: #6b7385;
+
+  --accent: #7fb3d5;
+  --warn: #e0a458;
+  --danger: #d97b6c;
+  --ok: #86b378;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-lg: 16px;
+
+  --shadow-soft: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lift: 0 8px 28px rgba(0, 0, 0, 0.45);
+
+  --panel-width: 27rem;
+  --serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono: "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--ink);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  overflow: hidden;
+}
+
+/* Respect a user's reduced-motion preference: every transition here is decorative. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* --- layout ------------------------------------------------------------- */
+
+#app {
+  display: grid;
+  grid-template-columns: 1fr 0;
+  height: 100vh;
+  transition: grid-template-columns 0.28s ease;
+}
+
+#app.panel-open {
+  grid-template-columns: 1fr var(--panel-width);
+}
+
+@media (max-width: 1100px) {
+  :root {
+    --panel-width: 22rem;
+  }
+}
+
+/* Below this the panel would leave no room for the scene, so it overlays instead. */
+@media (max-width: 820px) {
+  #app.panel-open {
+    grid-template-columns: 1fr 0;
+  }
+
+  #panel {
+    position: fixed;
+    inset: 0 0 0 auto;
+    width: min(100%, 26rem);
+    z-index: 40;
+    box-shadow: var(--shadow-lift);
+  }
+}
+
+/* --- stage -------------------------------------------------------------- */
+
+#stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  /* A pool of lamplight above, cold floor below. */
+  background:
+    radial-gradient(120% 80% at 50% 0%, var(--lamp-glow) 0%, transparent 55%),
+    linear-gradient(180deg, var(--ink-2) 0%, var(--ink) 70%);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--edge-soft);
+  background: rgba(11, 14, 20, 0.75);
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--paper);
+}
+
+.topbar .meta {
+  display: flex;
+  gap: var(--space-4);
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  font-family: var(--mono);
+}
+
+.topbar .meta b {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* --- scene -------------------------------------------------------------- */
+
+#scene {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: var(--space-5) var(--space-6) 0;
+}
+
+/* Backdrop sits behind everything in the scene; the gradient on #scene still shows
+ * through where the art is transparent. */
+.backdrop-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.backdrop-layer .backdrop {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The place heading was previously absolutely positioned, which let a long dialogue
+ * bubble ride up over it. It is now a normal flow item at the top of the scene, so the
+ * cast below it can never overlap — the bubble has its own space to grow into. */
+.place {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.place h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: var(--text-2xl);
+  font-weight: 400;
+  color: var(--paper);
+  opacity: 0.92;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+}
+
+.place p {
+  margin: var(--space-1) 0 0;
+  max-width: 46ch;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-style: italic;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.8);
+}
+
+/* Characters stand on a floor line, bubbles rise above them. */
+.cast {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: var(--space-8);
+  min-height: 0;
+  flex: 1;
+  /* Headroom for the bubble, which grows upward out of the actor. Without it a long
+   * line pushes into the place heading above. */
+  padding: var(--space-8) 0 var(--space-5);
+}
+
+.actor {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  animation: rise 0.5s ease both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.actor svg {
+  width: clamp(96px, 15vh, 168px);
+  height: auto;
+  overflow: visible;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+}
+
+/* An idle sway keeps a static drawing from reading as a frozen screenshot. */
+.actor .sprite-body {
+  transform-origin: 50% 100%;
+  animation: sway 6s ease-in-out infinite;
+}
+
+@keyframes sway {
+  0%,
+  100% {
+    transform: rotate(-0.5deg) translateY(0);
+  }
+  50% {
+    transform: rotate(0.5deg) translateY(-2px);
+  }
+}
+
+.actor.speaking .sprite-body {
+  animation: sway 2.4s ease-in-out infinite;
+}
+
+.actor .nameplate {
+  font-family: var(--serif);
+  font-size: var(--text-sm);
+  color: var(--paper-dim);
+  letter-spacing: 0.08em;
+  padding: 2px var(--space-3);
+  border-radius: 999px;
+  background: rgba(28, 35, 51, 0.6);
+  border: 1px solid var(--edge-soft);
+  white-space: nowrap;
+}
+
+.actor.speaking .nameplate {
+  color: var(--lamp);
+  border-color: var(--lamp-dim);
+}
+
+/* Public, ungated pack content: trade and household, the kind of thing anyone in the
+ * village would tell you. Never an excerpt of persona.background. */
+.who-note {
+  max-width: 24ch;
+  text-align: center;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* The bubble is anchored to its speaker rather than living in a chat log:
+ * "the line appears in the scene" is the requirement. */
+.bubble {
+  position: absolute;
+  bottom: calc(100% + var(--space-3));
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(42ch, 60vw);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, #faf6ec 0%, #efe8d8 100%);
+  color: #24201a;
+  font-family: var(--serif);
+  font-size: var(--text-lg);
+  line-height: 1.65;
+  box-shadow: var(--shadow-lift);
+  animation: bubble-in 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.bubble::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 9px solid transparent;
+  border-top-color: #efe8d8;
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px) scale(0.96);
+  }
+}
+
+.bubble.thinking {
+  font-family: var(--sans);
+  font-size: var(--text-sm);
+  color: #6b6355;
+  background: linear-gradient(180deg, #f2ede2 0%, #e6dfd0 100%);
+}
+
+.bubble.thinking::after {
+  border-top-color: #e6dfd0;
+}
+
+.dots {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: var(--space-2);
+  vertical-align: middle;
+}
+
+.dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #9a927f;
+  animation: blink 1.3s ease-in-out infinite;
+}
+
+.dots i:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.dots i:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+/* --- notes strip (visible facts + quest) -------------------------------- */
+
+.notes {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--edge-soft);
+}
+
+.notes .label {
+  font-size: var(--text-xs);
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  margin-right: var(--space-2);
+}
+
+.note {
+  font-size: var(--text-sm);
+  color: var(--paper-dim);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--edge);
+  border-left: 2px solid var(--lamp-dim);
+  border-radius: var(--radius-sm);
+  background: rgba(28, 35, 51, 0.45);
+  animation: rise 0.4s ease both;
+}
+
+/* --- transcript --------------------------------------------------------- */
+
+.history {
+  flex-shrink: 0;
+  max-height: 26vh;
+  overflow-y: auto;
+  padding: var(--space-3) 0 var(--space-4);
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge) transparent;
+}
+
+.history::-webkit-scrollbar {
+  width: 8px;
+}
+
+.history::-webkit-scrollbar-thumb {
+  background: var(--edge);
+  border-radius: 4px;
+}
+
+.line {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+  animation: rise 0.3s ease both;
+}
+
+.line .who {
+  flex-shrink: 0;
+  width: 4.5em;
+  text-align: right;
+  color: var(--text-faint);
+  font-family: var(--serif);
+}
+
+.line.player .who {
+  color: var(--accent);
+}
+
+.line.npc .who {
+  color: var(--lamp-dim);
+}
+
+.line .said {
+  color: var(--text-muted);
+}
+
+.line.npc .said {
+  color: var(--paper-dim);
+}
+
+/* --- composer ----------------------------------------------------------- */
+
+.composer {
+  flex-shrink: 0;
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6) var(--space-5);
+  border-top: 1px solid var(--edge-soft);
+  background: rgba(11, 14, 20, 0.6);
+}
+
+.composer input {
+  flex: 1;
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--serif);
+  font-size: var(--text-base);
+  color: var(--text);
+  background: var(--ink-3);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.composer input::placeholder {
+  color: var(--text-faint);
+}
+
+.composer input:focus {
+  outline: none;
+  border-color: var(--lamp-dim);
+  box-shadow: 0 0 0 3px var(--lamp-glow);
+}
+
+.composer input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button {
+  font-family: var(--sans);
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: linear-gradient(180deg, var(--lamp) 0%, var(--lamp-dim) 100%);
+  border: none;
+  border-radius: var(--radius);
+  padding: var(--space-3) var(--space-5);
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    filter 0.2s ease;
+}
+
+button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+.panel-toggle:focus-visible,
+.composer input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Icon button: square, so the glyph sits centred at any font size. */
+.send {
+  display: grid;
+  place-items: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.send svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  /* Nudged optically: the arrow's mass sits left of its bounding box centre. */
+  transform: translateX(1px);
+}
+
+.panel-toggle {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--edge);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  font-family: var(--mono);
+}
+
+.panel-toggle:hover {
+  color: var(--text);
+  border-color: var(--lamp-dim);
+}
+
+/* Waiting state: the 8.6s tick is made visible rather than hidden (docs/12 §5.3). */
+.status {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 1.5rem;
+  padding: 0 var(--space-6) var(--space-2);
+  font-size: var(--text-xs);
+  font-family: var(--mono);
+  color: var(--text-faint);
+}
+
+.status.working {
+  color: var(--warn);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+.spinner {
+  width: 10px;
+  height: 10px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- opening overlay ---------------------------------------------------- */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: rgba(11, 14, 20, 0.92);
+  backdrop-filter: blur(4px);
+  animation: fade-in 0.4s ease both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.overlay[hidden] {
+  display: none;
+}
+
+.card {
+  max-width: 52ch;
+  padding: var(--space-6);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--ink-2) 0%, var(--ink) 100%);
+  box-shadow: var(--shadow-lift);
+}
+
+.card h2 {
+  margin: 0 0 var(--space-4);
+  font-family: var(--serif);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  color: var(--lamp);
+  letter-spacing: 0.04em;
+}
+
+.card p {
+  margin: 0 0 var(--space-4);
+  font-family: var(--serif);
+  font-size: var(--text-base);
+  line-height: 1.85;
+  color: var(--paper-dim);
+}
+
+.card .goal {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: var(--text-sm);
+}
+
+/* --- developer panel ---------------------------------------------------- */
+
+#panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: #0d1017;
+  border-left: 1px solid var(--edge);
+}
+
+#panel[hidden] {
+  display: none;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--edge-soft);
+  flex-shrink: 0;
+}
+
+.panel-head h2 {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.panel-head .turn-badge {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: var(--text-xs);
+  color: var(--lamp-dim);
+}
+
+.panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-4) var(--space-6);
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge) transparent;
+}
+
+.panel-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.panel-body::-webkit-scrollbar-thumb {
+  background: var(--edge);
+  border-radius: 4px;
+}
+
+.block {
+  border-bottom: 1px solid var(--edge-soft);
+  padding: var(--space-3) 0;
+}
+
+.block > summary {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.block > summary::-webkit-details-marker {
+  display: none;
+}
+
+.block > summary::before {
+  content: "▸";
+  color: var(--text-faint);
+  transition: transform 0.2s ease;
+}
+
+.block[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.block > summary .count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--text-faint);
+  text-transform: none;
+}
+
+.block > summary .count.alert {
+  color: var(--warn);
+}
+
+.block-body {
+  padding-top: var(--space-3);
+}
+
+.empty {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* stat strip */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5rem, 1fr));
+  gap: var(--space-2);
+}
+
+.stat {
+  padding: var(--space-2);
+  border: 1px solid var(--edge-soft);
+  border-radius: var(--radius-sm);
+  background: var(--ink-2);
+}
+
+.stat .k {
+  font-size: var(--text-xs);
+  color: var(--text-faint);
+  letter-spacing: 0.06em;
+}
+
+.stat .v {
+  font-family: var(--mono);
+  font-size: var(--text-base);
+  color: var(--paper);
+}
+
+/* meters */
+.meter {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--ink-3);
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.meter > i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--lamp-dim), var(--lamp));
+  transition: width 0.4s ease;
+}
+
+.meter.tension > i {
+  background: linear-gradient(90deg, var(--accent), var(--danger));
+}
+
+/* rows */
+.row {
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--edge-soft);
+  font-size: var(--text-xs);
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.row .row-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.row .id {
+  font-family: var(--mono);
+  color: var(--paper-dim);
+  overflow-wrap: anywhere;
+}
+
+.row .tag {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  color: var(--text-faint);
+}
+
+.row .tag.warn {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.row .tag.ok {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.row .tag.danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.clauses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-1);
+  font-family: var(--mono);
+  color: var(--text-faint);
+}
+
+.clause.met {
+  color: var(--ok);
+}
+
+.clause.unresolved {
+  color: var(--danger);
+}
+
+.why {
+  margin-top: var(--space-1);
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* operator timeline */
+.beat {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px dashed var(--edge-soft);
+  font-size: var(--text-xs);
+}
+
+.beat:last-child {
+  border-bottom: none;
+}
+
+.beat .turn {
+  flex-shrink: 0;
+  width: 2.5em;
+  font-family: var(--mono);
+  color: var(--text-faint);
+}
+
+.op {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+
+.op-foreshadow {
+  color: #b79ae0;
+}
+.op-reveal {
+  color: var(--lamp);
+}
+.op-escalate {
+  color: var(--danger);
+}
+.op-reverse {
+  color: #6fc8bd;
+}
+.op-relieve {
+  color: var(--text-faint);
+}
+
+.beat .hook {
+  color: var(--paper-dim);
+  font-family: var(--serif);
+}
+
+.beat .blocked {
+  color: var(--text-faint);
+}
+
+/* trend sparkline */
+/* Taller, and paired with an axis that states the visible range. Three dimensions that
+ * drift by a few points looked like flat parallel lines in a fixed -100..100 band; the
+ * chart now scales to the data, so the labels are what keep that honest. */
+.trend-wrap {
+  display: flex;
+  gap: var(--space-2);
+  align-items: stretch;
+}
+
+.trend-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.65rem;
+  color: var(--text-faint);
+  text-align: right;
+  min-width: 2.2em;
+}
+
+.trend {
+  flex: 1;
+  height: 132px;
+  overflow: visible;
+  border-left: 1px solid var(--edge-soft);
+  border-bottom: 1px solid var(--edge-soft);
+}
+
+.trend .zero-line {
+  stroke: var(--edge);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Without this, the non-uniform viewBox scaling would smear stroke widths. */
+.trend path,
+.trend .dot {
+  vector-effect: non-scaling-stroke;
+}
+
+.trend .dot.trust {
+  fill: var(--ok);
+}
+.trend .dot.fear {
+  fill: var(--danger);
+}
+.trend .dot.respect {
+  fill: var(--accent);
+}
+
+.trend .trust {
+  stroke: var(--ok);
+}
+.trend .fear {
+  stroke: var(--danger);
+}
+.trend .respect {
+  stroke: var(--accent);
+}
+
+.trend path {
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.legend {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+  font-size: 0.7rem;
+  font-family: var(--mono);
+  color: var(--text-faint);
+}
+
+.legend b {
+  font-weight: 400;
+}
+
+.legend i {
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.legend .k-trust {
+  color: var(--ok);
+}
+.legend .k-fear {
+  color: var(--danger);
+}
+.legend .k-respect {
+  color: var(--accent);
+}
+
+/* memory */
+.mem {
+  padding: var(--space-1) 0;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  display: flex;
+  gap: var(--space-2);
+}
+
+.mem .score {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  color: var(--text-faint);
+}
+
+.mem.semantic .score {
+  color: var(--accent);
+}
+
+/* visually-hidden but available to assistive tech */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

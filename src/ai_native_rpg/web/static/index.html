@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Native RPG — 开发者界面</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <!-- No build step (docs/12 §8): one module, no bundler. The server sends whole
+         snapshots, so the page re-renders from the last event rather than keeping a
+         mirror of state it would have to reconcile. -->
+    <div id="app">
+      <main id="stage">
+        <header class="topbar">
+          <h1 id="title">AI Native RPG</h1>
+          <div class="meta" id="backend-meta"></div>
+          <button
+            class="panel-toggle"
+            id="panel-toggle"
+            aria-expanded="false"
+            aria-controls="panel"
+            hidden
+          >
+            开发者面板
+          </button>
+        </header>
+
+        <section id="scene" aria-label="场景">
+          <!-- Decorative: the place *kind* comes from the pack, the art from the front
+               end. aria-hidden because the location name and description carry the
+               same information in text. -->
+          <div id="backdrop" class="backdrop-layer" aria-hidden="true"></div>
+
+          <div class="place">
+            <h2 id="place-name"></h2>
+            <p id="place-desc"></p>
+          </div>
+
+          <!-- aria-live: the NPC's line arrives asynchronously, so a screen reader
+               has to be told about it rather than discovering it on a later focus. -->
+          <div class="cast" id="cast" aria-live="polite" aria-atomic="false"></div>
+
+          <div class="notes" id="notes" hidden>
+            <span class="label">已知</span>
+          </div>
+
+          <div class="history" id="history" aria-label="对话记录"></div>
+        </section>
+
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+
+        <form class="composer" id="composer">
+          <label class="sr-only" for="say">对 NPC 说的话</label>
+          <input
+            id="say"
+            name="say"
+            type="text"
+            autocomplete="off"
+            placeholder="你想说什么……"
+            disabled
+          />
+          <!-- An icon rather than a word: the label would otherwise need translating
+               per pack language, and the pack already decides what language the story
+               is in. The accessible name is carried by aria-label + sr-only text. -->
+          <button type="submit" id="send" class="send" aria-label="发送" title="发送 (Enter)" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M4 12 L20 12 M14 6 L20 12 L14 18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <span class="sr-only">发送</span>
+          </button>
+        </form>
+
+        <!-- Opening frame: assembled from public state only, so it cannot spoil a
+             hidden clue (docs/12 §4.2). -->
+        <div class="overlay" id="intro" hidden>
+          <div class="card">
+            <h2 id="intro-title"></h2>
+            <p id="intro-premise"></p>
+            <p class="goal" id="intro-goal"></p>
+            <button type="button" id="intro-start">开始</button>
+          </div>
+        </div>
+      </main>
+
+      <aside id="panel" aria-label="开发者面板" hidden>
+        <div class="panel-head">
+          <h2>叙事状态</h2>
+          <span class="turn-badge" id="panel-turn"></span>
+        </div>
+        <div class="panel-body" id="panel-body"></div>
+      </aside>
+    </div>
+
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>

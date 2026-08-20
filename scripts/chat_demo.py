@@ -36,6 +36,7 @@ from ai_native_rpg.agent.harness import PromptLibrary
 from ai_native_rpg.config import Settings, build_llm_client
 from ai_native_rpg.narrative.engine import NarrativeEngine, NarrativeTick
 from ai_native_rpg.observability import NarrativeTickStore, TraceStore
+from ai_native_rpg.observability.panels import build_beats, build_ledger, build_unlock_board
 from ai_native_rpg.scenario import (
     list_scenarios,
     load_intro,
@@ -47,13 +48,8 @@ from ai_native_rpg.scenario import (
 )
 from ai_native_rpg.schemas.agent_trace import AgentTrace
 from ai_native_rpg.schemas.npc_agent import NPCAgentResponse
-from ai_native_rpg.schemas.world_state import Visibility, WorldState
+from ai_native_rpg.schemas.world_state import WorldState
 from ai_native_rpg.world import WorldStateManager
-from ai_native_rpg.world.conditions import (
-    UnknownPathError,
-    clause_holds_for,
-    resolve_path,
-)
 
 DEFAULT_SCENARIO = "village_disappearance"
 TRACE_DIR = Path("traces")
@@ -236,14 +232,14 @@ def print_narrative_tick(tick: NarrativeTick, tick_path: Path) -> None:
 
 def print_beats(world: WorldState) -> None:
     """Chapter, tension and the operator timeline (docs/07 §2.3 block 4)."""
-    beats = world.story_beats
-    print(f"  第 {beats.chapter} 章 · 回合 {beats.turn} · 张力 {beats.tension:.2f}")
-    if beats.recent_operators:
-        print(f"  最近算子  {' → '.join(beats.recent_operators)}")
+    view = build_beats(world)
+    print(f"  第 {view.chapter} 章 · 回合 {view.turn} · 张力 {view.tension:.2f}")
+    if view.recent_operators:
+        print(f"  最近算子  {' → '.join(view.recent_operators)}")
     else:
         print("  最近算子  （还没有任何回合）")
-    if beats.spent_one_shots:
-        print(f"  已用一次性 {', '.join(beats.spent_one_shots)}")
+    if view.spent_one_shots:
+        print(f"  已用一次性 {', '.join(view.spent_one_shots)}")
     print()
 
 
@@ -253,23 +249,19 @@ def print_ledger(world: WorldState) -> None:
     Turns "the model planted something and forgot it" from a thing you find by
     re-reading transcripts into a thing you see at a glance.
     """
-    beats = world.story_beats
-    if not beats.open_foreshadowings:
+    rows = build_ledger(world)
+    if not rows:
         print("  伏笔账本  （没有未回收的伏笔）\n")
         return
 
-    print(f"  伏笔账本  {len(beats.open_foreshadowings)} 条未回收")
-    for fact_id, entry in beats.open_foreshadowings.items():
-        owed = entry.turns_owed(current_turn=beats.turn)
-        status = "⚠️ 超期" if entry.is_overdue(current_turn=beats.turn) else "正常"
-        condition = " / ".join(
-            f"{c.path} {c.op.value} {c.value}" for c in entry.payoff_condition.clauses
-        )
-        label = entry.note or fact_id
-        print(f"   - {label}")
+    print(f"  伏笔账本  {len(rows)} 条未回收")
+    for row in rows:
+        status = "⚠️ 超期" if row.overdue else "正常"
+        condition = " / ".join(f"{c.path} {c.op} {c.expected}" for c in row.payoff_clauses)
+        print(f"   - {row.label}")
         print(
-            f"     埋于第 {entry.planted_at_turn} 回合，已欠 {owed} 轮"
-            f"（阈值 {entry.overdue_after_turns}）  {status}"
+            f"     埋于第 {row.planted_at_turn} 回合，已欠 {row.turns_owed} 轮"
+            f"（阈值 {row.overdue_after_turns}）  {status}"
         )
         print(f"     回收条件：{condition}")
     print()
@@ -286,31 +278,23 @@ def print_unlock_board(world: WorldState) -> None:
     developer tool and must show what the player cannot see (docs/07 §2.4). The
     player-facing path never goes through here.
     """
-    gated = [
-        f
-        for f in world.facts.values()
-        if f.visibility is not Visibility.REVEALED and f.reveal_condition is not None
-    ]
-    if not gated:
+    rows = build_unlock_board(world)
+    if not rows:
         print("  解锁进度  （没有待解锁的事实）\n")
         return
 
     print("  解锁进度")
-    for fact in gated:
-        condition = fact.reveal_condition
-        assert condition is not None
+    for row in rows:
         parts = []
-        for clause in condition.clauses:
-            try:
-                actual = resolve_path(world, clause.path)
-            except UnknownPathError:
+        for clause in row.clauses:
+            if not clause.resolvable:
                 parts.append(f"{clause.path}=?(路径无法解析)")
                 continue
-            met = "✓" if clause_holds_for(actual, clause) else "·"
-            shown = f"{actual:.0f}" if isinstance(actual, float) else actual
-            parts.append(f"{met} {clause.path.split('.')[-1]} {shown}/{clause.value}")
-        mode = "任一" if condition.mode == "any" else "全部"
-        print(f"   - {fact.fact_id:<32}（{mode}）{'  '.join(parts)}")
+            met = "✓" if clause.met else "·"
+            shown = f"{clause.actual:.0f}" if isinstance(clause.actual, float) else clause.actual
+            parts.append(f"{met} {clause.label} {shown}/{clause.expected}")
+        mode = "任一" if row.mode == "any" else "全部"
+        print(f"   - {row.fact_id:<32}（{mode}）{'  '.join(parts)}")
     print()
 
 

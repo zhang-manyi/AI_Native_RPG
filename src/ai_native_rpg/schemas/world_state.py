@@ -54,6 +54,15 @@ class NPCWorldState(BaseModel):
         "the same name but continues into things the player has not earned. Blank "
         "falls back to npc_id.",
     )
+    public_note: str = Field(
+        default="",
+        description="one line about this character that anyone would know on sight, "
+        "e.g. '村里的接生婆，独自带大一个儿子'. Same nature as Location.description: "
+        "objective, ungated, safe to show before the player has earned anything. "
+        "Deliberately a separate authored field rather than a slice of "
+        "persona.background — that text continues into what she saw that night, so "
+        "excerpting it would leak the mystery by construction. Blank means show nothing.",
+    )
     alive: bool = True
     location: str
     faction_id: str | None = None
@@ -95,6 +104,13 @@ class Location(BaseModel):
     location_id: str
     name: str
     description: str = ""
+    backdrop: str = Field(
+        default="",
+        description="which kind of place this is, for a renderer to draw: 'interior', "
+        "'forest', 'square', 'tavern'. A *type*, not art — the pack names the kind and "
+        "the front end owns the pixels, so a scenario ships no assets. Unknown or blank "
+        "values render as a neutral background rather than failing.",
+    )
     connected_to: list[str] = Field(default_factory=list)
 
 

@@ -28,22 +28,28 @@ intro:
   facts_header: 已知线索
   goal: 你想从她口中问出关于这起失踪案的线索。
 
+# `backdrop` names the *kind* of place; the renderer owns what that looks like. A
+# pack therefore ships no art, and omitting the field just means a neutral background.
 locations:
   village_square:
     name: 村庄广场
     description: 村子的中心，井边总有人聚着低声说话。失踪案之后，这里的谈话声更小了。
+    backdrop: square
     connected_to: [tavern, forest_edge, npc_a_house]
   tavern:
     name: 酒馆
     description: 村里唯一的酒馆，白天几乎没人。老板擦着永远擦不干净的杯子。
+    backdrop: tavern
     connected_to: [village_square]
   npc_a_house:
     name: 玛尔塔的家
     description: 窗帘拉得很严，门口的柴堆比邻居家的都高。
+    backdrop: interior
     connected_to: [village_square]
   forest_edge:
     name: 森林入口
     description: 村民口中"孩子不许去"的地方。地上有被踩乱的痕迹，已经下过雨。
+    backdrop: forest
     connected_to: [village_square]
 
 players:
@@ -61,13 +67,19 @@ quests:
 # `name` is the public label, known to anyone in the village. It is what the
 # narrative generator is given to write with — ids like npc_a would otherwise leak
 # into generated prose.
+#
+# `public_note` is what a stranger learns by asking around: trade, household, the
+# kind of thing nobody would hide. Deliberately NOT an excerpt of persona.background,
+# which continues into what Marta saw that night — the player has to earn that.
 npcs:
   npc_a:
     name: 玛尔塔
+    public_note: 村里的接生婆，独自带大一个儿子。这几天没怎么出门。
     location: npc_a_house
     faction_id: villagers
   npc_b:
     name: 洛伦
+    public_note: 村里的猎人，熟悉森林里的每一条路。话很少。
     location: forest_edge
     faction_id: villagers
 

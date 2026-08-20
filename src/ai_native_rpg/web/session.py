@@ -1,0 +1,549 @@
+"""One play session: the assembled runtime plus the thread that owns it (docs/12 §5, §6.1).
+
+``WorldStateManager`` is not thread-safe. ``submit()`` reads, validates and writes
+with nothing between the three, and a turn has two writers: the Harness (relationship
+and reveal actions) and the narrative tick (**at least one** ``advance_turn`` every
+turn). ``snapshot()`` deep-copies, so a concurrent read cannot return half an object,
+but it can copy a logically inconsistent world — ledger entry added, ``planted_total``
+not yet — and a panel showing that is a panel that lies.
+
+So every call that touches the manager, harness, engine or memory runs on **one
+thread per session**. The world therefore has a single writer, which is the
+assumption the Manager was written under; nothing in ``world/`` changes.
+
+Why a thread and not asyncio: ``Harness.respond``, ``NarrativeEngine.tick`` and
+``httpx.Client`` are all synchronous and blocking. Awaiting them in a handler would
+stall the event loop; making them async would mean a second copy of the client,
+harness and engine call paths — a doubled API surface for a single-player debug tool.
+A global lock would be correct but would make two sessions wait 8 seconds on each
+other, and sessions share nothing (their own manager, memory, engine).
+
+A turn enqueues **two** jobs rather than one so the dialogue event can be emitted the
+moment the line is ready, without waiting on the tick. The queue keeps them in the
+order the architecture requires, which is the order ``chat_demo.py`` already used:
+``take_pending_event`` -> ``respond`` -> ``tick``.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import queue
+import threading
+import time
+import uuid
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from ..agent import Harness, HashingEmbedder, MemoryStore, build_npc_tools
+from ..agent.embedding import Embedder
+from ..agent.harness import PromptLibrary
+from ..config import Settings, build_llm_client
+from ..narrative.engine import NarrativeEngine
+from ..observability import NarrativeTickStore, TraceStore
+from ..observability.panels import (
+    PanelView,
+    RejectedProposal,
+    build_beats,
+    build_ledger,
+    build_unlock_board,
+    memory_hits,
+    operator_entry,
+    rejected_from_tick,
+    rejected_from_trace,
+    turn_cost,
+)
+from ..scenario import (
+    load_intro,
+    load_narrative_directives,
+    load_personas,
+    load_scenario,
+    load_seed_memories,
+    pack_prompts_dir,
+)
+from ..world import WorldStateManager
+from .events import (
+    DialoguePayload,
+    Event,
+    EventType,
+    NarrativeTickPayload,
+    TurnAcceptedPayload,
+    TurnFailedPayload,
+)
+from .scene import SceneView, build_pack_display, build_scene
+
+TRACE_DIR = Path("traces")
+NARRATIVE_TRACE_DIR = TRACE_DIR / "narrative"
+
+#: Scripted mock replies, shared with the terminal demo.
+#:
+#: The Harness and the Engine share one client and the mock replays in order
+#: regardless of who asks, so each entry has to satisfy whichever schema comes next:
+#: NPC entries carry reasoning/strategy/dialogue, narrative entries carry
+#: summary/dialogue_hook. Extra keys are ignored by validation, so entries that serve
+#: both are merged rather than interleaved — guessing the call order would break the
+#: moment a turn takes the 2-call path.
+MOCK_SCRIPT: list[dict[str, Any]] = [
+    {
+        "reasoning": "他在打探那天晚上的事，我不能直说，但也不想撒谎。",
+        "strategy": "deflect",
+        "dialogue": "……那晚我睡得早。你问这些做什么？",
+        "summary": "玛尔塔提到那晚雨停得早",
+        "dialogue_hook": "……那天的雨，停得比往常早些。",
+        "planted_fact_id": "rain_stopped_early",
+        "planted_value": "失踪那晚的雨停得比往常早，地上还没干透",
+        "payoff_condition": {
+            "mode": "any",
+            "clauses": [{"path": "relationships.npc_a.player_1.trust", "op": "gte", "value": 45}],
+        },
+    },
+    {
+        "reasoning": "他看起来是真心想帮忙，可以稍微松一点。",
+        "strategy": "warm_up",
+        "dialogue": "你要是真想帮忙……算了，我不知道该不该说。",
+        "summary": "玛尔塔看了一眼儿子的房间",
+        "dialogue_hook": "（她朝里屋看了一眼，没说话。）",
+        "planted_fact_id": "curtain_moved",
+        "planted_value": "那晚玛尔塔家的窗帘动过一下",
+        "payoff_condition": {
+            "mode": "any",
+            "clauses": [{"path": "relationships.npc_a.player_1.trust", "op": "gte", "value": 45}],
+        },
+    },
+]
+
+
+class SessionError(RuntimeError):
+    """A session could not be created or a turn could not be admitted."""
+
+
+@dataclass
+class _Turn:
+    """Bookkeeping for one player utterance in flight."""
+
+    turn_id: str
+    text: str
+
+
+class Session:
+    """A scenario, an NPC, and the single thread allowed to touch them."""
+
+    def __init__(
+        self,
+        *,
+        session_id: str,
+        scenario: str,
+        npc_id: str | None = None,
+        settings: Settings | None = None,
+        embedder: Embedder | None = None,
+        dev_mode: bool = True,
+        loop: asyncio.AbstractEventLoop | None = None,
+        trace_dir: Path | None = None,
+    ) -> None:
+        self.session_id = session_id
+        self.scenario = scenario
+        self.dev_mode = dev_mode
+        self._loop = loop
+        self._settings = settings or Settings.from_env()
+
+        # --- assembly, identical to chat_demo.main() (docs/12 §6.1) -----------
+        world = load_scenario(scenario)
+        personas = load_personas(scenario)
+        seeds = load_seed_memories(scenario)
+        self.intro = load_intro(scenario)
+        directives = load_narrative_directives(scenario)
+
+        # The pack, not the code, decides who the player is.
+        self.player_id = next(iter(world.player_locations), "player_1")
+
+        resolved_npc = npc_id or next(iter(personas), None)
+        if resolved_npc not in personas:
+            raise SessionError(
+                f"unknown npc {npc_id!r} in scenario {scenario!r}; available: {', '.join(personas)}"
+            )
+        self.npc_id = resolved_npc
+        npc_state = personas[self.npc_id]
+
+        self.manager = WorldStateManager(world)
+        # Public display data, lifted once. The render path never sees WorldState.
+        self.display = build_pack_display(locations=world.locations, npcs=world.npcs)
+        # The embedder is shared across sessions by the caller: it is read-only and
+        # costs hundreds of MB to load, so one instance serves everyone.
+        self.memory = MemoryStore(self.npc_id, embedder=embedder or HashingEmbedder())
+        seeds[self.npc_id].load_into(self.memory)
+
+        overlay = pack_prompts_dir(scenario)
+        self.prompt_source = f"{scenario} 覆盖 + 全局回退" if overlay.is_dir() else "全局默认"
+        prompts = PromptLibrary(overlay=overlay if overlay.is_dir() else None)
+
+        tools = build_npc_tools(
+            npc_id=self.npc_id,
+            manager=self.manager,
+            memory=self.memory,
+            player_id=self.player_id,
+        )
+        self.tool_names = list(tools.names)
+        llm = build_llm_client(self._settings, responses=list(MOCK_SCRIPT) * 40)
+        self.harness = Harness(
+            npc_state=npc_state,
+            manager=self.manager,
+            llm=llm,
+            memory=self.memory,
+            prompts=prompts,
+            tools=tools,
+        )
+        self.engine = NarrativeEngine(
+            manager=self.manager, llm=llm, prompts=prompts, directives=directives
+        )
+
+        root = trace_dir or TRACE_DIR
+        self.traces = TraceStore(root)
+        self.narrative_traces = NarrativeTickStore(root / "narrative")
+
+        # --- event plumbing ---------------------------------------------------
+        self._seq = 0
+        self._history: list[Event] = []
+        self._subscribers: list[asyncio.Queue[Event]] = []
+        self._lock = threading.Lock()
+
+        # --- panel accumulators ----------------------------------------------
+        # Per-turn records the panel shows as a series. Kept here rather than
+        # recomputed from disk: a trace is one interaction and holds no turn number,
+        # so the correlation only exists while the session is alive.
+        self._timeline: list[Any] = []
+        self._rejected: list[RejectedProposal] = []
+        self._relationship_trend: list[dict[str, float]] = []
+        self._last_cost: Any = None
+        self._last_memory: Any = []
+        self.transcript: list[dict[str, str]] = []
+
+        # --- the executor -----------------------------------------------------
+        self._jobs: queue.Queue[Callable[[], None] | None] = queue.Queue()
+        # Jobs enqueued but not finished. The authority for "a turn is in flight",
+        # and the reason ``submit_turn`` can refuse a second turn: both jobs of a turn
+        # count, so the session stays busy until the tick is done, not just the line.
+        self._inflight = 0
+        self._inflight_lock = threading.Lock()
+        self._closed = False
+        self._worker = threading.Thread(
+            target=self._run_jobs, name=f"session-{session_id[:8]}", daemon=True
+        )
+        self._worker.start()
+
+        self._sample_relationship()
+
+    # --- backend description -------------------------------------------------
+
+    @property
+    def backend(self) -> dict[str, str]:
+        """What is actually live, for the page header (``print_header``'s content).
+
+        Names the provider, not just the model: with a relay the model string alone
+        does not say which endpoint is being billed.
+        """
+        if self._settings.has_real_backend:
+            model = f"{self._settings.provider} {self._settings.model}"
+        else:
+            model = "MockLLMClient (离线脚本)"
+        return {
+            "scenario": self.scenario,
+            "npc_id": self.npc_id,
+            "player_id": self.player_id,
+            "model": model,
+            "embedder": type(self.memory._embedder).__name__,
+            "prompt_source": self.prompt_source,
+            "tools": ", ".join(self.tool_names),
+        }
+
+    # --- reads (safe from any thread) ----------------------------------------
+
+    def scene(self) -> SceneView:
+        """The player's view of the world.
+
+        The visibility decision is entirely ``player_view()``'s; the only other input
+        is ``self.display``, which holds static public labels. ``turn`` is read from
+        ``story_beats`` — a turn count is not hidden information, and the player is
+        shown it as "第 N 轮" anyway.
+        """
+        return build_scene(
+            view=self.manager.player_view(self.player_id),
+            display=self.display,
+            turn=self.manager.snapshot().story_beats.turn,
+            intro=self.intro,
+            transcript=self.transcript[-12:],
+        )
+
+    def panel(self) -> PanelView:
+        """The developer panel. Reads ``WorldState`` directly, by design (docs/07 §2.4)."""
+        world = self.manager.snapshot()
+        return PanelView(
+            beats=build_beats(world),
+            ledger=build_ledger(world),
+            unlock_board=build_unlock_board(world),
+            rejected_proposals=list(reversed(self._rejected[-20:])),
+            operator_timeline=list(reversed(self._timeline[-20:])),
+            relationship_trend=self._relationship_trend[-40:],
+            memory=self._last_memory,
+            memory_counts={
+                "episodic": self.memory.episodic_count,
+                "semantic": self.memory.semantic_count,
+            },
+            last_turn_cost=self._last_cost,
+            pending_hook=str((self.engine.pending_event or {}).get("dialogue_hook", "")),
+        )
+
+    @property
+    def busy(self) -> bool:
+        """Whether a turn is in flight. The authority for the 409 in ``submit_turn``.
+
+        Stays true until the *tick* finishes, not just the line: the tick writes world
+        state (at least one ``advance_turn``), so admitting the next turn while it runs
+        is precisely the race the single-thread executor exists to prevent.
+        """
+        with self._inflight_lock:
+            return self._inflight > 0
+
+    # --- event stream --------------------------------------------------------
+
+    def subscribe(self, *, last_event_id: int | None = None) -> asyncio.Queue[Event]:
+        """Attach a stream, optionally replaying what was missed.
+
+        Replay is what makes ``EventSource``'s automatic reconnect lossless: the
+        browser sends ``Last-Event-ID`` and everything after it is re-delivered.
+        """
+        q: asyncio.Queue[Event] = asyncio.Queue()
+        with self._lock:
+            if last_event_id is not None:
+                for event in self._history:
+                    if event.seq > last_event_id and self._visible(event):
+                        q.put_nowait(event)
+            self._subscribers.append(q)
+        return q
+
+    def unsubscribe(self, q: asyncio.Queue[Event]) -> None:
+        with self._lock:
+            if q in self._subscribers:
+                self._subscribers.remove(q)
+
+    def _visible(self, event: Event) -> bool:
+        """Developer-only events never reach a non-developer session (docs/12 §7)."""
+        return self.dev_mode or not event.dev_only
+
+    def emit(self, type_: EventType, data: dict[str, Any]) -> Event | None:
+        """Record an event and fan it out. Returns None if it was withheld.
+
+        Filtering happens **here**, server-side: a dev event on a plain session is
+        never created, rather than sent and hidden by the front end.
+        """
+        with self._lock:
+            candidate = Event(seq=self._seq + 1, type=type_, data=data)
+            if not self._visible(candidate):
+                return None
+            self._seq += 1
+            event = candidate
+            self._history.append(event)
+            subscribers = list(self._subscribers)
+
+        for q in subscribers:
+            self._deliver(q, event)
+        return event
+
+    def _deliver(self, q: asyncio.Queue[Event], event: Event) -> None:
+        """Hand an event to a queue from whichever thread produced it.
+
+        The worker thread is not the event loop's thread, so the put has to be
+        marshalled; this is the only crossing point between the two worlds.
+        """
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            q.put_nowait(event)
+            return
+        # A loop closed mid-shutdown raises here; the stream it fed is gone anyway.
+        with contextlib.suppress(RuntimeError):
+            loop.call_soon_threadsafe(q.put_nowait, event)
+
+    # --- the executor --------------------------------------------------------
+
+    def _run_jobs(self) -> None:
+        while True:
+            job = self._jobs.get()
+            if job is None:
+                self._jobs.task_done()
+                return
+            try:
+                job()
+            except Exception:
+                # A job reports its own failure as an event; anything escaping here
+                # must still not kill the worker, or the session would go silently
+                # deaf for the rest of its life.
+                pass
+            finally:
+                # Decrement under the lock rather than inferring business from the
+                # queue's ``unfinished_tasks``: that counter drops as the last job is
+                # *taken*, so a turn looked idle while its tick was still running and
+                # the next turn was admitted alongside it — exactly the concurrency
+                # this executor exists to prevent.
+                with self._inflight_lock:
+                    self._inflight = max(0, self._inflight - 1)
+                self._jobs.task_done()
+
+    def submit_turn(self, text: str) -> str:
+        """Admit one utterance and enqueue its two jobs. Returns the turn id.
+
+        Returns immediately: the caller answers ``202`` and the line arrives on the
+        stream. Rejecting a turn while one is in flight is deliberate — see
+        docs/12 §5.3 for why queueing plus a disabled input beat preemption.
+        """
+        if self._closed:
+            raise SessionError("session is closed")
+        text = text.strip()
+        if not text:
+            raise SessionError("empty input")
+
+        turn = _Turn(turn_id=uuid.uuid4().hex, text=text)
+        # Count both jobs before either is queued: a turn is in flight from here
+        # until its tick lands, so a check-then-submit from another request cannot
+        # slip between the two.
+        with self._inflight_lock:
+            if self._inflight > 0:
+                raise SessionError("a turn is already in flight for this session")
+            self._inflight = 2
+        self.emit(
+            EventType.TURN_ACCEPTED,
+            TurnAcceptedPayload(
+                turn_id=turn.turn_id,
+                text=turn.text,
+                turn=self.manager.snapshot().story_beats.turn,
+            ).model_dump(),
+        )
+        self._jobs.put(lambda: self._job_dialogue(turn))
+        self._jobs.put(lambda: self._job_tick(turn))
+        return turn.turn_id
+
+    def close(self) -> None:
+        self._closed = True
+        self._jobs.put(None)
+
+    def join(self, timeout: float | None = None) -> None:
+        """Block until the in-flight turn drains. For tests and shutdown."""
+        deadline = None if timeout is None else time.monotonic() + timeout
+        while self.busy:
+            if deadline is not None and time.monotonic() > deadline:
+                return
+            time.sleep(0.01)
+
+    # --- the two jobs of a turn ----------------------------------------------
+
+    def _job_dialogue(self, turn: _Turn) -> None:
+        """LLM call(s) for the line. Emits ``dialogue`` as soon as it is ready."""
+        started = time.perf_counter()
+        trust_before = self.manager.get_trust(self.npc_id, self.player_id)
+
+        # Content generated after the previous turn is woven into this one, so the
+        # player never waits on the narrative call (docs/02 §4).
+        pending = self.engine.take_pending_event()
+
+        try:
+            response, trace = self.harness.respond(
+                turn.text,
+                player_id=self.player_id,
+                session_id=self.session_id,
+                narrative_event=pending,
+            )
+        except Exception as exc:
+            self.emit(
+                EventType.TURN_FAILED,
+                TurnFailedPayload(
+                    turn_id=turn.turn_id,
+                    stage="dialogue",
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                ).model_dump(),
+            )
+            return
+
+        self.traces.save(trace)
+        trust_after = self.manager.get_trust(self.npc_id, self.player_id)
+        world = self.manager.snapshot()
+
+        self.transcript.append({"speaker": "player", "text": turn.text})
+        self.transcript.append({"speaker": self.npc_id, "text": response.dialogue})
+
+        self._last_cost = turn_cost(trace)
+        self._last_memory = memory_hits(trace)
+        self._rejected.extend(rejected_from_trace(trace, turn=world.story_beats.turn))
+        self._sample_relationship()
+
+        self.emit(
+            EventType.DIALOGUE,
+            DialoguePayload(
+                turn_id=turn.turn_id,
+                turn=world.story_beats.turn,
+                npc_id=self.npc_id,
+                name=self.npc_name,
+                dialogue=response.dialogue,
+                strategy=response.plan.strategy,
+                trust_before=trust_before,
+                trust_after=trust_after,
+                latency_ms=(time.perf_counter() - started) * 1000.0,
+                used_pending_hook=bool(pending),
+            ).model_dump(),
+        )
+        self._emit_state()
+
+    def _job_tick(self, turn: _Turn) -> None:
+        """The narrative decision. Its ~8.6s land here, off the player's wait."""
+        try:
+            tick = self.engine.tick(player_id=self.player_id)
+        except Exception as exc:
+            self.emit(
+                EventType.TURN_FAILED,
+                TurnFailedPayload(
+                    turn_id=turn.turn_id,
+                    stage="tick",
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                ).model_dump(),
+            )
+            return
+
+        self.narrative_traces.save(tick)
+        entry = operator_entry(tick)
+        rejected = rejected_from_tick(tick)
+        self._timeline.append(entry)
+        self._rejected.extend(rejected)
+
+        self.emit(
+            EventType.NARRATIVE_TICK,
+            NarrativeTickPayload(
+                turn_id=turn.turn_id, entry=entry, rejected_proposals=rejected
+            ).model_dump(),
+        )
+        self._emit_state()
+
+    # --- helpers -------------------------------------------------------------
+
+    def _emit_state(self) -> None:
+        """Push fresh snapshots after the world moved (docs/12 §3.3: no diffs)."""
+        self.emit(EventType.SCENE, self.scene().model_dump())
+        self.emit(EventType.PANEL, self.panel().model_dump())
+
+    def _sample_relationship(self) -> None:
+        world = self.manager.snapshot()
+        rel = self.manager.get_relationship(self.npc_id, self.player_id)
+        self._relationship_trend.append(
+            {
+                "turn": world.story_beats.turn,
+                "trust": rel.trust,
+                "fear": rel.fear,
+                "respect": rel.respect,
+            }
+        )
+
+    @property
+    def npc_name(self) -> str:
+        """The NPC's public display name (``NPCWorldState.name``)."""
+        npc = self.display.npcs.get(self.npc_id)
+        return npc.name if npc is not None else self.npc_id

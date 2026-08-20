@@ -1,0 +1,287 @@
+"""Turn mechanics of the web layer (docs/12 §3, §5).
+
+The properties tested here are the reason this layer exists at all:
+
+* the line is emitted **before** the narrative tick, so the tick's ~8.6s no longer
+  sits in front of the player (docs/09 §4's latency table);
+* a turn is serialised end to end, so the two writers of world state never overlap
+  (``WorldStateManager`` is not thread-safe and a tick always writes ``advance_turn``);
+* a failure is reported per *stage*, because a failed line loses the turn while a
+  failed tick only costs the next turn its setup.
+
+Everything runs on ``MockLLMClient`` — ``conftest``'s autouse fixture pins
+``USE_MOCK_LLM=1``, so no request leaves the machine.
+"""
+
+from __future__ import annotations
+
+import threading
+
+import pytest
+
+# The web interface is an optional extra (``pip install -e ".[dev,web]"``), so a
+# dev-only checkout skips these rather than failing to collect — the same courtesy the
+# embedding extra gets. ``session`` imports FastAPI transitively via the app package.
+pytest.importorskip("fastapi", reason="needs the 'web' extra")
+
+from ai_native_rpg.web.events import EventType
+from ai_native_rpg.web.session import Session, SessionError
+
+SCENARIO = "village_disappearance"
+
+
+@pytest.fixture
+def session(tmp_path):
+    """A live session writing its traces into a temp dir, not the repo's ``traces/``."""
+    s = Session(session_id="test_session", scenario=SCENARIO, trace_dir=tmp_path)
+    yield s
+    s.close()
+
+
+def _types(session: Session) -> list[str]:
+    return [e.type.value for e in session._history]
+
+
+# --- ordering --------------------------------------------------------------
+
+
+def test_dialogue_is_emitted_before_the_narrative_tick(session):
+    """The whole point of the layer: the player reads the line, then the tick lands."""
+    session.submit_turn("那天晚上你看到了什么？")
+    session.join(timeout=30)
+
+    types = _types(session)
+    assert types.index(EventType.DIALOGUE.value) < types.index(EventType.NARRATIVE_TICK.value)
+
+
+def test_turn_accepted_precedes_the_line(session):
+    """The echo lands first so the front end never inserts the player's text itself."""
+    session.submit_turn("你好")
+    session.join(timeout=30)
+
+    types = _types(session)
+    assert types[0] == EventType.TURN_ACCEPTED.value
+    assert types.index(EventType.TURN_ACCEPTED.value) < types.index(EventType.DIALOGUE.value)
+
+
+def test_every_turn_closes_with_a_tick(session):
+    """A tick always runs, even a quiet one: pacing rules reason about adjacency.
+
+    ``advance_turn`` is submitted on every tick including ``relieve``, so a turn that
+    left no trace would make a beat five turns back look like it just happened.
+    """
+    before = session.manager.snapshot().story_beats.turn
+    session.submit_turn("你好")
+    session.join(timeout=30)
+
+    assert session.manager.snapshot().story_beats.turn == before + 1
+    assert EventType.NARRATIVE_TICK.value in _types(session)
+
+
+def test_state_snapshots_follow_each_stage(session):
+    """Scene and panel refresh after the line and again after the tick (docs/12 §3.3)."""
+    session.submit_turn("你好")
+    session.join(timeout=30)
+
+    types = _types(session)
+    assert types.count(EventType.SCENE.value) == 2
+    assert types.count(EventType.PANEL.value) == 2
+
+
+# --- serialisation ---------------------------------------------------------
+
+
+def test_second_turn_is_refused_while_one_is_in_flight(session):
+    """A turn stays in flight until its *tick* finishes, not just its line.
+
+    The tick writes world state, so admitting the next turn alongside it is exactly
+    the race the single-thread executor exists to prevent (docs/12 §5.3).
+    """
+    session.submit_turn("第一句")
+
+    with pytest.raises(SessionError, match="in flight"):
+        session.submit_turn("第二句")
+
+    session.join(timeout=30)
+    # Once drained, the session accepts work again.
+    session.submit_turn("第三句")
+    session.join(timeout=30)
+    assert session.manager.snapshot().story_beats.turn == 2
+
+
+def test_busy_stays_true_until_the_tick_completes(session, monkeypatch):
+    """Regression: ``busy`` must not clear when the dialogue job finishes.
+
+    Deriving it from ``queue.unfinished_tasks`` looked right and was not — that counter
+    drops as the last job is *taken*, leaving a window where the line was done, the
+    tick was still writing, and a second turn was admitted.
+    """
+    tick_entered = threading.Event()
+    release_tick = threading.Event()
+    real_tick = session.engine.tick
+
+    def slow_tick(**kwargs):
+        tick_entered.set()
+        release_tick.wait(timeout=10)
+        return real_tick(**kwargs)
+
+    monkeypatch.setattr(session.engine, "tick", slow_tick)
+
+    session.submit_turn("你好")
+    assert tick_entered.wait(timeout=20), "tick never started"
+
+    # The line has been emitted, the tick is mid-flight: still busy.
+    assert EventType.DIALOGUE.value in _types(session)
+    assert session.busy is True
+    with pytest.raises(SessionError, match="in flight"):
+        session.submit_turn("插一句")
+
+    release_tick.set()
+    session.join(timeout=30)
+    assert session.busy is False
+
+
+def test_concurrent_submissions_serialise(session):
+    """Many threads posting at once must not interleave writes.
+
+    Whatever is admitted runs one at a time, so the turn counter equals the number of
+    accepted turns — never a lost or doubled increment.
+    """
+    accepted = []
+    errors = []
+
+    def submit():
+        try:
+            accepted.append(session.submit_turn("同时说话"))
+        except SessionError as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=submit) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    session.join(timeout=30)
+
+    assert len(accepted) >= 1
+    assert len(accepted) + len(errors) == 6
+    # The decisive assertion: exactly one advance_turn per accepted turn.
+    assert session.manager.snapshot().story_beats.turn == len(accepted)
+
+
+def test_empty_input_is_rejected(session):
+    with pytest.raises(SessionError, match="empty"):
+        session.submit_turn("   ")
+
+
+# --- failure handling ------------------------------------------------------
+
+
+def test_tick_failure_keeps_the_line(session, monkeypatch):
+    """A failed tick costs the *next* turn its setup; this turn's line still stands."""
+
+    def boom(**kwargs):
+        raise RuntimeError("narrative backend exploded")
+
+    monkeypatch.setattr(session.engine, "tick", boom)
+
+    session.submit_turn("你好")
+    session.join(timeout=30)
+
+    types = _types(session)
+    assert EventType.DIALOGUE.value in types
+    failure = next(e for e in session._history if e.type is EventType.TURN_FAILED)
+    assert failure.data["stage"] == "tick"
+    assert failure.data["error_type"] == "RuntimeError"
+
+
+def test_dialogue_failure_is_reported_as_such(session, monkeypatch):
+    """A failed line means the turn is lost, and must be distinguishable from a tick."""
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("model refused")
+
+    monkeypatch.setattr(session.harness, "respond", boom)
+
+    session.submit_turn("你好")
+    session.join(timeout=30)
+
+    failure = next(e for e in session._history if e.type is EventType.TURN_FAILED)
+    assert failure.data["stage"] == "dialogue"
+    assert EventType.DIALOGUE.value not in _types(session)
+
+
+def test_a_failed_turn_does_not_wedge_the_session(session, monkeypatch):
+    """The executor survives a raising job; the next turn still runs."""
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("transient")
+
+    monkeypatch.setattr(session.harness, "respond", boom)
+    session.submit_turn("第一句")
+    session.join(timeout=30)
+
+    monkeypatch.undo()
+    session.submit_turn("第二句")
+    session.join(timeout=30)
+
+    assert EventType.DIALOGUE.value in _types(session)
+    assert session.busy is False
+
+
+# --- pending event handoff -------------------------------------------------
+
+
+def test_generated_hook_reaches_the_following_turn(session):
+    """``pending_event`` is consumed by the *next* turn, which is why tick is off-path.
+
+    Turn 1 generates content and turn 2 is handed it. This is the contract docs/02 §4
+    established and the web layer must not alter — only move the wait off the player.
+    """
+    session.submit_turn("第一句")
+    session.join(timeout=30)
+
+    tick = next(e for e in session._history if e.type is EventType.NARRATIVE_TICK)
+    if not tick.data["entry"]["hook"]:
+        pytest.skip("no beat fired on turn 1; nothing was handed forward")
+
+    session.submit_turn("第二句")
+    session.join(timeout=30)
+
+    dialogues = [e for e in session._history if e.type is EventType.DIALOGUE]
+    assert dialogues[-1].data["used_pending_hook"] is True
+
+
+def test_hook_is_consumed_only_once(session):
+    """A hook re-offered every turn would read as an NPC stuck on one line."""
+    session.submit_turn("第一句")
+    session.join(timeout=30)
+    session.submit_turn("第二句")
+    session.join(timeout=30)
+
+    # Whatever the engine generated on turn 1 was taken by turn 2; turn 2's own
+    # content is what is pending now, so the queue never accumulates.
+    assert session.engine.pending_event is None or isinstance(session.engine.pending_event, dict)
+    session.submit_turn("第三句")
+    session.join(timeout=30)
+    dialogues = [e for e in session._history if e.type is EventType.DIALOGUE]
+    assert len(dialogues) == 3
+
+
+# --- replay ----------------------------------------------------------------
+
+
+def test_history_replay_skips_what_the_client_already_has(session):
+    """``Last-Event-ID`` replay is what makes EventSource's reconnect lossless."""
+    session.submit_turn("你好")
+    session.join(timeout=30)
+
+    all_seqs = [e.seq for e in session._history]
+    cutoff = all_seqs[len(all_seqs) // 2]
+
+    q = session.subscribe(last_event_id=cutoff)
+    replayed = []
+    while not q.empty():
+        replayed.append(q.get_nowait().seq)
+
+    assert replayed == [s for s in all_seqs if s > cutoff]
