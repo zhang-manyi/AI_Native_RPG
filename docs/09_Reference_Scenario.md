@@ -9,12 +9,15 @@
 小型村庄，玩家调查一起失踪案。
 
 - **World**：1 个村庄场景，3-4 个地点（村庄广场、酒馆、NPC_A 家、森林入口）。
-- **NPC**：2 个 NPC 足够展示架构完整性：
-  - NPC_A：知道部分真相，persona = 恐惧、保护家人，目标是"隐藏秘密"。
-  - NPC_B：真正的失踪案关键人物（或凶手），persona = 冷静、有城府。
-- **Narrative Event**：1 条主线——"随着玩家和 NPC_A 的信任值提升，NPC_A 逐渐透露线索，最终引向 NPC_B"。触发规则用信任度阈值（如 trust > 40 触发线索 1，trust > 70 触发线索 2）。
+- **NPC**：3 个。前两个足以展示架构完整性，第三个是切片 5 加的，理由见 [14 §3](./14_Case_Design.md#3-第三个-npc酒馆老板)：
+  - NPC_A（玛尔塔）：知道部分真相，persona = 恐惧、保护家人，目标是"隐藏秘密"。
+  - NPC_B（洛伦）：失踪案的关键人物，persona = 冷静、有城府。
+  - NPC_C（酒馆老板）：切片 5 加入。他让"NPC 记忆是主观的、可能记错"**可被观察**——只有一个可对话 NPC 时，玩家分不出"主观记忆"和"客观世界"；他同时是玛尔塔闭口后的退路，和第二个可信嫌疑人。
+- **Narrative Event**：切片 1-4 是 1 条主线（"随着 trust 提升，NPC_A 逐渐透露线索，最终引向 NPC_B"，触发用信任阈值）。切片 5 换成**剧本定义的事件网络**：主线事件 + 卡点处的支线，支线改变主线的形状而不只是进度，见 [13](./13_Narrative_Events.md)、[14 §6](./14_Case_Design.md#6-主线事件链)。
+- **悬念**：单一嫌疑人是个内容缺陷——NPC_B 的 persona 写着"关键人物"，玩家第一眼就知道答案，三线索规则于是空转。修法不是把凶手移出可对话角色（那会减少悬念：不能盘问他就观察不到他撒谎），而是**给出第二个可信的解释**，见 [14 §2](./14_Case_Design.md#2-洛伦太明显根因是没有第二个解释)。
 - **叙事算子**：实现 `foreshadow` / `reveal` / `escalate` / `reverse` 四个，配合伏笔账本和节奏规则，见 [10_Narrative_Operators.md](./10_Narrative_Operators.md)。本场景的 `reverse` 已经埋好触发条件：`npc_a_threatened`（洛伦威胁过玛尔塔的儿子）一旦解锁，玛尔塔此前所有的回避都从"包庇凶手"重读成"保护儿子"——玩家手上信息没变，意义全变了。
-- **结局**：至少 3 个，否则是技术演示而不是故事——查明真相 / 被洛伦先动手 / 玛尔塔彻底闭口（fear 过高，社交线断掉）。
+- **结局**：至少 3 个，否则是技术演示而不是故事——查明真相 / 被洛伦先动手 / 玛尔塔彻底闭口（fear 过高，社交线断掉）。切片 5 把这三个倒推成结构化成立条件，并各附一条可达路径（[14 §4](./14_Case_Design.md#4-三个结局)）；`fear` 目前基本不动，做闭口机制前要先让它真的会涨。
+- **时间与地点**：切片 5 引入一天三个时段、每时段一个地点、天数上限。这给系统现在完全没有的**成本**——每个选择都在排除别的选择，也是 Player Model 能区分玩家风格的前提。四个地点不加，分工见 [14 §5](./14_Case_Design.md#5-四个地点的分工)。
 - **Player Model**：跟踪 1-2 个维度即可（如 `exploration_score`、`social_score`），影响 NPC_A 透露线索的方式（探索型玩家给环境线索，社交型玩家给对话线索）。
 
 这个规模足以走完 [02_Sequence_Diagram.md](./02_Sequence_Diagram.md) 里的完整链路，同时避免陷入世界观内容本身的工作量。
@@ -26,7 +29,8 @@
 | Player Model | 实现（简化） | Behavior Tracker 用真实代码；Profile Summarizer 初期用规则模板代替 LLM 批量调用 |
 | Experience Controller | 实现（简化） | 加权求和打分，2 个维度即可 |
 | Narrative Engine | 完整实现 | 规则触发 + 真实 LLM 生成结构化内容 |
-| 叙事算子 | 实现（简化） | 4 个算子 + 伏笔账本 + 节奏规则；不做张力曲线拟合，见 [10](./10_Narrative_Operators.md#7-实现约定) |
+| 叙事算子 | 实现（简化） | 4 个算子 + 伏笔账本 + 节奏规则；不做张力曲线拟合，见 [10](./10_Narrative_Operators.md#7-实现约定)。切片 5 起算子不再是调度单位，降级为"事件怎么讲" |
+| 事件层 | 实现（切片 5） | 剧本定义的事件网络 + 时间制 + 声音层次 + 玩家动作（移动、结束对话），见 [13](./13_Narrative_Events.md) |
 | World State Manager | 完整实现 | Action Proposal/Validator 全流程跑通，PlayerView 支持 hidden/revealed/partial 三态，剧本包加载 + 交叉引用校验 |
 | NPC Agent Runtime | 完整实现 | Memory（三层，RAG）+ Planning + Tool Use（Function Calling）+ Dialogue Generation + Action，核心投入区域 |
 | Developer Platform | 实现（简化） | Trace Viewer + World/Memory Viewer + Narrative State Panel（伏笔账本、解锁进度、被拒 proposal） |
@@ -59,7 +63,10 @@
 | 2 | 完成 | 真实 LLM + embedding 记忆检索 + Tool Use | NPC 会查关系值/世界事实再回答 |
 | 3 | 完成 | Narrative Engine + 算子 + 伏笔账本 + `StoryBeats` | 线索按节奏逐步解锁，伏笔有回收 |
 | 4 | 进行中 | Player Model 影响披露方式 + 调试面板 | 两种玩法风格拿到不同的线索呈现 |
-| 5 | 未开始 | Eval 脚本 + 数据回流一轮 | 改 prompt 前后的指标对比 |
+| 5 | 未开始 | 事件层 + 时间制 + 玩家动作（[13](./13_Narrative_Events.md)、[14](./14_Case_Design.md)） | 一次完整调查：3-4 天、多地点、3 个不同结局 |
+| 6 | 未开始 | Eval 脚本 + 数据回流一轮 | 改 prompt 前后的指标对比 |
+
+切片 5 是**修正一处设计偏差**，不是加功能：[05 §2.1](./05_Narrative_Engine.md#21-规则触发确定性) 原本写的候选是*事件*，实现走成了*算子*，于是"这回合该发生什么"没有依据可答（症状见下方"一轮真实对局暴露的四件事"，以及新增的第五件）。它同时让 [10 §5](./10_Narrative_Operators.md#5-结构质量优先级) 优先级表第 4 行「收束」从待实现变为可实现——现在做不了，是因为没有任何状态表达"故事走到哪一步了"。
 
 切片 4 的**调试面板那一半已完成**：Web 界面（`src/ai_native_rpg/web/`，入口 `scripts/web.py`）替代了 `scripts/chat_demo.py` 作为主交互入口，实现见 [12_Web_Interface.md](./12_Web_Interface.md)。落地时确认的三件事：
 
@@ -68,6 +75,24 @@
 - **面板判定下沉到 `observability/panels.py`**（纯函数），`chat_demo.py` 的三个 print 改为消费同一份模型——终端与 Web 共享判定，各自只拥有渲染。终端版因此仍然可用，是无 JS 环境下最快的排查入口。
 
 **下一步从这里继续**：切片 4 剩下的 Player Model 那一半——Behavior Tracker 写入 `PlayerProfile`，`weight_for()` 是唯一接口，`select_candidate(profile=...)` 已经在消费它。它不依赖 Web；面板届时加一块「玩家画像」即可。
+
+一轮真实对局（11 回合）暴露的四件事，都已修掉，但根因值得记住：
+
+**`quests.<progress>.stage` 有作者、有读者，没有写入者。** [10 §3.2](./10_Narrative_Operators.md) 把它列为张力三个来源之一，[04 §3.3](./04_World_State_Manager.md) 明确允许 Engine 推进它，剧本按 `stage >= 2` 写伏笔回收条件，`_escalate_candidates` 按 `stage >= 1` 开闸——四方都假设有人在推，而没有任何代码路径推它。结果：整局 stage 恒为 0，三条伏笔永远不到期，`escalate` 一次没触发，张力始终 0.00。三个看起来独立的症状（伏笔为埋而埋、进展慢、张力不动）是同一个断口。现在由 `rules.earned_stage()`（已**说出口**的 `paced_clues` 条数，纯函数）+ Engine 每 tick 提一次 `advance_quest` 补上，一 tick 只走一步（理由同 `MAX_CHAPTER_STEP`）。用「已说出口」而不是「可解锁」：后者一个大方的回合就能满足，而前者是真的发生过的 beat，且单调，不会倒退。
+
+**这个断口本来该被 loader 抓住。** 剧本加载器校验 `path` 能否解析，不校验通道有没有写入者——和 `_TENSION_CEILING_BY_STAGE` 当年那个「阈值不可达」是同一类静默内容 bug。现在 `narrative.progress_quest` 显式命名这个 quest，loader 交叉引用它是否存在；没有这一项就是「没有 stage 通道」，而不是猜一个。这同时修掉 `rules.py` 里硬编码的 `world.quests["investigation"]`——本文件说过 `rules.py` 不含具体 fact id，那行是漏网的反例，任何别的剧本拿到的都是一条永不触发的死通道。
+
+**对话第二次调用看不见玩家原话，于是人称漂移。** 实测台词：`他既然照做了，还特意来宽我的心……那我就告诉你一点`——同一句话、同一个听话人，先「他」后「你」。`_dialogue_messages` 只拿到 `plan.reasoning`，而 reasoning 是内心活动，必然用第三人称称呼玩家（"他在打探那晚的事"）。prompt 给了一个第三人称指代、一个第二人称指代都没给，模型用了它拿到的那个。修法是把 observation 传进去恢复「在对谁说话」，而不是加一条「禁止用他」——外加 `npc_dialogue.txt` 一段说明 reasoning 的人称不是称呼的人称。
+
+**伏笔生成器看不见账本，所以每次都另起一个东西。** 玩家在玛尔塔家里，模型却依次埋了磨坊水轮上的红布、水渠边的拖拽痕迹、窗台的白蜡——三个地点三件事，彼此不接。生成 prompt 只给了未回收条数（"1/3 loops open"），没给内容，「再给同一个结论补一条线索」根本不是它能瞄准的目标；而多条线索指向一个结论正是 `MAX_OPEN_FORESHADOWINGS = 3` 背后 Three Clue Rule 要的东西。现在把未回收条目的 `note` 一并给出，并要求新的一条是同一件事的另一个侧面。
+
+**第五件，也是最贵的一件：算子这个粒度选错了。** 上面四条是断口，这条是分层。玩下来最明显的感受是"伏笔为埋而埋"——修完伏笔的生成上下文之后仍然如此，因为根因不在 prompt。`_foreshadow_candidates` 的触发条件只有"账本没满且上一轮没埋"，**没有任何一条问"这个故事现在需要一条伏笔吗"**；而它的 `intensity=0.3` 是五个候选里最低的，所以只在其他候选全空的回合被选中——它填的正是本该 `relieve` 的回合，而 [05](./05_Narrative_Engine.md) 开篇就写着"坚持每回合都得有事发生"是生成叙事最常见的出错方式。
+
+再往上一层看：算子是**修辞动作**（怎么讲），没有前件和后件，所以拼不出**情节**（发生什么）。于是"这回合该发生什么"这个问题没有依据可答，只能靠账本空位来答。而 [05 §2.1](./05_Narrative_Engine.md#21-规则触发确定性) 的示例代码写的本来是 `event_type="betrayal"` 这样的*事件*——设计写的是事件导演，实现换成了算子，事件那一层没有落地。修法是加事件层、算子降级为"事件的表达方式"，见 [13](./13_Narrative_Events.md)。
+
+值得记住的是这件事**改 prompt 改不掉**：伏笔内容漂移（窗上的绳子、一枚纽扣、半枚白蜡）是因为生成 prompt 只给可见 facts，模型被要求"埋一个以后会变成线索的细节"却看不见任何一条真线索——这个任务在信息上无解，不是模型没做好。
+
+**存档/读档已就绪，回合级回溯没有。** 每回合 tick 结束（即回合边界，`advance_turn` 是最后一个写入者）写 `saves/<session_id>/` 三个文件：world、该 NPC 的私有记忆（它按设计不在 `WorldState` 里，只存世界会读到一个把玩家忘干净的 NPC）、以及玩家读到的对话。`POST /api/session {resume_from}` 在**装配前**读档，因为 Harness / Engine / tools 都在构造时捕获 manager，事后替换会让它们写进一个没人读的世界。`GET /api/saves` 列存档。剧本与 NPC 必须对得上：把村庄的世界读进另一个剧本，会得到一个校验通过、但什么都铺垫不了的世界。**做不到**精确回到第 7 回合或从那里分支——那要每回合一份快照加记忆回滚，是独立一块工作量。
 
 实现时发现、值得记住的一件事：**`busy` 不能从 `queue.unfinished_tasks` 推导。** 那个计数在最后一个作业被*取走*时就减到 0，于是出现一个窗口——台词已完成、tick 还在写世界状态、而下一个回合被放行了，正是执行器要防的竞态。改成显式的在飞计数（两个作业都算），并由 `test_busy_stays_true_until_the_tick_completes` 钉住。
 

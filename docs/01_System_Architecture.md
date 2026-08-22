@@ -88,6 +88,8 @@ docs/
 ├── 10_Narrative_Operators.md          叙事算子：结构调度、伏笔账本、张力与偏好的分离
 ├── 11_Prompt_Lab.md                   Prompt 离线实验：候选对比、评分、选定流程
 ├── 12_Web_Interface.md                Web 界面：场景页面 + 开发者面板、SSE、tick 异步化
+├── 13_Narrative_Events.md             事件层：事件与算子分层、时间制、声音层次、玩家动作
+├── 14_Case_Design.md                  本案内容设计：三个结局、事件链、地点分工
 └── schemas/                           设计期草稿（Pydantic）
     ├── player_model.py                实际实现以 src/ai_native_rpg/schemas/ 为准
     ├── world_state.py

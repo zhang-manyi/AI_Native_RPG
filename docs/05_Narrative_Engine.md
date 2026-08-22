@@ -30,6 +30,10 @@ def check_triggers(world_state: WorldState) -> list[EventCandidate]:
 
 纯规则判断"是否达到触发条件"，不需要 LLM 推理。这一步的输出是候选事件列表，不是最终内容。
 
+**上面的示例比当前实现更接近正确的设计。** 这里写的 `event_type="betrayal"` 是*事件*——有前件、有后件、有分支；而实现走到了算子粒度（`foreshadow` / `reveal` / `escalate` / `reverse`），`EventCandidate.operator` 是那时加的字段（见 §5 变更表第一行），`event_type` 随之退化成 `"planted_detail"` 这样的标签。算子是修辞动作，拼不出情节，后果记录在 [09 §4](./09_Reference_Scenario.md)。
+
+修正后的分层：**事件回答"发生什么"，算子回答"怎么讲"**，候选来自剧本定义的事件，算子由事件声明。§2.2 的两段式选择不变——它本来就是为候选事件写的。详见 [13_Narrative_Events.md](./13_Narrative_Events.md)。
+
 ### 2.2 Experience Controller：候选事件准入 + 排序（确定性）
 
 **两段式，不是一个乘式。** 偏好和张力是两个正交维度（详见 [10_Narrative_Operators.md](./10_Narrative_Operators.md#3-选择张力准入-偏好排序)）：偏好是玩家的口味轴，一个会话内基本不变；张力是故事的时间轴，每个 beat 都在变。相乘无法表达**对味但不是时候**——玩家偏好阴谋，但刚连着三次揭露，第四次阴谋事件依然是错的，而乘法里偏好那一项还在给它加分。
