@@ -14,7 +14,12 @@ loud". That gap is the operator's job, and it is deterministic.
 
 from __future__ import annotations
 
-from ai_native_rpg.narrative.rules import MAX_OPEN_FORESHADOWINGS, check_triggers
+from ai_native_rpg.narrative.rules import (
+    MAX_OPEN_FORESHADOWINGS,
+    check_triggers,
+    earned_stage,
+    progress_quest,
+)
 from ai_native_rpg.schemas.narrative import NarrativeOperator, StoryBeats
 from ai_native_rpg.schemas.world_state import Visibility, WorldState
 
@@ -246,6 +251,68 @@ class TestEscalateTriggers:
         world.story_beats = StoryBeats(turn=4, tension=0.5)
 
         assert NarrativeOperator.ESCALATE in _operators(world, directives)
+
+    def test_a_pack_naming_no_progress_quest_gets_no_escalation(
+        self, world: WorldState, directives
+    ):
+        """No stage channel means no escalate, rather than a guessed quest id.
+
+        ``rules.py`` used to read ``world.quests["investigation"]`` by name, which is
+        one story's id in framework code: every other pack got a channel that silently
+        never fired. Absent directives now cost the operator visibly.
+        """
+        world.quests["investigation"].stage = 2
+        world.story_beats = StoryBeats(turn=4, tension=0.1)
+
+        without = directives.model_copy(update={"progress_quest": None})
+
+        assert NarrativeOperator.ESCALATE not in _operators(world, without)
+        assert progress_quest(world, without) is None
+
+
+class TestEarnedStage:
+    """How far in the player has got, measured in clues actually told.
+
+    This is the writer ``quests.<progress>.stage`` never had. docs/10 §3.2 makes the
+    stage the "逼近答案的程度" input to tension and docs/04 §3.3 lets the Engine advance
+    it, but nothing did — so a real run sat at stage 0 while three foreshadowings
+    waited on ``stage >= 2`` and ``escalate`` never fired once.
+    """
+
+    def test_no_clues_told_means_stage_zero(self, world: WorldState, directives):
+        assert earned_stage(world, directives) == 0
+
+    def test_an_unlockable_but_untold_clue_does_not_count(self, world: WorldState, directives):
+        """Being *entitled* to a clue is not progress; being told it is.
+
+        Trust can clear a threshold in one generous turn, which would hand the player
+        a stage they never heard about. The distinction is the same one the reveal
+        rules rest on.
+        """
+        world.relationships[NPC_A][PLAYER].trust = 45.0
+
+        assert earned_stage(world, directives) == 0
+
+    def test_a_told_clue_advances_the_stage(self, world: WorldState, directives):
+        world.facts["clue_1"].visibility = Visibility.REVEALED
+
+        assert earned_stage(world, directives) == 1
+
+    def test_facts_outside_the_paced_clues_do_not_count(self, world: WorldState, directives):
+        """Only the clues the pack paces measure progress.
+
+        Otherwise a foreshadowing coming due would advance the stage as a side effect,
+        and the stage feeds the ceiling that decides whether more may be planted.
+        """
+        world.facts["killer_identity"].visibility = Visibility.REVEALED
+
+        assert earned_stage(world, directives) == 0
+
+    def test_a_pack_pacing_nothing_earns_no_stage(self, world: WorldState, directives):
+        world.facts["clue_1"].visibility = Visibility.REVEALED
+        bare = directives.model_copy(update={"paced_clues": []})
+
+        assert earned_stage(world, bare) == 0
 
 
 class TestReverseTriggers:

@@ -24,7 +24,7 @@ from ..scenario import ScenarioError, list_scenarios
 from .events import KEEPALIVE_SECONDS, EventType, HelloPayload, keepalive_frame
 from .registry import SessionRegistry
 from .scene import SceneView
-from .session import SessionError
+from .session import SessionError, list_saves
 
 router = APIRouter(prefix="/api", tags=["player"])
 
@@ -34,6 +34,11 @@ class CreateSessionRequest(BaseModel):
         default=None, description="pack under scenarios/; defaults to the first available"
     )
     npc_id: str | None = Field(default=None, description="defaults to the pack's first NPC")
+    resume_from: str | None = Field(
+        default=None,
+        description="save id to continue from (see GET /api/saves). The scenario and NPC "
+        "must match the save; omitted starts the pack from its opening state.",
+    )
 
 
 class CreateSessionResponse(BaseModel):
@@ -41,6 +46,10 @@ class CreateSessionResponse(BaseModel):
     scenario: str
     npc_id: str
     dev_mode: bool
+    resumed_from: str | None = Field(
+        default=None, description="the save this session continues, if any"
+    )
+    turn: int = Field(default=0, description="turns already played, non-zero on a resume")
 
 
 class TurnRequest(BaseModel):
@@ -79,6 +88,7 @@ def create_session(body: CreateSessionRequest, request: Request) -> CreateSessio
         session = registry.create(
             scenario=scenario,
             npc_id=body.npc_id,
+            resume_from=body.resume_from,
             # Captured at startup: this handler is sync, so it runs in a threadpool
             # where there is no running loop to ask for.
             loop=getattr(request.app.state, "loop", None),
@@ -91,7 +101,21 @@ def create_session(body: CreateSessionRequest, request: Request) -> CreateSessio
         scenario=session.scenario,
         npc_id=session.npc_id,
         dev_mode=session.dev_mode,
+        resumed_from=session.resumed_from,
+        # From the scene, not the world: this module may not import WorldState.
+        turn=session.scene().turn,
     )
+
+
+@router.get("/saves")
+def get_saves() -> dict[str, list[dict]]:
+    """Resumable playthroughs, newest first.
+
+    Player-facing rather than under ``/debug`` because picking up a story where you
+    left it is playing, not inspecting. Only the pack, the NPC and how far the run got
+    are listed — nothing here is gated content.
+    """
+    return {"saves": list_saves()}
 
 
 @router.get("/session/{session_id}/scene", response_model=SceneView)

@@ -192,6 +192,12 @@ narrative:
   # once the threat is known, Marta's evasions stop reading as shielding a killer.
   reversal_fact: npc_a_threatened
 
+  # The quest whose `stage` means "how close is the player to the answer" (docs/10
+  # §3.2). The Engine advances it as the clues above get told, which is what feeds
+  # the tension ceiling and what `escalate` waits on. Naming it here keeps the id
+  # out of rules.py: which quest tracks progress is this story's business.
+  progress_quest: investigation
+
   # Hold for every generated scene, whatever the operator.
   universal_constraints:
     - 不要写出任何角色的内心独白，只写外部可观察的事

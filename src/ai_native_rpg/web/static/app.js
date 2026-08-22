@@ -48,6 +48,7 @@ const state = {
   speaking: null, // { npcId, text } — the bubble currently on screen
   waiting: null, // 'dialogue' | 'tick' | null
   panelOpen: false,
+  resumed: false, // continuing a save: suppresses the turn-0 intro screen
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -75,11 +76,35 @@ function setBusy(busy) {
 
 // --- boot ------------------------------------------------------------------
 
+/** The newest save for this pack, or null. Offering a choice needs something to offer. */
+async function latestSave() {
+  try {
+    const res = await fetch("/api/saves");
+    if (!res.ok) return null;
+    const { saves } = await res.json();
+    // Already newest-first from the server; a save with no turns is not worth resuming.
+    return (saves || []).find((s) => s.turn > 0) || null;
+  } catch {
+    // A missing or broken save list must never stop a new game from starting.
+    return null;
+  }
+}
+
 async function boot() {
+  const save = await latestSave();
+  const resumeFrom =
+    save &&
+    window.confirm(
+      `继续上次的进度？\n\n${save.scenario} · 第 ${save.turn} 轮 · ${save.lines} 句对话\n` +
+        `保存于 ${save.saved_at}\n\n取消则重新开始。`,
+    )
+      ? save.save_id
+      : null;
+
   const created = await fetch("/api/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
+    body: JSON.stringify(resumeFrom ? { resume_from: resumeFrom } : {}),
   });
   if (!created.ok) {
     setStatus(`建立会话失败：${created.status}`, "error");
@@ -88,6 +113,7 @@ async function boot() {
   const info = await created.json();
   state.sessionId = info.session_id;
   state.devMode = info.dev_mode;
+  state.resumed = Boolean(info.resumed_from);
 
   if (state.devMode) {
     ui.toggle.hidden = false;
@@ -130,7 +156,10 @@ function onHello(data) {
   onScene(data.scene);
   if (data.panel) onPanel(data.panel);
 
-  const intro = data.scene?.intro || {};
+  // A resumed run skips the opening screen: its premise is written for turn 0
+  // ("于是敲响了她家的门"), which reads wrong in front of a conversation already
+  // under way. The restored transcript is the context instead.
+  const intro = state.resumed ? {} : data.scene?.intro || {};
   if (intro.premise || intro.title) {
     ui.introTitle.textContent = intro.title || "当前情况";
     ui.introPremise.textContent = intro.premise || "";

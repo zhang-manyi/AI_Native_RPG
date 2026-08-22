@@ -14,7 +14,9 @@ values (docs/06 §Memory, docs/04 §2.1). The store never holds relationship dat
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import TypeVar
 
 from ..schemas.memory import (
@@ -96,6 +98,57 @@ class MemoryStore:
                 recoded += 1
 
         return recoded
+
+    # --- persistence -------------------------------------------------------
+
+    def save(self, path: str | Path) -> None:
+        """Write this NPC's memories to JSON, atomically.
+
+        Same temp-file-then-rename as ``WorldStateManager.save`` and for the same
+        reason: a crash mid-write must not leave a half-written store that fails to
+        parse on the next load.
+
+        Embeddings are written along with the text. They are the expensive part
+        (a real embedder is a model call per memory), and ``rebind_embedder`` already
+        handles the case where a saved vector does not fit the live embedder — so
+        storing them is a cache that is safe to be wrong about, not a correctness risk.
+        """
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "npc_id": self.npc_id,
+            "episodic": [m.model_dump(mode="json") for m in self._episodic],
+            "semantic": [m.model_dump(mode="json") for m in self._semantic],
+        }
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp.replace(path)
+
+    def load(self, path: str | Path) -> None:
+        """Replace the contents of this store from a save file.
+
+        Loads *into* an existing store rather than constructing one, because the
+        embedder is injected and shared (one instance serves every session), and a
+        classmethod would have to take it as an argument anyway.
+
+        Refuses a file belonging to another NPC: ``_require_own`` guards the same
+        boundary on every single-memory write, and a whole-file load is the one path
+        that could otherwise install another character's private memories wholesale.
+
+        Vectors are then reconciled against the live embedder, so a file saved under
+        a different embedder (or MRL width) loads without a dimension mismatch later.
+        """
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+        stored = raw.get("npc_id")
+        if stored != self.npc_id:
+            raise ValueError(
+                f"MemoryStore for {self.npc_id!r} refuses a save file belonging to "
+                f"{stored!r}: each NPC's memory is private"
+            )
+
+        self._episodic = [EpisodicMemory.model_validate(m) for m in raw.get("episodic") or []]
+        self._semantic = [SemanticMemory.model_validate(m) for m in raw.get("semantic") or []]
+        self.rebind_embedder(self._embedder)
 
     # --- mutation ----------------------------------------------------------
 

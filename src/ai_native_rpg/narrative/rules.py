@@ -59,7 +59,7 @@ _NO_DIRECTIVES = NarrativeDirectives()
 #: the scenario loader exists to prevent, in a form the loader cannot detect: it
 #: checks that a path resolves, not that a value is attainable.
 #:
-#: Scaling with ``quests.investigation.stage`` also says the right thing: pressure
+#: Scaling with the progress quest's ``stage`` also says the right thing: pressure
 #: should keep rising as the player closes in, rather than settling at a constant.
 _TENSION_CEILING_BY_STAGE: tuple[float, ...] = (0.0, 0.4, 0.7, 1.0)
 
@@ -68,6 +68,40 @@ def _tension_ceiling(stage: int) -> float:
     """Highest tension ``escalate`` may drive the story to at this stage."""
     index = min(max(stage, 0), len(_TENSION_CEILING_BY_STAGE) - 1)
     return _TENSION_CEILING_BY_STAGE[index]
+
+
+def earned_stage(world: WorldState, directives: NarrativeDirectives) -> int:
+    """How far in the player has *demonstrably* got: paced clues actually told.
+
+    docs/10 §3.2 names ``quests.<progress>.stage`` as the "逼近答案的程度" channel and
+    docs/04 §3.3 permits the Engine to advance it, but nothing was advancing it —
+    so it sat at 0 for a whole run while three foreshadowings waited on ``stage >= 2``
+    and ``escalate`` (which requires ``stage >= 1``) never fired once. Tension, payoff
+    and pacing all stalled on the same missing writer.
+
+    Told clues, deliberately, not unlockable ones. ``_is_unlockable`` answers "may the
+    player know this", which trust alone can satisfy in a single generous turn; being
+    *told* is a beat that happened. Using stored visibility also makes this monotone —
+    nothing un-tells a clue — so the stage never walks backwards and un-gates content,
+    which is the property ``_chapter_advances_monotonically`` protects for chapters.
+
+    Counting is a comparison, so no LLM (docs/01 §1). Pure, and the clue ids come from
+    the pack: a story swap changes what counts, not this function.
+    """
+    return sum(1 for clue in directives.paced_clues if _is_told(world, clue.fact_id))
+
+
+def progress_quest(world: WorldState, directives: NarrativeDirectives):
+    """The quest carrying the stage channel, or ``None`` if the pack names none.
+
+    A pack without ``progress_quest`` gets no stage channel rather than a guess:
+    ``world.quests["investigation"]`` used to be read here by name, which is one
+    story's id sitting in framework code — the thing docs/09 says ``rules.py`` must
+    not contain, and which silently made the channel dead for every other pack.
+    """
+    if directives.progress_quest is None:
+        return None
+    return world.quests.get(directives.progress_quest)
 
 
 #: How many unsettled foreshadowings may be open at once.
@@ -234,7 +268,7 @@ def _escalate_candidates(
     world: WorldState, player_id: str, directives: NarrativeDirectives
 ) -> list[EventCandidate]:
     """Pressure, when the player is visibly getting somewhere but nothing is at stake."""
-    quest = world.quests.get("investigation")
+    quest = progress_quest(world, directives)
     if quest is None or quest.stage < 1:
         return []
     ceiling = _tension_ceiling(quest.stage)

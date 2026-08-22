@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import queue
 import threading
 import time
@@ -36,6 +37,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from pydantic import ValidationError
 
 from ..agent import Harness, HashingEmbedder, MemoryStore, build_npc_tools
 from ..agent.embedding import Embedder
@@ -63,6 +66,8 @@ from ..scenario import (
     load_seed_memories,
     pack_prompts_dir,
 )
+from ..schemas.common import utc_now
+from ..schemas.world_state import WorldState
 from ..world import WorldStateManager
 from .events import (
     DialoguePayload,
@@ -76,6 +81,13 @@ from .scene import SceneView, build_pack_display, build_scene
 
 TRACE_DIR = Path("traces")
 NARRATIVE_TRACE_DIR = TRACE_DIR / "narrative"
+
+#: Where a session's resumable state lands, one directory per session.
+#:
+#: Separate from ``traces/``: a trace is an immutable record of one interaction, while
+#: this is mutable current state, overwritten every turn. Mixing them would put a
+#: file that changes into a directory whose contents are supposed to be history.
+SAVE_DIR = Path("saves")
 
 #: Scripted mock replies, shared with the terminal demo.
 #:
@@ -119,6 +131,92 @@ class SessionError(RuntimeError):
     """A session could not be created or a turn could not be admitted."""
 
 
+@dataclass(frozen=True)
+class SaveGame:
+    """A previous playthrough, read off disk before a session is assembled.
+
+    Read early on purpose. The world has to exist before ``WorldStateManager`` is
+    constructed, because the Harness, the Engine and every tool take that manager at
+    construction and keep it — swapping in a restored manager afterwards would leave
+    them writing to a world nobody reads. So resuming loads the world *instead of* the
+    pack's initial one rather than over it.
+
+    Only what play produced is here. Personas, prompts, tools and narrative directives
+    all come from the pack every time: saving them would mean a resumed session
+    silently ignoring an edited scenario, which for a debug tool is the opposite of
+    useful.
+    """
+
+    save_id: str
+    scenario: str
+    npc_id: str
+    turn: int
+    world: WorldState | None
+    memory_path: Path | None
+    transcript: list[dict[str, str]]
+
+
+def list_saves(root: Path | None = None) -> list[dict[str, Any]]:
+    """Every resumable save, newest first. Unreadable ones are skipped, not raised."""
+    directory = root or SAVE_DIR
+    if not directory.is_dir():
+        return []
+    saves = []
+    for child in sorted(directory.iterdir()):
+        meta_path = child / "session.json"
+        if not (child.is_dir() and meta_path.is_file()):
+            continue
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        saves.append(
+            {
+                "save_id": child.name,
+                "scenario": meta.get("scenario", ""),
+                "npc_id": meta.get("npc_id", ""),
+                "turn": meta.get("turn", 0),
+                "saved_at": meta.get("saved_at", ""),
+                "lines": len(meta.get("transcript") or []),
+            }
+        )
+    saves.sort(key=lambda s: s["saved_at"], reverse=True)
+    return saves
+
+
+def load_save(save_id: str, root: Path | None = None) -> SaveGame:
+    """Read a save off disk, or explain why it cannot be resumed."""
+    directory = (root or SAVE_DIR) / save_id
+    meta_path = directory / "session.json"
+    if not meta_path.is_file():
+        raise SessionError(f"no save to resume: {meta_path} does not exist")
+
+    try:
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SessionError(f"save {save_id!r} could not be read: {exc}") from exc
+
+    world_path = directory / "world.json"
+    world = None
+    if world_path.is_file():
+        try:
+            world = WorldState.model_validate_json(world_path.read_text(encoding="utf-8"))
+        except (OSError, ValidationError) as exc:
+            raise SessionError(f"save {save_id!r} has an unreadable world: {exc}") from exc
+
+    npc_id = str(meta.get("npc_id", ""))
+    memory_path = directory / f"memory_{npc_id}.json"
+    return SaveGame(
+        save_id=save_id,
+        scenario=str(meta.get("scenario", "")),
+        npc_id=npc_id,
+        turn=int(meta.get("turn", 0) or 0),
+        world=world,
+        memory_path=memory_path if memory_path.is_file() else None,
+        transcript=[dict(line) for line in meta.get("transcript") or []],
+    )
+
+
 @dataclass
 class _Turn:
     """Bookkeeping for one player utterance in flight."""
@@ -141,12 +239,16 @@ class Session:
         dev_mode: bool = True,
         loop: asyncio.AbstractEventLoop | None = None,
         trace_dir: Path | None = None,
+        save_dir: Path | None = None,
+        resume: SaveGame | None = None,
     ) -> None:
         self.session_id = session_id
         self.scenario = scenario
         self.dev_mode = dev_mode
         self._loop = loop
         self._settings = settings or Settings.from_env()
+        self._save_root = save_dir or SAVE_DIR
+        self.resumed_from = resume.save_id if resume is not None else None
 
         # --- assembly, identical to chat_demo.main() (docs/12 §6.1) -----------
         world = load_scenario(scenario)
@@ -154,6 +256,22 @@ class Session:
         seeds = load_seed_memories(scenario)
         self.intro = load_intro(scenario)
         directives = load_narrative_directives(scenario)
+
+        if resume is not None:
+            if resume.scenario != scenario:
+                raise SessionError(
+                    f"save {resume.save_id!r} belongs to scenario {resume.scenario!r}, "
+                    f"not {scenario!r}"
+                )
+            npc_id = npc_id or resume.npc_id
+            if resume.npc_id != npc_id:
+                raise SessionError(
+                    f"save {resume.save_id!r} was played with npc {resume.npc_id!r}, not {npc_id!r}"
+                )
+            # Replaces the pack's opening world rather than being applied over it: see
+            # SaveGame on why this has to happen before the manager is built.
+            if resume.world is not None:
+                world = resume.world
 
         # The pack, not the code, decides who the player is.
         self.player_id = next(iter(world.player_locations), "player_1")
@@ -172,7 +290,12 @@ class Session:
         # The embedder is shared across sessions by the caller: it is read-only and
         # costs hundreds of MB to load, so one instance serves everyone.
         self.memory = MemoryStore(self.npc_id, embedder=embedder or HashingEmbedder())
-        seeds[self.npc_id].load_into(self.memory)
+        if resume is not None and resume.memory_path is not None:
+            # The save already contains the seeds plus everything play added, so
+            # loading it *instead of* seeding avoids a second copy of every seed.
+            self.memory.load(resume.memory_path)
+        else:
+            seeds[self.npc_id].load_into(self.memory)
 
         overlay = pack_prompts_dir(scenario)
         self.prompt_source = f"{scenario} 覆盖 + 全局回退" if overlay.is_dir() else "全局默认"
@@ -217,7 +340,13 @@ class Session:
         self._relationship_trend: list[dict[str, float]] = []
         self._last_cost: Any = None
         self._last_memory: Any = []
-        self.transcript: list[dict[str, str]] = []
+        # Restored so the page opens on the conversation the player left, rather than
+        # an empty screen in front of an NPC who remembers them. The panel series
+        # (timeline, rejected proposals, trust trend) deliberately start empty: those
+        # are per-turn observability records, and a resumed session has no turns yet.
+        self.transcript: list[dict[str, str]] = (
+            [dict(line) for line in resume.transcript] if resume is not None else []
+        )
 
         # --- the executor -----------------------------------------------------
         self._jobs: queue.Queue[Callable[[], None] | None] = queue.Queue()
@@ -522,6 +651,59 @@ class Session:
             ).model_dump(),
         )
         self._emit_state()
+        # The turn is now closed and the world is consistent: the only safe point to
+        # write a save, and still on the session thread.
+        self.save()
+
+    # --- save / resume -------------------------------------------------------
+
+    def save(self) -> None:
+        """Persist enough to carry this playthrough into a later session.
+
+        Called at the end of the tick job, which is the turn boundary: the tick is the
+        last writer of a turn (``advance_turn`` closes it), so saving here cannot
+        capture a world that is halfway through one. It runs on the session thread for
+        the same reason every other world access does — ``snapshot()`` deep-copies but
+        can still copy a logically inconsistent world if a writer is mid-turn.
+
+        Three files, because they have three different owners: the world
+        (``WorldStateManager``), the NPC's private memory (``MemoryStore``, which by
+        design never enters ``WorldState``), and the conversation as the player read
+        it. Failures are swallowed and reported as a panel-visible event rather than
+        killing the turn: a save is a convenience, and losing one is not worth losing
+        the interaction that just happened.
+        """
+        directory = self._save_dir
+        try:
+            self.manager.save(directory / "world.json")
+            self.memory.save(directory / f"memory_{self.npc_id}.json")
+            meta = {
+                "session_id": self.session_id,
+                "scenario": self.scenario,
+                "npc_id": self.npc_id,
+                "player_id": self.player_id,
+                "turn": self.manager.snapshot().story_beats.turn,
+                "saved_at": utc_now().isoformat(),
+                "transcript": self.transcript,
+            }
+            path = directory / "session.json"
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(path)
+        except Exception as exc:  # a lost save must not cost the player their turn
+            self.emit(
+                EventType.TURN_FAILED,
+                TurnFailedPayload(
+                    turn_id="",
+                    stage="tick",
+                    error_type=type(exc).__name__,
+                    message=f"存档失败：{exc}",
+                ).model_dump(),
+            )
+
+    @property
+    def _save_dir(self) -> Path:
+        return self._save_root / self.session_id
 
     # --- helpers -------------------------------------------------------------
 

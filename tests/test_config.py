@@ -159,6 +159,53 @@ class TestProviderSelection:
         assert settings.has_real_backend is True
 
 
+class TestModelNameSanity:
+    """A dirty model name must not run silently for a whole session.
+
+    Found in a real ``.env``: ``OPENAI_MODEL=gpt-5.6-sol   4   ...   v`` from a stray
+    paste. ``_clean`` only strips the ends, so the junk reached the request body; the
+    relay answered anyway, so an entire session ran against an unintended model while
+    every trace recorded the dirty string. Nothing failed, which is the problem.
+    """
+
+    def test_interior_whitespace_is_warned_about(self, clean_env, caplog):
+        clean_env.setenv("OPENAI_MODEL", "gpt-5.6-sol   4    v")
+        clean_env.setenv("OPENAI_BASE_URL", "https://relay.example/v1")
+        clean_env.setenv("LLM_PROVIDER", "openai")
+
+        with caplog.at_level("WARNING"):
+            settings = Settings.from_env(load_dotenv=False)
+
+        assert "OPENAI_MODEL" in caplog.text
+        # warned, not corrected: the remote endpoint is the authority on valid names
+        assert settings.model == "gpt-5.6-sol   4    v"
+
+    def test_a_clean_name_is_silent(self, clean_env, caplog):
+        clean_env.setenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+
+        with caplog.at_level("WARNING"):
+            Settings.from_env(load_dotenv=False)
+
+        assert caplog.text == ""
+
+    def test_a_dated_snapshot_name_is_not_flagged(self, clean_env, caplog):
+        """Legitimately odd names must pass: this checks shape, not a vendor list."""
+        clean_env.setenv("DEEPSEEK_MODEL", "claude-haiku-4-5-20251001")
+
+        with caplog.at_level("WARNING"):
+            Settings.from_env(load_dotenv=False)
+
+        assert caplog.text == ""
+
+    def test_the_judge_model_is_checked_too(self, clean_env, caplog):
+        clean_env.setenv("JUDGE_MODEL", "deepseek-v4-flash  stray")
+
+        with caplog.at_level("WARNING"):
+            Settings.from_env(load_dotenv=False)
+
+        assert "JUDGE_MODEL" in caplog.text
+
+
 class TestSecretHandling:
     def test_repr_and_str_mask_the_key(self, clean_env):
         clean_env.setenv("DEEPSEEK_API_KEY", "sk-supersecret-value")

@@ -150,6 +150,55 @@ class TestRejectedActionTurn:
         assert any(reason in m.content for m in dialogue_call.messages)
 
 
+class TestWhatTheSecondCallIsTold:
+    """Dialogue regeneration has to know what it is replying to.
+
+    Found live: 他既然照做了，还特意来宽我的心……那我就告诉你一点 — one line, one
+    listener, both pronouns. Call #2 received ``plan.reasoning`` and nothing else, and
+    reasoning is the NPC's *inner* voice, which necessarily speaks of the player in the
+    third person. The prompt supplied a "他" referent and no "你" one, so the model
+    used the one it was given. Carrying the utterance restores the addressee instead of
+    banning a pronoun.
+    """
+
+    def _blocked_reveal(self) -> MockLLMClient:
+        return MockLLMClient(
+            [
+                PlanningOutput(
+                    reasoning="他在打探那晚的事，我不能直说",
+                    strategy="deflect",
+                    dialogue="（初稿）",
+                    action={"action_type": "reveal_fact", "target_id": "killer_identity"},
+                ),
+                {"dialogue": "你问这些做什么……"},
+            ]
+        )
+
+    def test_the_players_words_reach_the_regeneration_prompt(self, martha, manager):
+        llm = self._blocked_reveal()
+        harness = Harness(
+            npc_state=martha, manager=manager, llm=llm, memory=MemoryStore(martha.npc_id)
+        )
+
+        harness.respond("你那晚到底看见了什么？", player_id=PLAYER)
+
+        assert llm.call_count == 2
+        prompt = " ".join(m.content for m in llm.calls[1].messages)
+        assert "你那晚到底看见了什么？" in prompt
+
+    def test_the_second_person_rule_is_in_the_dialogue_prompt(self, martha, manager):
+        """The plan still says 他, so the instruction has to say which one to use."""
+        llm = self._blocked_reveal()
+        harness = Harness(
+            npc_state=martha, manager=manager, llm=llm, memory=MemoryStore(martha.npc_id)
+        )
+
+        harness.respond("你那晚到底看见了什么？", player_id=PLAYER)
+
+        prompt = " ".join(m.content for m in llm.calls[1].messages)
+        assert "第二人称" in prompt
+
+
 class TestPlayerIdentityInPrompt:
     """The model must be told who it is talking to.
 

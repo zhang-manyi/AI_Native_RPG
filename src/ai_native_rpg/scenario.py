@@ -120,6 +120,14 @@ class NarrativeDirectives(BaseModel):
         default=None,
         description="fact whose disclosure re-reads everything before it (docs/10 §5)",
     )
+    progress_quest: str | None = Field(
+        default=None,
+        description="quest whose ``stage`` tracks how close the player is to the answer "
+        "(docs/10 §3.2). The Engine advances it as paced clues get told; naming it here "
+        "rather than in the rules is what keeps 'investigation' out of framework code. "
+        "Absent means no stage channel: the pack's tension and payoffs then rest on "
+        "other paths, and nothing silently gates on a stage that never moves.",
+    )
     universal_constraints: list[str] = Field(
         default_factory=list,
         description="prohibitions that hold for every generated scene in this pack",
@@ -157,6 +165,17 @@ def load_narrative_directives(name_or_path: str | Path) -> NarrativeDirectives:
     if directives.reversal_fact is not None and directives.reversal_fact not in known:
         raise ScenarioError(
             f"{world_file}: narrative.reversal_fact names unknown fact {directives.reversal_fact!r}"
+        )
+    # Same reasoning one step further: a stage channel nobody can advance is worse
+    # than no channel, because authors then write payoff and tension thresholds
+    # against a number that never moves. Found exactly that way in play — three
+    # foreshadowings due at `stage >= 2` in a run whose stage stayed 0.
+    if directives.progress_quest is not None and directives.progress_quest not in (
+        raw.get("quests") or {}
+    ):
+        raise ScenarioError(
+            f"{world_file}: narrative.progress_quest names unknown quest "
+            f"{directives.progress_quest!r}"
         )
     return directives
 

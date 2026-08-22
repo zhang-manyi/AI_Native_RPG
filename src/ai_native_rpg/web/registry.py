@@ -1,8 +1,11 @@
 """Session registry: creation, lookup, eviction (docs/12 §5.4).
 
-In memory, like ``WorldStateManager`` itself — docs/04 §5 keeps the world an
-in-process model with JSON snapshots, and a local debug tool has no reason to outlive
-its process. Traces still land on disk; that half was always persistent.
+Live sessions are in memory, like ``WorldStateManager`` itself — docs/04 §5 keeps the
+world an in-process model with JSON snapshots. Traces always landed on disk, and a
+playthrough now does too: each turn writes a save (``Session.save``), and
+``resume_from`` builds a session on a restored world instead of the pack's opening
+one. What does *not* survive is the live runtime — a resumed session is a new session
+that starts from saved state, not the same one reattached.
 
 The embedder is shared across every session. It is read-only and can cost hundreds of
 MB to load, so refreshing the page must not build a second one — which is also why
@@ -19,7 +22,7 @@ import uuid
 from ..agent import HashingEmbedder
 from ..agent.embedding import Embedder
 from ..config import Settings
-from .session import Session, SessionError
+from .session import Session, SessionError, load_save
 
 #: Concurrent sessions allowed. A refresh-happy afternoon should not accumulate
 #: dozens of runtimes; this is a local tool with one user.
@@ -93,10 +96,15 @@ class SessionRegistry:
         *,
         scenario: str,
         npc_id: str | None = None,
+        resume_from: str | None = None,
         loop: asyncio.AbstractEventLoop | None = None,
     ) -> Session:
         embedder = self._ensure_embedder()
         self._evict_if_needed()
+
+        # Read before assembly: the restored world has to be in hand before the
+        # manager is constructed, since the Harness, Engine and tools all capture it.
+        resume = load_save(resume_from) if resume_from else None
 
         session_id = uuid.uuid4().hex
         session = Session(
@@ -107,6 +115,7 @@ class SessionRegistry:
             embedder=embedder,
             dev_mode=self._dev_mode,
             loop=loop,
+            resume=resume,
         )
         with self._lock:
             self._sessions[session_id] = session

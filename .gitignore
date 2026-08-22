@@ -11,6 +11,8 @@ data/runtime/
 data/traces/
 # traces written by scripts/chat_demo.py — debugging output, not source
 traces/
+# per-session save games written each turn — current state, not source
+saves/
 .env
 
 # local tooling / editor state

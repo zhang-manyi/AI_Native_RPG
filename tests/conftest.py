@@ -139,5 +139,6 @@ def directives() -> NarrativeDirectives:
             PacedClue(fact_id="clue_1", constraint="只说你看见了有人，不要说出那个人是谁")
         ],
         reversal_fact="npc_a_threatened",
+        progress_quest="investigation",
         universal_constraints=["不要写任何人的内心独白"],
     )

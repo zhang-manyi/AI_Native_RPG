@@ -16,6 +16,7 @@ place too (docs/06_NPC_Agent_Spec.md#5):
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -23,6 +24,8 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, Field, SecretStr
 
 from .llm.base import LLMClient
+
+logger = logging.getLogger(__name__)
 
 #: Repo root, i.e. the directory holding ``.env``.
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -69,6 +72,33 @@ def _clean(raw: str | None) -> str | None:
         return None
     stripped = raw.strip()
     return stripped or None
+
+
+def _warn_if_suspicious_model(name: str | None, *, var: str) -> None:
+    """Log once when a model name looks like it picked up stray text.
+
+    ``_clean`` only strips the ends, so interior junk survives into the request body.
+    Found in a real ``.env``: ``OPENAI_MODEL=gpt-5.6-sol   4   ...   v``, from a stray
+    paste. The relay answered anyway — presumably falling back to some default — so a
+    whole session ran against an unknown model while every trace recorded the dirty
+    string as ``model_used``. Nothing failed, which is what made it hard to notice.
+
+    A warning rather than an error: a model name is a vendor string, and this cannot
+    know which ones are valid. Refusing to start on an unrecognised shape would break
+    legitimately odd names (dated snapshots, org-prefixed deployments) for a guess.
+    Same stance the scenario loader takes toward silent content bugs, one notch softer
+    because here the remote endpoint is the real authority.
+    """
+    if not name:
+        return
+    if any(ch.isspace() for ch in name) or any(ord(ch) < 32 for ch in name):
+        logger.warning(
+            "%s looks malformed: %r contains whitespace or control characters. "
+            "It is sent to the API verbatim, so the model actually serving requests "
+            "may not be the one you intended.",
+            var,
+            name,
+        )
 
 
 class Settings(BaseModel):
@@ -123,6 +153,10 @@ class Settings(BaseModel):
         base_url = _clean(layered.get(f"{prefix}_BASE_URL")) or default_url
         model = _clean(layered.get(f"{prefix}_MODEL")) or default_model
 
+        _warn_if_suspicious_model(model, var=f"{prefix}_MODEL")
+        judge_model = _clean(layered.get("JUDGE_MODEL")) or DEFAULT_MODEL
+        _warn_if_suspicious_model(judge_model, var="JUDGE_MODEL")
+
         # A provider with no URL or model to call is not configured, whatever key it
         # was given. Treating that as "no backend" keeps the failure at startup
         # ("running on the mock") instead of a 404 mid-conversation.
@@ -133,7 +167,7 @@ class Settings(BaseModel):
             api_key=SecretStr(key) if usable else None,
             base_url=base_url or DEFAULT_BASE_URL,
             model=model or DEFAULT_MODEL,
-            judge_model=_clean(layered.get("JUDGE_MODEL")) or DEFAULT_MODEL,
+            judge_model=judge_model,
             # Nothing to call means mock regardless of what was asked.
             use_mock=True if not usable else _as_bool(layered.get("USE_MOCK_LLM")),
         )

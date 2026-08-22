@@ -73,11 +73,22 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| `POST` | `/api/session` | 建会话。body: `{scenario, npc_id?}`（都可省，默认第一个包 / 包里第一个 NPC）。返回 `session_id` |
+| `POST` | `/api/session` | 建会话。body: `{scenario, npc_id?, resume_from?}`（都可省，默认第一个包 / 包里第一个 NPC / 从头开始）。返回 `session_id`、`resumed_from`、`turn` |
 | `GET` | `/api/session/{sid}/events` | SSE 流。`?last_event_id=` 或标准 `Last-Event-ID` 头补发 |
 | `POST` | `/api/session/{sid}/turn` | body: `{text}`。返回 `202 {turn_id}`。台词走事件流 |
 | `GET` | `/api/session/{sid}/scene` | 场景快照，等价于 `scene` 事件的载荷。给刷新页面和无 JS 排查用 |
 | `GET` | `/api/scenarios` | 可选剧本列表（`list_scenarios()`），启动页用 |
+| `GET` | `/api/saves` | 可续玩的存档，新的在前。只列剧本、NPC、进度，没有受控内容 |
+
+### 4.1.1 存档与续玩
+
+每回合的 tick 结束时写一次 `saves/<session_id>/`，共三个文件：`world.json`、`memory_<npc>.json`、`session.json`（对话记录 + 元信息）。选在这里是因为**tick 是回合边界**——`advance_turn` 是一个回合的最后一个写入者，此时世界一定是一致的；而且它跑在会话线程上，和其他所有碰世界的调用一样。存档失败只发一条 `turn_failed` 事件，不让玩家丢掉刚打完的这个回合。
+
+记忆必须单独存：它按设计不属于 `WorldState`（[06 §Memory](./06_NPC_Agent_Spec.md)），只存世界会读出一个把玩家彻底忘掉的 NPC。向量一起存，因为那是贵的部分；宽度不匹配时 `MemoryStore.load` 走 `rebind_embedder` 重编码，不会等到检索时才在 `cosine_similarity` 里报长度错。
+
+`resume_from` 在**装配之前**读档（`load_save()` → `Session(resume=...)`）：Harness、Engine 和每个 tool 都在构造时捕获 manager 并一直持有，事后替换 `session.manager` 只会让它们继续写一个没人读的世界。所以续玩是**用存档的世界代替**剧本的初始世界，而不是叠加在它上面。剧本包里的东西（persona、prompt、tools、`narrative:` 块）一律每次重新加载，不存——否则改了剧本再续玩会静默沿用旧的，对调试工具来说恰好是最坏的行为。
+
+不做的部分：**精确回到第 N 回合、以及从那里分支**。那需要每回合一份世界快照加记忆回滚，还要处理面板时间线的截断，是独立一块工作量。续玩恢复世界、记忆和对话记录；面板的三条按回合累积的序列（算子时间线、被拒 proposal、信任曲线）故意从空开始——它们是逐回合的观测记录，而一个刚续上的会话还没有任何回合。
 
 响应模型的**类型签名只接受 `VisibleState`**，不接受 `WorldState`。`SceneView` 由 `VisibleState` + 剧本包的公开展示数据（`Location.name/description`、`NPCWorldState.display_name`、`intro` 块）组装，构造函数里拿不到 `WorldState`。
 

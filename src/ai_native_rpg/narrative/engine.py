@@ -46,7 +46,7 @@ from ..schemas.world_state import ActionProposal, ActionValidationResult
 from ..world.actions import FORESHADOW_PAYOFF_PATH_PREFIXES, ActionType
 from ..world.manager import WorldStateManager
 from .controller import PacingVerdict, Rejection, select_candidate
-from .rules import check_triggers
+from .rules import check_triggers, earned_stage, progress_quest
 
 #: The actor id every narrative proposal carries. In ``SYSTEM_ACTORS``, and gated
 #: by ``narrative_actions_are_system_only``.
@@ -263,17 +263,53 @@ class NarrativeEngine:
         lines.extend(f"  - {c}" for c in candidate.constraints)
 
         if candidate.operator is NarrativeOperator.FORESHADOW:
-            allowed = ", ".join(f"{p}*" for p in FORESHADOW_PAYOFF_PATH_PREFIXES)
-            lines += [
-                "",
-                f"payoff_condition 的 path 只能用这几类：{allowed}",
-                f"（例如 relationships.npc_a.{player_id}.trust 或 quests.investigation.stage）",
-            ]
+            lines += self._foreshadow_guidance(world, player_id)
 
         return [
             Message(role="system", content=system),
             Message(role="user", content="\n".join(lines)),
         ]
+
+    def _foreshadow_guidance(self, world, player_id: str) -> list[str]:
+        """What a plant may hinge on, and what is already hanging.
+
+        The open ledger is here because without it every plant was a fresh
+        invention. One run, with the player inside Marta's house, planted a scrap of
+        red cloth on the mill wheel, then a drag mark by the millrace, then wax on
+        her windowsill — three unrelated objects in three different places, none
+        picking the previous one up. The generator was told the count of open loops
+        ("1/3 loops open") and never their content, so "another hint toward the same
+        conclusion" was not something it could aim at. Naming them turns the second
+        plant into a second angle on the first, which is what the Three Clue Rule
+        behind ``MAX_OPEN_FORESHADOWINGS`` actually asks for.
+
+        The example paths are built from this world rather than written in. They used
+        to read ``relationships.npc_a.player_1.trust 或 quests.investigation.stage``,
+        which is one story's ids in framework code — wrong for any other pack, and
+        wrong here the moment the pack renames a quest.
+        """
+        allowed = ", ".join(f"{p}*" for p in FORESHADOW_PAYOFF_PATH_PREFIXES)
+        lines = ["", f"payoff_condition 的 path 只能用这几类：{allowed}"]
+
+        examples = []
+        npc_id = next(iter(world.npcs), None)
+        if npc_id:
+            examples.append(f"relationships.{npc_id}.{player_id}.trust")
+        quest = progress_quest(world, self._directives)
+        if quest is not None:
+            examples.append(f"quests.{quest.quest_id}.stage")
+        if examples:
+            lines.append(f"（例如 {' 或 '.join(examples)}）")
+
+        open_loops = world.story_beats.open_foreshadowings
+        if open_loops:
+            lines += ["", "已经埋下、还没回收的细节："]
+            lines.extend(f"  - {entry.note or entry.fact_id}" for entry in open_loops.values())
+            lines.append(
+                "这一条要和上面某一条指向同一个结论——是同一件事的另一个侧面，"
+                "不是又一件不相干的东西。不要重复已经埋过的细节。"
+            )
+        return lines
 
     def _cast_and_place_lines(self, world, player_id: str) -> list[str]:
         """Who may appear, and where the player is standing.
@@ -335,8 +371,39 @@ class NarrativeEngine:
         if not landed:
             operator = NarrativeOperator.RELIEVE
 
+        # After the beat, before the turn closes: a reveal that just landed makes the
+        # player one clue closer, and the stage should say so while this turn is still
+        # the current one.
+        results.extend(self._sync_progress_stage())
+
         results.append(self._submit(ActionType.ADVANCE_TURN, payload={"operator": operator.value}))
         return results, landed
+
+    def _sync_progress_stage(self) -> list[ActionValidationResult]:
+        """Advance the progress quest toward the stage the player has earned.
+
+        This is the writer ``quests.<progress>.stage`` never had. docs/10 §3.2 makes
+        the stage the "逼近答案的程度" input to tension and docs/04 §3.3 explicitly
+        permits the Engine to advance it, but no code did — so a real run held three
+        foreshadowings due at ``stage >= 2`` while the stage stayed 0 and ``escalate``
+        (gated on ``stage >= 1``) never fired. The channel was authored on all sides
+        and connected on none.
+
+        One step per tick, even when several clues were told at once. ``advance_quest``
+        adds exactly one stage, and stepping repeatedly here would clear several author
+        thresholds within a single turn — the same objection ``MAX_CHAPTER_STEP`` exists
+        for. Falling behind is self-correcting: the next tick advances again.
+
+        Not part of the beat, so its result is appended but never counted toward
+        ``landed``. A quiet turn that happens to close a stage gap is still a quiet
+        turn; letting this approval mark the turn as eventful would start a cooldown
+        for a beat that never ran and hand the next turn a hook nobody planted.
+        """
+        world = self._manager.snapshot()
+        quest = progress_quest(world, self._directives)
+        if quest is None or quest.stage >= earned_stage(world, self._directives):
+            return []
+        return [self._submit(ActionType.ADVANCE_QUEST, target_id=quest.quest_id)]
 
     def _effect_proposals(
         self, candidate: EventCandidate, event: NarrativeEvent | None

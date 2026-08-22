@@ -107,3 +107,79 @@ class TestRelationshipProjection:
         store = MemoryStore("npc_a")
         rel = RelationshipState(trust=40.0)
         assert store.retrieve("x", relationship=rel).relationship is None
+
+
+class TestPersistence:
+    """Round-tripping a store to disk, which is what makes a session resumable.
+
+    The NPC's memory is deliberately not part of ``WorldState`` (docs/06 §Memory), so
+    saving the world alone would resume a story in front of an NPC who had forgotten
+    the player entirely.
+    """
+
+    def test_round_trip_preserves_both_layers(self, tmp_path):
+        store = MemoryStore("npc_a")
+        store.add_episodic(_episodic("m1", "玩家帮我看了后窗", importance=0.8))
+        store.add_semantic(
+            SemanticMemory(memory_id="s1", npc_id="npc_a", fact="这个人也许可信", confidence=0.6)
+        )
+        store.save(tmp_path / "memory_npc_a.json")
+
+        restored = MemoryStore("npc_a")
+        restored.load(tmp_path / "memory_npc_a.json")
+
+        assert restored.episodic_count == 1
+        assert restored.semantic_count == 1
+        hits = restored.retrieve("后窗", top_k=2)
+        assert any("后窗" in m.event_description for m in hits.episodic)
+
+    def test_embeddings_survive_rather_than_being_recomputed(self, tmp_path):
+        """Vectors are the expensive part: a real embedder is a call per memory."""
+        store = MemoryStore("npc_a")
+        store.add_episodic(_episodic("m1", "玩家帮我看了后窗", importance=0.8))
+        original = store._episodic[0].embedding
+        store.save(tmp_path / "m.json")
+
+        restored = MemoryStore("npc_a")
+        restored.load(tmp_path / "m.json")
+
+        assert restored._episodic[0].embedding == original
+
+    def test_loading_replaces_rather_than_appends(self, tmp_path):
+        """A resumed save already contains the seeds; appending would double them."""
+        store = MemoryStore("npc_a")
+        store.add_episodic(_episodic("m1", "第一条", importance=0.5))
+        store.save(tmp_path / "m.json")
+
+        store.add_episodic(_episodic("m2", "第二条", importance=0.5))
+        store.load(tmp_path / "m.json")
+
+        assert store.episodic_count == 1
+
+    def test_a_save_file_from_another_npc_is_refused(self, tmp_path):
+        """Same boundary ``_require_own`` holds per write, at whole-file scale."""
+        other = MemoryStore("npc_b")
+        other.add_episodic(_episodic("m1", "我那晚从森林回来", importance=0.9, npc_id="npc_b"))
+        other.save(tmp_path / "memory_npc_b.json")
+
+        store = MemoryStore("npc_a")
+        with pytest.raises(ValueError, match="private"):
+            store.load(tmp_path / "memory_npc_b.json")
+
+    def test_a_saved_vector_of_the_wrong_width_is_re_encoded(self, tmp_path):
+        """A file saved under a different embedder must not fail deep in retrieval.
+
+        ``rebind_embedder`` exists for this seam; ``load`` runs it so the mismatch is
+        resolved at load rather than as a length error inside ``cosine_similarity``.
+        """
+        store = MemoryStore("npc_a")
+        store.add_episodic(_episodic("m1", "玩家帮我看了后窗", importance=0.8))
+        store._episodic[0] = store._episodic[0].model_copy(update={"embedding": [0.1, 0.2]})
+        store.save(tmp_path / "m.json")
+
+        restored = MemoryStore("npc_a", embedder=HashingEmbedder())
+        restored.load(tmp_path / "m.json")
+
+        assert len(restored._episodic[0].embedding) == HashingEmbedder().dim
+        # and retrieval works rather than raising
+        assert restored.retrieve("后窗", top_k=1).episodic

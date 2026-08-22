@@ -16,6 +16,7 @@ Everything runs on ``MockLLMClient`` — ``conftest``'s autouse fixture pins
 from __future__ import annotations
 
 import threading
+from dataclasses import replace
 
 import pytest
 
@@ -25,15 +26,20 @@ import pytest
 pytest.importorskip("fastapi", reason="needs the 'web' extra")
 
 from ai_native_rpg.web.events import EventType
-from ai_native_rpg.web.session import Session, SessionError
+from ai_native_rpg.web.session import Session, SessionError, list_saves, load_save
 
 SCENARIO = "village_disappearance"
 
 
 @pytest.fixture
 def session(tmp_path):
-    """A live session writing its traces into a temp dir, not the repo's ``traces/``."""
-    s = Session(session_id="test_session", scenario=SCENARIO, trace_dir=tmp_path)
+    """A live session writing its traces and saves into temp dirs, not the repo's."""
+    s = Session(
+        session_id="test_session",
+        scenario=SCENARIO,
+        trace_dir=tmp_path,
+        save_dir=tmp_path / "saves",
+    )
     yield s
     s.close()
 
@@ -285,3 +291,191 @@ def test_history_replay_skips_what_the_client_already_has(session):
         replayed.append(q.get_nowait().seq)
 
     assert replayed == [s for s in all_seqs if s > cutoff]
+
+
+# --- save and resume -------------------------------------------------------
+
+
+def test_a_turn_writes_a_resumable_save(session, tmp_path):
+    """The tick is the turn boundary, so a save exists once the turn closes."""
+    session.submit_turn("那天晚上你看到了什么？")
+    session.join(timeout=30)
+
+    directory = tmp_path / "saves" / "test_session"
+    assert (directory / "world.json").is_file()
+    assert (directory / "session.json").is_file()
+    assert (directory / f"memory_{session.npc_id}.json").is_file()
+
+
+def test_resuming_continues_the_world_rather_than_restarting_it(tmp_path):
+    """The point of the feature: trust, turn count and told clues all carry over.
+
+    A resumed session is a *new* session built on saved state — the live runtime does
+    not survive a restart — so what has to match is the world, not the object.
+    """
+    first = Session(
+        session_id="run_one",
+        scenario=SCENARIO,
+        trace_dir=tmp_path,
+        save_dir=tmp_path / "saves",
+    )
+    try:
+        first.submit_turn("你好，我想打听失踪的事")
+        first.join(timeout=30)
+        turn_before = first.scene().turn
+        trust_before = first.manager.get_trust(first.npc_id, first.player_id)
+        memories_before = first.memory.episodic_count
+        assert turn_before > 0
+    finally:
+        first.close()
+
+    save = load_save("run_one", root=tmp_path / "saves")
+    second = Session(
+        session_id="run_two",
+        scenario=SCENARIO,
+        trace_dir=tmp_path,
+        save_dir=tmp_path / "saves",
+        resume=save,
+    )
+    try:
+        assert second.resumed_from == "run_one"
+        assert second.scene().turn == turn_before
+        assert second.manager.get_trust(second.npc_id, second.player_id) == trust_before
+        # the NPC still remembers the conversation, which WorldState does not hold
+        assert second.memory.episodic_count == memories_before
+        # and the player reopens on the transcript they left
+        assert len(second.transcript) == 2
+    finally:
+        second.close()
+
+
+def test_a_resumed_session_keeps_playing_from_there(tmp_path):
+    first = Session(
+        session_id="run_one",
+        scenario=SCENARIO,
+        trace_dir=tmp_path,
+        save_dir=tmp_path / "saves",
+    )
+    try:
+        first.submit_turn("你好")
+        first.join(timeout=30)
+        turn_before = first.scene().turn
+    finally:
+        first.close()
+
+    second = Session(
+        session_id="run_two",
+        scenario=SCENARIO,
+        trace_dir=tmp_path,
+        save_dir=tmp_path / "saves",
+        resume=load_save("run_one", root=tmp_path / "saves"),
+    )
+    try:
+        second.submit_turn("我还想问一件事")
+        second.join(timeout=30)
+        assert second.scene().turn > turn_before
+    finally:
+        second.close()
+
+
+def test_a_save_from_another_scenario_is_refused(tmp_path):
+    """Restoring a world into a different pack would pace nothing, silently."""
+    first = Session(
+        session_id="run_one",
+        scenario=SCENARIO,
+        trace_dir=tmp_path,
+        save_dir=tmp_path / "saves",
+    )
+    try:
+        first.submit_turn("你好")
+        first.join(timeout=30)
+    finally:
+        first.close()
+
+    save = load_save("run_one", root=tmp_path / "saves")
+    mismatched = replace(save, scenario="some_other_pack")
+
+    with pytest.raises(SessionError, match="scenario"):
+        Session(
+            session_id="run_two",
+            scenario=SCENARIO,
+            trace_dir=tmp_path,
+            save_dir=tmp_path / "saves",
+            resume=mismatched,
+        )
+
+
+def test_a_missing_save_is_a_clear_error(tmp_path):
+    with pytest.raises(SessionError, match="no save to resume"):
+        load_save("nope", root=tmp_path / "saves")
+
+
+def test_saves_are_listed_newest_first(tmp_path):
+    for name in ("run_one", "run_two"):
+        s = Session(
+            session_id=name,
+            scenario=SCENARIO,
+            trace_dir=tmp_path,
+            save_dir=tmp_path / "saves",
+        )
+        try:
+            s.submit_turn("你好")
+            s.join(timeout=30)
+        finally:
+            s.close()
+
+    saves = list_saves(tmp_path / "saves")
+    assert {s["save_id"] for s in saves} == {"run_one", "run_two"}
+    assert all(s["scenario"] == SCENARIO for s in saves)
+    assert all(s["turn"] > 0 for s in saves)
+
+
+def test_the_saves_endpoint_lists_nothing_before_a_turn_is_played(monkeypatch, tmp_path):
+    """An empty list, not a 404: "no saves yet" is a normal state on first run."""
+    from fastapi.testclient import TestClient
+
+    from ai_native_rpg.web import session as session_module
+    from ai_native_rpg.web.app import create_app
+
+    monkeypatch.setattr(session_module, "SAVE_DIR", tmp_path / "saves")
+    with TestClient(create_app(dev_mode=True)) as client:
+        assert client.get("/api/saves").json() == {"saves": []}
+
+
+def test_resuming_over_http_reports_the_turn_it_continues_from(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from ai_native_rpg.web import session as session_module
+    from ai_native_rpg.web.app import create_app
+
+    monkeypatch.setattr(session_module, "SAVE_DIR", tmp_path / "saves")
+    with TestClient(create_app(dev_mode=True)) as client:
+        created = client.post("/api/session", json={"scenario": SCENARIO}).json()
+        client.post(f"/api/session/{created['session_id']}/turn", json={"text": "你好"})
+        registry = client.app.state.registry
+        registry.get(created["session_id"]).join(timeout=30)
+
+        saves = client.get("/api/saves").json()["saves"]
+        assert len(saves) == 1
+        played = saves[0]["turn"]
+        assert played > 0
+
+        resumed = client.post(
+            "/api/session",
+            json={"scenario": SCENARIO, "resume_from": saves[0]["save_id"]},
+        ).json()
+        assert resumed["resumed_from"] == saves[0]["save_id"]
+        assert resumed["turn"] == played
+
+
+def test_resuming_an_unknown_save_is_a_400(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    from ai_native_rpg.web import session as session_module
+    from ai_native_rpg.web.app import create_app
+
+    monkeypatch.setattr(session_module, "SAVE_DIR", tmp_path / "saves")
+    with TestClient(create_app(dev_mode=True)) as client:
+        res = client.post("/api/session", json={"scenario": SCENARIO, "resume_from": "nope"})
+        assert res.status_code == 400
+        assert "no save to resume" in res.json()["detail"]

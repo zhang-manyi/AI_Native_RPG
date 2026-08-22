@@ -163,7 +163,7 @@ class Harness:
             action_proposal_id = None
         else:
             plan, dialogue, action_proposal_id = self._act_and_regenerate(
-                planning, npc_id, steps, narrative_event
+                planning, npc_id, steps, observation, narrative_event
             )
 
         self._reflect(observation, dialogue, npc_id, steps)
@@ -308,6 +308,7 @@ class Harness:
         planning: PlanningOutput,
         npc_id: str,
         steps: list[TraceStep],
+        observation: str,
         narrative_event: dict[str, Any] | None = None,
     ) -> tuple[AgentPlan, str, str | None]:
         assert planning.action is not None
@@ -344,7 +345,7 @@ class Harness:
         # an approved reveal must now voice the fact, a rejected one must deflect
         # without leaking it. docs/02 §4.1.
         start = time.perf_counter()
-        messages = self._dialogue_messages(plan, result.reason, narrative_event)
+        messages = self._dialogue_messages(plan, result.reason, observation, narrative_event)
         resp = self._llm.complete(messages, schema=DialogueOutput)
         dialogue_out: DialogueOutput = resp.parsed  # type: ignore[assignment]
         steps.append(
@@ -423,8 +424,21 @@ class Harness:
         self,
         plan: AgentPlan,
         validation_reason: str | None,
+        observation: str,
         narrative_event: dict[str, Any] | None = None,
     ) -> list[Message]:
+        """Assemble the regeneration prompt (LLM call #2).
+
+        ``observation`` is here because omitting it produced person drift in play:
+        a line that opened with 他既然照做了 and closed with 那我就告诉你一点, in
+        the same breath, to the same listener. ``plan.reasoning`` is the NPC's
+        *inner* voice, which necessarily speaks of the player in the third person
+        ("他在打探那晚的事"), so a prompt carrying only the plan hands the model a
+        third-person referent and no second-person one. It wrote what it was given.
+
+        The fix is to restore the addressee rather than to forbid a pronoun: the
+        player's own words are what make "you" the obvious person to answer in.
+        """
         system = self._prompts.load("npc_dialogue.txt")
         verdict = validation_reason or "（无被拒约束）"
         return [
@@ -432,6 +446,7 @@ class Harness:
             Message(
                 role="user",
                 content=(
+                    f"玩家刚才说：{observation}\n"
                     f"你的计划：{plan.reasoning}（策略：{plan.strategy}）\n"
                     f"校验结果：{verdict}{self._narrative_block(narrative_event)}"
                 ),

@@ -18,7 +18,8 @@ from __future__ import annotations
 
 from ai_native_rpg.llm import MockLLMClient
 from ai_native_rpg.narrative.engine import GeneratedContent, NarrativeEngine
-from ai_native_rpg.narrative.rules import MAX_OPEN_FORESHADOWINGS
+from ai_native_rpg.narrative.rules import MAX_OPEN_FORESHADOWINGS, earned_stage
+from ai_native_rpg.scenario import PacedClue
 from ai_native_rpg.schemas.narrative import NarrativeOperator, StoryBeats
 from ai_native_rpg.schemas.world_state import Visibility, WorldState
 from ai_native_rpg.world.manager import WorldStateManager
@@ -211,11 +212,84 @@ class TestEffectsGoThroughTheValidator:
         # the same clue from being re-scheduled every turn
         assert manager.snapshot().facts["clue_1"].visibility is Visibility.REVEALED
 
-    def test_an_escalate_raises_tension_without_turning_the_chapter(self, world: WorldState):
+    def test_telling_a_clue_advances_the_progress_stage(self, world: WorldState, directives):
+        """The reveal that just landed makes the player one stage closer.
+
+        Closes the gap that stalled a whole run: the stage is what the tension ceiling
+        and ``escalate`` read, and what generated payoff conditions are written
+        against, but no code advanced it. A clue told and a stage unchanged is the
+        state in which ``stage >= 2`` foreshadowings can never come due.
+        """
+        world.relationships[NPC_A][PLAYER].trust = 45.0
+        world.story_beats = StoryBeats(turn=99)
+        assert world.quests["investigation"].stage == 0
+
+        engine, manager = _engine(world, MockLLMClient([_content()]), directives)
+        engine.tick(player_id=PLAYER)
+
+        assert manager.snapshot().quests["investigation"].stage == 1
+
+    def test_the_stage_advances_one_step_per_tick(self, world: WorldState, directives):
+        """Several clues told at once still buy one stage this turn.
+
+        ``advance_quest`` adds exactly one, and looping here would clear several
+        author thresholds inside a single turn — the objection ``MAX_CHAPTER_STEP``
+        exists for. Falling behind is self-correcting: the next tick advances again.
+        """
+        # Two paced clues, both already told: the earned stage is 2 while the quest
+        # sits at 0, so a tick that stepped freely would jump straight to it.
+        world.facts["clue_1"].visibility = Visibility.REVEALED
+        world.facts["killer_identity"].visibility = Visibility.REVEALED
+        paced = [*directives.paced_clues, PacedClue(fact_id="killer_identity")]
+        two_clues = directives.model_copy(update={"paced_clues": paced})
+        world.story_beats = StoryBeats(turn=99)
+        _fill_ledger(world)
+
+        engine, manager = _engine(world, MockLLMClient([_content()]), two_clues)
+        assert earned_stage(world, two_clues) == 2
+
+        engine.tick(player_id=PLAYER)
+        assert manager.snapshot().quests["investigation"].stage == 1
+
+        # and the next tick closes the rest of the gap
+        engine.tick(player_id=PLAYER)
+        assert manager.snapshot().quests["investigation"].stage == 2
+
+    def test_a_quiet_turn_that_closes_a_stage_gap_stays_quiet(self, world: WorldState, directives):
+        """Syncing the stage is not a beat, so it must not mark the turn eventful.
+
+        ``landed`` decides both the recorded operator and whether the generated hook
+        may be spoken. If this approval counted, a turn where nothing was scheduled
+        would start a cooldown and hand the next turn a hook nobody planted — the
+        failure docs/09 records for ``pending_event``.
+        """
+        world.facts["clue_1"].visibility = Visibility.REVEALED
+        world.story_beats = StoryBeats(turn=99)
+        _fill_ledger(world)
+
+        engine, manager = _engine(world, MockLLMClient([]), directives)
+        tick = engine.tick(player_id=PLAYER)
+
+        assert tick.selected is None
+        beats = manager.snapshot().story_beats
+        assert beats.last_operator == NarrativeOperator.RELIEVE.value
+        assert manager.snapshot().quests["investigation"].stage == 1
+        assert engine.pending_event is None
+
+    def test_an_escalate_raises_tension_without_turning_the_chapter(
+        self, world: WorldState, directives
+    ):
+        """``directives`` is required now: the stage channel is named by the pack.
+
+        ``escalate`` waits on the progress quest's stage, and which quest that is is
+        story content (``narrative.progress_quest``), not something ``rules.py`` may
+        assume. An engine built without directives therefore paces no escalate — the
+        same "omitting it paces nothing" default that already applied to reveals.
+        """
         world.quests["investigation"].stage = 2
         world.story_beats = StoryBeats(turn=99, tension=0.1)
 
-        engine, manager = _engine(world, MockLLMClient([_content()]))
+        engine, manager = _engine(world, MockLLMClient([_content()]), directives)
         tick = engine.tick(player_id=PLAYER)
 
         assert tick.selected is not None
