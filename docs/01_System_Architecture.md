@@ -90,6 +90,7 @@ docs/
 ├── 12_Web_Interface.md                Web 界面：场景页面 + 开发者面板、SSE、tick 异步化
 ├── 13_Narrative_Events.md             事件层：事件与算子分层、时间制、声音层次、玩家动作
 ├── 14_Case_Design.md                  本案内容设计：三个结局、事件链、地点分工
+├── 15_Event_Script.md                 事件编排：逐事件定义、选项与判定、依赖图、时段验算
 └── schemas/                           设计期草稿（Pydantic）
     ├── player_model.py                实际实现以 src/ai_native_rpg/schemas/ 为准
     ├── world_state.py
