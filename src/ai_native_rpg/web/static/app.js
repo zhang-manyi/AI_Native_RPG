@@ -242,9 +242,12 @@ function renderScene() {
 
   const facts = s.visible_facts || [];
   ui.notes.hidden = facts.length === 0;
+  // Chips live in their own wrapping box so that a wrapped row lines up with the first
+  // one instead of starting back at the label's edge.
   ui.notes.innerHTML =
-    `<span class="label">已知</span>` +
-    facts.map((f) => `<span class="note">${esc(f.value)}</span>`).join("");
+    `<span class="label">已知</span><div class="chips">` +
+    facts.map((f) => `<span class="note">${esc(f.value)}</span>`).join("") +
+    `</div>`;
 
   renderCast();
   renderHistory(s.transcript_tail || []);

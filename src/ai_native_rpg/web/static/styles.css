@@ -399,11 +399,16 @@ body {
 
 /* --- notes strip (visible facts + quest) -------------------------------- */
 
+/* Grid rather than a single wrapping flex row. As one flex container the 「已知」 label
+ * was itself a wrapping item, so the first line started after it while every wrapped
+ * line started at the container edge — the chips did not share a left margin. Putting
+ * the label in its own column and the chips in a nested wrapping box gives every row
+ * the same origin. */
 .notes {
   flex-shrink: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
   gap: var(--space-2);
   padding: var(--space-3) 0;
   border-top: 1px solid var(--edge-soft);
@@ -414,7 +419,16 @@ body {
   letter-spacing: 0.14em;
   color: var(--text-faint);
   text-transform: uppercase;
-  margin-right: var(--space-2);
+  /* Nudged down so the label's cap height lines up with the first row of chips
+   * rather than with the top of their padding. */
+  padding-top: 3px;
+}
+
+.notes .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
 .note {
