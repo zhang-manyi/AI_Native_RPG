@@ -28,6 +28,7 @@ from __future__ import annotations
 import random
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -43,13 +44,21 @@ from ..schemas.narrative import (
     NarrativeEvent,
     NarrativeOperator,
     PlayerProfile,
+    TimeSlot,
 )
 from ..schemas.world_state import ActionProposal, ActionValidationResult
 from ..world.actions import FORESHADOW_PAYOFF_PATH_PREFIXES, ActionType
 from ..world.manager import WorldStateManager
 from .controller import PacingVerdict, Rejection, select_candidate
+from .player_actions import (
+    PlayerActionResult,
+    advance_past_wrap_up,
+    end_conversation,
+    move_player,
+)
 from .resolution import apply_outcome, resolve_option, resolve_out_of_patience
 from .rules import check_triggers, earned_stage, progress_quest
+from .wrap_up import ClueReview, TarotReading, review_clues, tarot_reading
 
 #: The actor id every narrative proposal carries. In ``SYSTEM_ACTORS``, and gated
 #: by ``narrative_actions_are_system_only``.
@@ -125,6 +134,20 @@ class EventResolutionRecord(BaseModel):
         if self.threshold is None or self.current_value is None:
             return None
         return self.current_value - self.threshold
+
+
+@dataclass(frozen=True)
+class DayWrapUp:
+    """The day's interlude: what is known, and how the cards read (docs/13 §4.2).
+
+    A dataclass rather than a Pydantic model because both halves already are what they
+    are and nothing here is parsed from outside. Grouped into one object so a caller
+    cannot show the reading while forgetting the review — they are one beat.
+    """
+
+    day: int
+    review: ClueReview
+    reading: TarotReading
 
 
 class NarrativeTick(BaseModel):
@@ -209,6 +232,63 @@ class NarrativeEngine:
         """
         active = self._manager.snapshot().story_beats.active_event
         return self._script.get(active.event_id) if active else None
+
+    # --- player actions (docs/13 §12) ---------------------------------------
+
+    def move_player(self, *, player_id: str, destination: str) -> PlayerActionResult:
+        """Take the player somewhere, spending a slot.
+
+        Exposed here so a caller has one object to drive a turn through, but the work is
+        in ``player_actions`` and goes through the Validator like everything else — the
+        Engine is not a second write path (docs/04).
+        """
+        return move_player(self._manager, player_id=player_id, destination=destination)
+
+    def end_conversation(self) -> PlayerActionResult:
+        """Close the active event without landing an outcome (docs/13 §12).
+
+        Walking out is not the same act as running out of patience, so no outcome is
+        applied: a player who could collect an outcome's numbers by leaving would have a
+        free move.
+        """
+        return end_conversation(self._manager)
+
+    # --- the wrap-up (docs/13 §4.2) -----------------------------------------
+
+    def is_wrapping_up(self) -> bool:
+        """Whether the clock is at the day's interlude."""
+        return self._manager.snapshot().story_beats.time_slot is TimeSlot.WRAP_UP
+
+    def wrap_up(self, *, player_id: str) -> DayWrapUp | None:
+        """The day's review and reading, or ``None`` outside the wrap-up.
+
+        Returning ``None`` rather than computing it anyway keeps the once-a-day cadence
+        docs/13 §4.2 asks for in one place: the ritual is what makes it feel like a ritual,
+        and a review available on demand every turn is just a screen.
+
+        The review is handed only the player's projection, so it *cannot* read a hidden
+        fact (docs/13 §5.1). The reading gets the world, but reads counts rather than
+        content — how much is still dark, never what it is.
+        """
+        world = self._manager.snapshot()
+        if world.story_beats.time_slot is not TimeSlot.WRAP_UP:
+            return None
+
+        view = self._manager.player_view(player_id)
+        return DayWrapUp(
+            day=world.time_day,
+            review=review_clues(view),
+            reading=tarot_reading(world, view),
+        )
+
+    def close_out_day(self) -> PlayerActionResult:
+        """Step past the wrap-up into the next morning.
+
+        Separate from ``wrap_up`` so that reading the interlude and dismissing it are
+        distinct: a caller that computed the review as a side effect of advancing the
+        clock could never show it.
+        """
+        return advance_past_wrap_up(self._manager)
 
     # --- pending event ------------------------------------------------------
 

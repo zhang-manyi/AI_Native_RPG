@@ -137,6 +137,36 @@ def end_conversation(manager: WorldStateManager, *, spend_slot: bool = False) ->
     )
 
 
+def advance_past_wrap_up(manager: WorldStateManager) -> PlayerActionResult:
+    """Step from the wrap-up into the next morning (docs/13 §4.2).
+
+    Refuses outside the wrap-up, because the alternative is a caller able to skip a slot
+    it did not want to spend. That the interlude itself costs nothing is a property of
+    ``advance_slot``, not of this function: stepping *through* the wrap-up is the one
+    advance that does not increment ``slots_spent_today``.
+    """
+    beats = manager.snapshot().story_beats
+    if beats.time_slot is not TimeSlot.WRAP_UP:
+        return PlayerActionResult(
+            approved=False,
+            reason=f"not at the day's wrap-up (it is {beats.time_slot.value})",
+            slot=beats.time_slot,
+            day=manager.snapshot().time_day,
+        )
+
+    result = _spend_slot(manager)
+    world = manager.snapshot()
+    return PlayerActionResult(
+        approved=result.approved,
+        reason=result.reason,
+        slot_spent=False,  # the interlude is free; this only turns the day over
+        slot=world.story_beats.time_slot,
+        day=world.time_day,
+        out_of_days=world.story_beats.is_out_of_days(current_day=world.time_day),
+        proposals=[result],
+    )
+
+
 def _spend_slot(manager: WorldStateManager) -> ActionValidationResult:
     return _submit_beat(manager, {"advance_slot": True})
 
