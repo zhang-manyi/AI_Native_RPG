@@ -19,6 +19,7 @@ import yaml
 from pydantic import BaseModel, Field, ValidationError
 
 from .agent.memory_store import MemoryStore
+from .reachability import unreachable_clauses
 from .schemas.common import Condition
 from .schemas.events import EventScript
 from .schemas.memory import EpisodicMemory, SemanticMemory
@@ -99,6 +100,43 @@ class PacedClue(BaseModel):
     )
 
 
+class Ending(BaseModel):
+    """One way the case can end, and the state that constitutes it (docs/14 §4).
+
+    The condition is what makes an ending checkable. docs/13 §11 asks every ending to
+    ship "一条具体的状态路径" precisely so the loader can verify it leads somewhere — the
+    alternative is what happened three times already: a road written in a document, and
+    nobody checking it went anywhere.
+
+    Endings are *declarative*. Nothing here fires them; ``M7`` is the event that plays
+    one out. Their job in the pack is to state what the author believes is reachable, so
+    that belief can be tested at startup rather than in play.
+    """
+
+    ending_id: str
+    summary: str = Field(default="", description="one line for the panel, e.g. '查明真相'")
+    condition: Condition = Field(
+        description="the state that constitutes this ending. Checked for reachability at "
+        "load: every clause must resolve *and* name a value something can move."
+    )
+    path_note: str = Field(
+        default="",
+        description="the authored route, in prose, e.g. '玛尔塔线 trust 40 → 酒馆核对时间线'. "
+        "Documentation rather than data — but it lives beside the condition so that the two "
+        "are edited together, which is what went wrong when the route lived only in a doc.",
+    )
+    pending: bool = Field(
+        default=False,
+        description="the ending is designed but the events that reach it are not written "
+        "yet, so the loader reports it instead of refusing to start.\n\n"
+        "This exists so that an unfinished ending is *declared* unfinished rather than "
+        "omitted. Leaving it out of the pack would make the check pass and lose the record; "
+        "marking it pending keeps the intended condition under version control next to the "
+        "events, and the moment the events land, clearing the flag is what proves the route "
+        "works. It is deliberately awkward to leave set — that is the point.",
+    )
+
+
 class NarrativeDirectives(BaseModel):
     """Per-pack narrative content: what to pace, what reverses, how to write.
 
@@ -133,6 +171,14 @@ class NarrativeDirectives(BaseModel):
     universal_constraints: list[str] = Field(
         default_factory=list,
         description="prohibitions that hold for every generated scene in this pack",
+    )
+    endings: list[Ending] = Field(
+        default_factory=list,
+        description="how this case can end (docs/14 §4), each with the state that "
+        "constitutes it. Checked for reachability at load, which is the requirement "
+        "docs/13 §11 states after the same silent content bug happened three times. A "
+        "pack may declare none — but then nothing verifies its endings, so the check is "
+        "opt-in by having written them down.",
     )
 
 
@@ -249,7 +295,88 @@ def load_event_script(name_or_path: str | Path) -> EventScript:
                     f"unresolvable path {clause.path!r}: {exc}"
                 ) from exc
 
+    _check_endings_are_reachable(world_file, raw, world, script)
     return script
+
+
+def _check_endings_are_reachable(
+    world_file: Path, raw: dict[str, Any], world: WorldState, script: EventScript
+) -> None:
+    """Refuse a pack whose declared endings stand on values nothing can move.
+
+    This is the check docs/13 §11 asks for, and it is stronger than the resolvability
+    check above in the one way that matters: all three historical bugs resolved cleanly.
+    ``stage``, the second ``killer_identity`` channel and ``fear`` were each a legal path
+    to a number the game never changed, which at runtime looks like a scene that simply
+    never comes.
+
+    Done here rather than in ``load_narrative_directives`` because the answer needs the
+    event script — what can move is derived from the outcomes rather than declared, so it
+    cannot drift from what the events actually do.
+    """
+    block = raw.get("narrative") or {}
+    if not isinstance(block, dict) or not block.get("endings"):
+        return
+
+    try:
+        endings = [Ending.model_validate(spec) for spec in block["endings"]]
+    except ValidationError as exc:
+        raise ScenarioError(
+            f"{world_file}: 'narrative.endings' does not match the expected shape: {exc}"
+        ) from exc
+
+    # A pending ending is checked and reported, never enforced: its events are not written
+    # yet, so failing the load would mean an unfinished pack cannot run at all. Everything
+    # else must be reachable now.
+    problems = unreachable_clauses(
+        {e.ending_id: e.condition for e in endings if not e.pending},
+        world=world,
+        script=script,
+    )
+    if problems:
+        detail = "\n  ".join(str(problem) for problem in problems)
+        raise ScenarioError(
+            f"{world_file}: declared ending(s) cannot be reached:\n  {detail}\n"
+            "docs/13 §11: every ending needs a state path that actually leads there. "
+            "Either the events that move these values are missing, or the ending's "
+            "condition names the wrong path. If the events are genuinely still to be "
+            "written, mark the ending `pending: true` — that records the gap instead of "
+            "hiding it."
+        )
+
+    # The other direction, and the reason ``pending`` is awkward on purpose: an ending
+    # marked pending that turns out to be reachable is a flag someone forgot to clear, and
+    # a stale flag would silently exempt a real ending from the check forever.
+    stale = [
+        e.ending_id
+        for e in endings
+        if e.pending
+        and not unreachable_clauses({e.ending_id: e.condition}, world=world, script=script)
+    ]
+    if stale:
+        raise ScenarioError(
+            f"{world_file}: ending(s) {stale} are marked `pending: true` but are now "
+            "reachable; clear the flag so they are checked from here on"
+        )
+
+
+def load_endings(name_or_path: str | Path) -> list[Ending]:
+    """A pack's declared endings, or ``[]`` when it ships none.
+
+    Separate from ``load_narrative_directives`` so a caller that only wants the endings —
+    the panel, an eval run — does not pay for the rest, and so the reachability check has
+    one obvious place to be re-run from.
+    """
+    world_file, raw = _read_pack(name_or_path)
+    block = raw.get("narrative") or {}
+    if not isinstance(block, dict):
+        raise ScenarioError(f"{world_file}: 'narrative' must be a mapping if present")
+    try:
+        return [Ending.model_validate(spec) for spec in (block.get("endings") or [])]
+    except ValidationError as exc:
+        raise ScenarioError(
+            f"{world_file}: 'narrative.endings' does not match the expected shape: {exc}"
+        ) from exc
 
 
 def pack_prompts_dir(name_or_path: str | Path) -> Path:

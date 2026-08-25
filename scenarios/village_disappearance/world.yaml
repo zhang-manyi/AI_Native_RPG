@@ -203,6 +203,78 @@ narrative:
     - 不要写出任何角色的内心独白，只写外部可观察的事
     - 不要替玩家决定他做了什么或想什么
 
+  # The endings (docs/14 §4), each with the state that constitutes it.
+  #
+  # These are declarative: nothing here fires them (M7 plays one out). They are written
+  # down so the loader can check that each one's gate stands on a value the game can
+  # actually move — the requirement docs/13 §11 states after this exact bug happened
+  # three times, each time invisible except as a scene that never came:
+  #
+  #   - `quests.investigation.stage` had an author and readers and no writer;
+  #   - `killer_identity`'s second channel needed a player who could move, and he could not;
+  #   - `fear` gated 闭口 while NPCs only ever adjusted trust.
+  #
+  # So a startup error now, rather than a mystery in play. Note that reachability here is
+  # the narrow claim "something writes this path", not "attainable within 12 slots" —
+  # that stronger check would need a search over the whole event graph. docs/15 §6.2 does
+  # the slot arithmetic by hand, and a test walks it.
+  endings:
+    - ending_id: truth_uncovered
+      summary: 查明真相
+      # The `all` mode with three clauses: the two clues plus the stage the independent
+      # investigation earns. It is the one ending that needs both lines (docs/15 §5).
+      path_note: 玛尔塔线 trust 40 → clue_1_witness（stage 1）→ 酒馆核对时间线（stage 2）→ 森林物证（stage 3）→ M7
+      condition:
+        mode: all
+        clauses:
+          - path: quests.investigation.stage
+            op: gte
+            value: 3
+          - path: relationships.npc_a.player_1.trust
+            op: gte
+            value: 40
+
+    - ending_id: accused_the_wrong_man
+      summary: 指控错人
+      # Deliberately reachable *early*: it is what the player gets for concluding on the
+      # three clues that point at Loren, none of which prove a murder (docs/14 §4.2).
+      path_note: 走完前两条线索（stage 2）后直接指控，跳过森林物证
+      condition:
+        mode: all
+        clauses:
+          - path: quests.investigation.stage
+            op: gte
+            value: 2
+
+    - ending_id: loren_moves_first
+      summary: 被洛伦先动手
+      # `pending` because the only thing that raises tension is an `escalate` event, and
+      # M6（洛伦上门警告）is in the next batch — so this route is designed and not yet
+      # walkable. Declared anyway, with the flag: leaving it out of the pack would make the
+      # check pass and lose the record, which is how a road ends up written only in a
+      # document. The loader refuses the flag once the events land.
+      pending: true
+      path_note: 夜间时段去森林、反复逼问，张力持续上升而不推进线索（需要 M6，下一批）
+      condition:
+        mode: all
+        clauses:
+          - path: story_beats.tension
+            op: gte
+            value: 0.8
+
+    - ending_id: marta_clams_up
+      summary: 玛尔塔彻底闭口
+      # The channel that was dead: `fear` is read here and was written by almost nothing.
+      # A failed [追问]/[試探] now raises it deterministically, so this gate is crossable
+      # without depending on a model choosing the right dimension (docs/14 §4.3).
+      path_note: 连续逼问或试探，fear 累积到 70；此后仍可走酒馆 + 森林的独立调查通道
+      condition:
+        mode: all
+        clauses:
+          - path: relationships.npc_a.player_1.fear
+            op: gte
+            value: 70
+
 # The event network (docs/13, docs/15 §4). This is the layer that answers "what
 # should happen this turn": each event has a trigger, an outcome set, and branches,
 # which operators never had — so operators are demoted here to `operator:`, meaning
