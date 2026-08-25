@@ -371,28 +371,37 @@ Web 层的测试一律走 mock LLM（`conftest.py` 的 autouse fixture 已经强
 
 每条都注明「被什么带出来」，因为**先做那件事再做界面**才有意义——反过来做等于给不存在的状态画界面。
 
+> **前置状态（切片 5 第二批已落地）**：时段制、玩家移动、收束段、结局可达性校验都已实现，见 [09 的切片表](./09_Reference_Scenario.md)。所以 13.1 / 13.2 / 13.3 / 13.5 的「等那件事先做」条件已经满足，各节里描述现状的句子相应改成了它们现在的样子。可直接读的东西：`story_beats.time_slot`、`story_beats.slots_spent_today`、`story_beats.day_limit`、`story_beats.visited_locations`、`narrative/wrap_up.py`、`narrative/player_actions.py`。
+
 ### 13.1 时段与天数（由 [13 §4.1](./13_Narrative_Events.md) 时间制带出）
 
-`SceneView.time_day` 字段已有但世界从不推进，`time_slot` 完全不存在。时段落地后：
+`SceneView.time_day` 字段已有，`time_slot` 现在也有了（`story_beats.time_slot`，四个取值：morning / afternoon / evening / wrap_up）。界面要跟上的：
 
 - 场景页显示「第 2 天 · 下午」。这是玩家侧信息，走 `VisibleState`。
 - 面板显示时段预算（[15 §6](./15_Event_Script.md) 的 4 天 × 3 时段 = 12 个时段）：已用几个、剩几个。**这是新的一类面板内容**——它衡量的是玩家还剩多少机会，而现有各块衡量的都是故事的形状。
 - `panels.py` 加一个纯函数，不要在 Web 层直接算。
+- 别把总数写成字面量：`SLOTS_PER_DAY` 与 `StoryBeats.day_limit` 是来源（`day_limit` 是字段而非常量，剧本可以缩短案件）。收束段**不占时段**，所以「已用 3 / 12」在收束段那一刻是对的，不要把它算成第 4 个。
 
 ### 13.2 地点选择（由玩家移动带出）
 
-**本层后续最大的一块。** `ActionType.MOVE` 存在但 `_apply_move` 写的是 `npcs[actor_id].location`，玩家不在 `world.npcs` 里，所以玩家移动**从未工作过**（[13 §7](./13_Narrative_Events.md) 的清单里也记着）。修好之后：
+**本层后续最大的一块。** 后端已经就绪：`_apply_move` 现在按 actor 的种类写 `player_locations` 或 `npcs`，`narrative/player_actions.move_player()` 是入口，它提一个 `move` 提案、通过后再扣一个时段。被拒的移动不扣时段。
 
 现在的页面假设「一个场景、一个 NPC、一直对着他说话」。多地点会改变这个假设：每个时段要先选去哪，到了之后才是对话。这不是加一个按钮，是**在对话之上多一层**——`SceneView` 要带上「可去的地点」（从 `Location.connected_to` 与玩家当前位置推出，且必须只走 `PlayerView`），事件流要能表达「移动」这个不产生台词的回合。
 
-一个具体约束：移动消耗时段，所以它和对话一样要走 §5 的串行执行器，不能是一个直接改状态的旁路。
+三个具体约束：
+
+- 移动消耗时段，所以它和对话一样要走 §5 的串行执行器，不能是一个直接改状态的旁路。`move_player()` 本身不加锁，它只是保证走 Validator。
+- **不要在 Web 层复算邻接**。被拒的原因（`"'forest_edge' is not reachable from 'tavern'"`）是写给玩家看的（[02 §4.1](./02_Sequence_Diagram.md)），直接显示即可；前端自己判一遍会得到第二份规则。
+- 「首次到达某地」是剧本触发条件（M4/M5 用），由 `story_beats.visited_locations` 承载，移动时自动记录。界面若想显示「没去过」，读它，不要另存一份。
 
 ### 13.3 收束段页面（由 [13 §4.2](./13_Narrative_Events.md) 带出）
 
 整理线索 + 塔罗占卜，不占时段，每天自动到来。**是一个新的界面形态，不是场景页的变体**：没有 NPC、没有立绘、没有对话框。
 
-- 整理线索**只重述已知**（输入正是 `PlayerView` 的可见集合，因此天然不可能泄漏 hidden fact）。
-- 塔罗读世界状态输出抽象意象——它是少见的「能用 LLM 且不违反 visibility 约束」的位置，但**它的输出仍然是玩家侧内容**，所以生成它的路径不能读到 hidden fact 的 value，只能读「还有几条未揭露」这类聚合量。这一条要在实现时用测试钉住，和 §7 的隔离同等对待。
+后端在 `narrative/wrap_up.py`，引擎上的入口是 `is_wrapping_up()` / `wrap_up(player_id=...)` / `close_out_day()`。`wrap_up()` 在收束段之外返回 `None`，因为一天一次的仪式感是设计的一部分（[13 §4.2](./13_Narrative_Events.md)）——随时可看的整理只是一个屏幕。
+
+- 整理线索**只重述已知**：`review_clues()` 的签名只收 `VisibleState`，所以泄漏需要改参数类型而不是漏一个判断。它还给出 `unanswered`（仍然敞着的问题），措辞是玩家本可以自己问的问题，不是对答案的描述——**渲染时不要替它补充"该去哪查"**，那是系统代替玩家推理。
+- 塔罗读世界状态输出抽象意象——它是少见的「能用 LLM 且不违反 visibility 约束」的位置，但**它的输出仍然是玩家侧内容**，所以生成它的路径不能读到 hidden fact 的 value，只能读「还有几条未揭露」这类聚合量。`TarotReading` 因此只带 `darkness`（比例）、`tension`、`imagery`（牌名）和 `reads_as`（粗粒度标签），**故意不带原始条数**——「还剩 7 条」是玩家会拿去优化的数字，理由同 [15 §2](./15_Event_Script.md) 不写 `[示好 65%]`。这一条已有测试钉住（`tests/test_wrap_up.py`），Web 层加显示时不要把比例反算回条数。
 
 ### 13.4 `active_event` 的显示（由事件层带出）
 
@@ -402,14 +411,17 @@ Web 层的测试一律走 mock LLM（`conftest.py` 的 autouse fixture 已经强
 
 ### 13.5 结局与可达性（由 [13 §11](./13_Narrative_Events.md) 带出）
 
-- 三个结局各自的呈现（[14 §4](./14_Case_Design.md)）。
-- **面板显示每个结局当前够不到哪一步**。[13 §11](./13_Narrative_Events.md) 要求每个结局附一条可达路径并由加载器校验；把校验结果显示出来，成本极低而价值高——[15 §6](./15_Event_Script.md) 记着已经踩过两次「作者写了一条路、没人验证它走得通」（`stage` 曾无写入者；`killer_identity` 第二通道因玩家不能移动而是死的）。这正是解锁进度板的思路推广到结局一级：**把「为什么玩家还到不了这个结局」变成一眼可见**。
+- 三个结局各自的呈现（[14 §4](./14_Case_Design.md)）。仍待做，M7 未写。
+- **面板显示每个结局当前够不到哪一步**。加载器侧已经实现（`narrative.endings` + `reachability.py`，剧本现在声明四个结局），所以这一块**现在就有数据可显示**：`load_endings()` 给出每个结局的条件、`path_note` 与 `pending` 标记，每个 clause 都能拿现有求值器逐条判「这一条满足了吗」。这正是解锁进度板的思路推广到结局一级：**把「为什么玩家还到不了这个结局」变成一眼可见**。
+- 加载器答的是窄问题——「有东西写这条路径吗」，不是「12 个时段内够得到吗」。面板显示时别把它说成后者。`pending: true` 的结局（当前是"被洛伦先动手"，等 M6）要显式标出来，否则它看起来像一个玩家差得很远的结局，而实际上是还没写。
 
 ### 13.6 玩家画像（由 Player Model 那一半带出）
 
 `PlayerProfile` 有写入方之后，面板加一块显示 `play_style` 权重与 `narrative_preference`。最小的一块。
 
-注意依赖方向：**它的价值依赖时段制**。没有时段，玩家的行为没有可区分的成本，Behavior Tracker 记录不到有意义的东西——这也是 [13 §4.1](./13_Narrative_Events.md) 说时段是 Player Model 前提的原因。
+注意依赖方向：**它的价值依赖时段制**，而时段制现在有了——所以这个前提已经满足，玩家的行为终于有可区分的成本（去了哪个地点、花在谁身上、逼问还是耐心）。这也是 [13 §4.1](./13_Narrative_Events.md) 说时段是 Player Model 前提的原因。
+
+两个现成的信号源：`story_beats.visited_locations`（去过哪、去过几处）和选项标签——[15 §2](./15_Event_Script.md) 已经把四个标签各映到一个 `PreferenceTag`（`OptionTag.preference_tag`），所以玩家点了什么本身就是分类结果，不需要再推断一次。
 
 ### 13.7 三种输入形态（由 [15 §1](./15_Event_Script.md) 带出）
 
@@ -433,7 +445,9 @@ Web 层的测试一律走 mock LLM（`conftest.py` 的 autouse fixture 已经强
 
 ### 13.8 关系值走势的采样密度（本层自己的遗留）
 
-现在每回合采一个点（`Session._sample_relationship`）。时段制之后可能该按时段采，否则一个时段内多轮对话会把曲线拉得很密而看不出节奏。**等时段真的存在了再定**，现在改是凭空猜。
+现在每回合采一个点（`Session._sample_relationship`）。时段制之后可能该按时段采，否则一个时段内多轮对话会把曲线拉得很密而看不出节奏。
+
+时段现在存在了，所以这条可以定了——但**先看一局真实数据再改**：一个时段里到底有几轮对话，决定的是该按时段采、还是保持按回合而在时段边界画一条分隔线。后者信息不丢，可能就够了。判据是曲线能不能看出节奏，不是采样点的疏密本身。
 
 
 
