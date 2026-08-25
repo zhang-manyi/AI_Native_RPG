@@ -103,6 +103,68 @@ class TestTheShippedPacksEndings:
 
         assert problems == []
 
+    def test_clamming_up_is_a_milestone_not_an_ending(self):
+        """docs/14 §4.3: 闭口不等于失败终局.
+
+        It shuts Marta's social line while the tavern and the forest remain, and
+        『只有天数用尽仍未查明才是终局』. Listing it as a peer of 查明真相 would have a panel
+        render a **cost** as a **conclusion**, and tell the player the game is over while he
+        is still in it. This is also the reason `killer_identity`'s second channel exists.
+        """
+        clams_up = next(e for e in load_endings(PACK) if e.ending_id == "marta_clams_up")
+
+        assert not clams_up.terminal
+
+    def test_the_case_has_four_terminal_endings(self):
+        terminal = {e.ending_id for e in load_endings(PACK) if e.terminal}
+
+        assert terminal == {
+            "truth_uncovered",
+            "accused_the_wrong_man",
+            "loren_moves_first",
+            "never_found_out",
+        }
+
+    def test_terminal_defaults_to_true(self):
+        """The surprising claim is the milestone, so an author has to say so explicitly."""
+        for ending in load_endings(PACK):
+            if ending.ending_id != "marta_clams_up":
+                assert ending.terminal
+
+    def test_a_milestone_is_still_checked_for_reachability(self, pack):
+        """Not terminal does not mean not verified: ``fear`` genuinely has to reach 70."""
+        world, script = pack
+        clams_up = next(e for e in load_endings(PACK) if e.ending_id == "marta_clams_up")
+
+        assert (
+            unreachable_clauses({"marta_clams_up": clams_up.condition}, world=world, script=script)
+            == []
+        )
+
+    def test_being_moved_on_needs_him_to_know_you_are_asking(self):
+        """docs/14 §4.3 gives two clauses and the first declaration had only one.
+
+        Tension alone is "the story got tense"; tension *and* him knowing someone is asking
+        is "他知道你在查，而你还在逼" — only the second is a reason for him to act on the
+        player rather than a mood.
+        """
+        moves_first = next(e for e in load_endings(PACK) if e.ending_id == "loren_moves_first")
+        paths = {c.path for c in moves_first.condition.clauses}
+
+        assert paths == {
+            "story_beats.tension",
+            "facts.npc_b_aware_of_investigation.visibility",
+        }
+        assert moves_first.condition.mode == "all"
+
+    def test_the_awareness_clause_is_earned_on_the_way(self, pack):
+        """It unlocks at tension 0.6, so it is not a second grind toward 0.8."""
+        world, _ = pack
+        condition = world.facts["npc_b_aware_of_investigation"].reveal_condition
+
+        assert condition is not None
+        assert any(c.value <= 0.8 for c in condition.clauses)
+
     def test_the_unfinished_ending_says_so(self):
         """Declared and flagged, rather than omitted.
 

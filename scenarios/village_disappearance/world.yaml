@@ -273,15 +273,31 @@ narrative:
       # document. The loader refuses the flag once the events land.
       pending: true
       path_note: 夜间时段去森林、反复逼问，张力持续上升而不推进线索（需要 M6，下一批）
+      # Both halves, per docs/14 §4.3. The second clause was missing when this was first
+      # declared, and its absence changes the meaning: tension alone is "the story got
+      # tense", while tension *and* him knowing someone is asking is "他知道你在查，而你
+      # 还在逼". Only the second is a reason for him to move on the player rather than a
+      # mood. `npc_b_aware_of_investigation` unlocks at tension 0.6, so it is earned on
+      # the way to 0.8 rather than being a second grind.
       condition:
         mode: all
         clauses:
           - path: story_beats.tension
             op: gte
             value: 0.8
+          - path: facts.npc_b_aware_of_investigation.visibility
+            op: eq
+            value: revealed
 
     - ending_id: marta_clams_up
       summary: 玛尔塔彻底闭口
+      # NOT terminal. docs/14 §4.3: 闭口不等于失败终局——它关闭玛尔塔这条社交线，玩家仍可走
+      # 酒馆 + 森林的独立调查通道到 §4.1，『只有天数用尽仍未查明才是终局』。
+      #
+      # 这一条正是 `killer_identity` 第二通道（stage >= 3，独立调查）存在的理由：社交线断在
+      # 玛尔塔身上时，独立调查得有落点。把它列成和「查明真相」并列的结局会让面板把一个**代价**
+      # 画成一个**结论**，也会告诉玩家游戏结束了——而他其实还在局中。
+      terminal: false
       # The channel that was dead: `fear` is read here and was written by almost nothing.
       # A failed [追问]/[試探] now raises it deterministically, so this gate is crossable
       # without depending on a model choosing the right dimension (docs/14 §4.3).

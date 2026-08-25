@@ -112,20 +112,36 @@ class PacedClue(BaseModel):
 
 
 class Ending(BaseModel):
-    """One way the case can end, and the state that constitutes it (docs/14 §4).
+    """A state the case can arrive at, and what constitutes it (docs/14 §4).
 
-    The condition is what makes an ending checkable. docs/13 §11 asks every ending to
-    ship "一条具体的状态路径" precisely so the loader can verify it leads somewhere — the
+    The condition is what makes it checkable. docs/13 §11 asks every ending to ship
+    "一条具体的状态路径" precisely so the loader can verify it leads somewhere — the
     alternative is what happened three times already: a road written in a document, and
     nobody checking it went anywhere.
 
-    Endings are *declarative*. Nothing here fires them; ``M7`` is the event that plays
-    one out. Their job in the pack is to state what the author believes is reachable, so
-    that belief can be tested at startup rather than in play.
+    These are *declarative*. Nothing here fires them; ``M7`` is the event that plays a
+    terminal one out. Their job in the pack is to state what the author believes is
+    reachable, so that belief can be tested at startup rather than in play.
+
+    **Not all of them end the game** — see ``terminal``. Reaching "玛尔塔彻底闭口" closes
+    one route and leaves the player still investigating, so listing it as a peer of
+    "查明真相" would have a panel render a cost as a conclusion.
     """
 
     ending_id: str
     summary: str = Field(default="", description="one line for the panel, e.g. '查明真相'")
+    terminal: bool = Field(
+        default=True,
+        description="whether reaching this state ends the case.\n\n"
+        "False makes it a *milestone*: a state worth naming and checking, after which play "
+        "continues. docs/14 §4.3 is explicit that 闭口 is one — it shuts Marta's social "
+        "line while the tavern and the forest remain, and 『只有天数用尽仍未查明才是终局』. "
+        "The distinction is not cosmetic: a milestone shown as an ending tells the player "
+        "the game is over when it is not, and tells a developer reading the panel that a "
+        "cost is a conclusion.\n\n"
+        "Defaults True because the terminal case is the common one and the surprising claim "
+        "is the other; an author writing a milestone should have to say so.",
+    )
     condition: Condition = Field(
         description="the state that constitutes this ending. Checked for reachability at "
         "load: every clause must resolve *and* name a value something can move."
