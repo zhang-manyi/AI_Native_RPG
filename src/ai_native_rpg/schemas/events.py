@@ -160,6 +160,48 @@ def effective_threshold(threshold: float, *, tag: OptionTag, flags: list[str]) -
     return threshold
 
 
+#: What a failed check costs in ``fear`` when the outcome does not say (docs/14 §4.3).
+#:
+#: The "玛尔塔彻底闭口" ending is gated on ``fear >= 70`` and ``fear`` barely moved in
+#: play: NPCs proposing ``adjust_relationship`` almost only touched ``trust``, because
+#: the planning prompt's examples were all about trust. A prompt fix alone would not be
+#: enough — the model has no reason to know the ending exists, and an ending reachable
+#: only when a model happens to volunteer the right dimension is the same dead channel
+#: docs/13 §11 records twice.
+#:
+#: So pressing has a floor that does not depend on a model choosing to apply it. Small
+#: (a failed press is not a threat) and only on *checked* tags, which is what makes it
+#: legible: the player learns that pushing costs something, which is the design's own
+#: claim about [追问] and [试探] in docs/15 §2.
+FEAR_ON_FAILED_PRESS = 5.0
+
+#: And on a failed probe, which docs/15 §2 calls the gamble.
+#:
+#: Larger than a press for the reason the band is wider: a probe that misses is a caught
+#: attempt at manoeuvring her, not just an unwelcome question.
+FEAR_ON_FAILED_PROBE = 8.0
+
+#: Fear floor by tag, applied only when an outcome names no ``fear`` change itself.
+#:
+#: Authored values always win. An outcome that says ``fear: 12`` means the author has
+#: thought about this beat, and a floor that added to it would silently inflate every
+#: number docs/15 §4 lists.
+FEAR_FLOOR_BY_TAG: dict[str, float] = {
+    OptionTag.PRESS.value: FEAR_ON_FAILED_PRESS,
+    OptionTag.PROBE.value: FEAR_ON_FAILED_PROBE,
+}
+
+
+def fear_floor_for_failure(tag: OptionTag) -> float:
+    """How much ``fear`` a failed check of this tag raises at minimum.
+
+    Zero for the unchecked tags: [示好] and [观察] never fail, so there is no failure to
+    charge for, and charging them would break the asymmetry docs/15 §2 built on purpose
+    — [观察] is specifically the option a frightened player reaches for.
+    """
+    return FEAR_FLOOR_BY_TAG.get(tag.value, 0.0)
+
+
 def scaled_trust_gain(current_trust: float) -> float:
     """What a [示好] is worth at this level of wariness (docs/15 §3.2).
 

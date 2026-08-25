@@ -421,7 +421,11 @@ class NarrativeEngine:
 
         outcome = definition.outcome_for(resolution.outcome_id)
         results = apply_outcome(
-            self._manager, event=definition, outcome=outcome, player_id=player_id
+            self._manager,
+            event=definition,
+            outcome=outcome,
+            player_id=player_id,
+            failed_tag=resolution.failed_tag,
         )
         results.extend(self._sync_progress_stage())
 

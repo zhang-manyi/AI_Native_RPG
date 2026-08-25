@@ -32,8 +32,10 @@ from ..schemas.events import (
     CheckBand,
     EventDefinition,
     EventOutcome,
+    OptionTag,
     check_band,
     effective_threshold,
+    fear_floor_for_failure,
     scaled_trust_gain,
 )
 from ..schemas.world_state import ActionProposal, ActionValidationResult
@@ -65,6 +67,11 @@ class OptionResolution:
     option_id: str | None = None
     threshold: float | None = None
     current_value: float | None = None
+    #: The tag whose check failed, if one did. Carries the fear floor of docs/14 §4.3 to
+    #: ``apply_outcome`` — the outcome id alone cannot say *why* it was reached, and a
+    #: default outcome looks identical whether it came from a failed probe or from
+    #: running out of patience.
+    failed_tag: OptionTag | None = None
 
     @property
     def margin(self) -> float | None:
@@ -133,6 +140,9 @@ def resolve_option(
         option_id=option.option_id,
         threshold=threshold,
         current_value=current,
+        # Recorded on failure only. Pressing her and getting somewhere is not what
+        # frightens her; pressing her and missing is (docs/14 §4.3).
+        failed_tag=None if succeeded else option.tag,
     )
 
 
@@ -166,6 +176,7 @@ def apply_outcome(
     event: EventDefinition,
     outcome: EventOutcome,
     player_id: str,
+    failed_tag: OptionTag | None = None,
 ) -> list[ActionValidationResult]:
     """Submit an outcome's consequences, each as its own proposal.
 
@@ -178,13 +189,24 @@ def apply_outcome(
     to voice, it does not grant permission to voice it. So an outcome may legitimately
     be applied and have its reveal rejected — the clue is one the player has not earned
     yet, and the rejection is the correct answer rather than an error to work around.
+
+    ``failed_tag`` names the tag whose check just failed, if one did, and adds the fear
+    floor of docs/14 §4.3 when the outcome does not price the failure itself. See
+    ``fear_floor_for_failure``: without it, "玛尔塔彻底闭口" is gated on a value nothing
+    reliably moves.
     """
     results: list[ActionValidationResult] = []
+    floor = fear_floor_for_failure(failed_tag) if failed_tag is not None else 0.0
 
     for npc_id, changes in outcome.relationship_changes.items():
         payload = dict(changes)
         if outcome.scales_with_current_trust:
             payload["trust"] = scaled_trust_gain(manager.get_trust(npc_id, player_id))
+        # Authored values win: an outcome that names a fear change has had this beat
+        # thought about, and adding a floor on top would inflate every number docs/15 §4
+        # lists. The floor exists for the outcomes that say nothing.
+        if floor and npc_id == event.npc_id and "fear" not in payload:
+            payload["fear"] = floor
         results.append(
             _submit(
                 manager,
@@ -192,6 +214,20 @@ def apply_outcome(
                 actor_id=npc_id,
                 target_id=player_id,
                 payload=payload,
+            )
+        )
+
+    # A failed check whose outcome moves nothing at all still costs her something. This
+    # is the common case in practice — the default outcome of most events is "这次没谈成"
+    # with no deltas — and it is exactly where fear used to fail to accumulate.
+    if floor and event.npc_id is not None and event.npc_id not in outcome.relationship_changes:
+        results.append(
+            _submit(
+                manager,
+                ActionType.ADJUST_RELATIONSHIP,
+                actor_id=event.npc_id,
+                target_id=player_id,
+                payload={"fear": floor},
             )
         )
 
