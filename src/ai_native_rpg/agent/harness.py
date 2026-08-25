@@ -76,6 +76,19 @@ class PlanningOutput(BaseModel):
     dialogue: str = Field(description="first-pass line, used directly on the no-action fast path")
     action: ProposedAction | None = None
 
+    matched_option_id: str | None = Field(
+        default=None,
+        description="which of the current event's options the player's words amount to, "
+        "or null if none. Rides on this existing call rather than costing a second one "
+        "(docs/13 §3, the same trick docs/03 §5 uses for player_intent_tag).\n\n"
+        "This is classification, not decision: the option's outcome and its consequences "
+        "are authored, so all the model contributes is 'these words mean that'. Were it "
+        "choosing the outcome it would be choosing what gets unlocked, and docs/04 §3.3 "
+        "lets no actor do that.\n\n"
+        "It is also what keeps free input worth using: typing resolves through the same "
+        "check as clicking, so prose is not strictly worse than a button (docs/15 §1.1).",
+    )
+
 
 class DialogueOutput(BaseModel):
     """Structured output of LLM call #2 (dialogue regenerated under the verdict)."""
@@ -137,6 +150,7 @@ class Harness:
         player_id: str,
         session_id: str | None = None,
         narrative_event: dict[str, Any] | None = None,
+        event_options: list[dict[str, str]] | None = None,
     ) -> tuple[NPCAgentResponse, AgentTrace]:
         """Handle one player utterance. Returns the response and its trace.
 
@@ -147,6 +161,10 @@ class Harness:
         after the previous turn (``NarrativeEngine.take_pending_event``). It is
         material for this turn's line, not a script: the NPC still decides in
         character whether and how to use it.
+
+        ``event_options`` are the options the active event offers, if any. They are
+        passed so this call can also report which one the player's words amount to,
+        which is why classifying free text costs no extra request (docs/13 §3).
         """
         npc_id = self._npc.npc_id
         session_id = session_id or uuid.uuid4().hex
@@ -155,7 +173,9 @@ class Harness:
 
         retrieval = self._retrieve(observation, npc_id, player_id, steps)
 
-        planning = self._plan(observation, retrieval, steps, player_id, narrative_event)
+        planning = self._plan(
+            observation, retrieval, steps, player_id, narrative_event, event_options
+        )
 
         if planning.action is None:
             plan = AgentPlan(reasoning=planning.reasoning, strategy=planning.strategy)
@@ -170,7 +190,15 @@ class Harness:
 
         total_ms = (time.perf_counter() - turn_start) * 1000.0
         response = NPCAgentResponse(
-            npc_id=npc_id, plan=plan, dialogue=dialogue, action_proposal_id=action_proposal_id
+            npc_id=npc_id,
+            plan=plan,
+            dialogue=dialogue,
+            action_proposal_id=action_proposal_id,
+            # Only honour a label the event actually offered. A model naming an option
+            # nobody wrote would otherwise resolve to the default outcome and quietly end
+            # the scene, which is a worse failure than treating it as unrecognised — and
+            # the same "fail closed on invented names" stance the Validator takes.
+            matched_option_id=self._validated_option(planning.matched_option_id, event_options),
         )
         trace = AgentTrace(
             trace_id=uuid.uuid4().hex,
@@ -228,6 +256,7 @@ class Harness:
         steps: list[TraceStep],
         player_id: str,
         narrative_event: dict[str, Any] | None = None,
+        event_options: list[dict[str, str]] | None = None,
     ) -> PlanningOutput:
         """LLM call #1, wrapped in the tool-use loop.
 
@@ -236,7 +265,9 @@ class Harness:
         on the last iteration tools are withheld, which forces an answer instead of
         another request (docs/06 §4).
         """
-        messages = self._planning_messages(observation, retrieval, player_id, narrative_event)
+        messages = self._planning_messages(
+            observation, retrieval, player_id, narrative_event, event_options
+        )
         tool_specs = self._tools.specs() if self._tools is not None else None
 
         for iteration in range(self._max_tool_iterations + 1):
@@ -411,14 +442,55 @@ class Harness:
         retrieval: MemoryRetrievalResult,
         player_id: str,
         narrative_event: dict[str, Any] | None = None,
+        event_options: list[dict[str, str]] | None = None,
     ) -> list[Message]:
         system = self._prompts.load("npc_planning.txt")
         context = self._context_block(retrieval, player_id)
         beat = self._narrative_block(narrative_event)
+        options = self._option_block(event_options)
         return [
             Message(role="system", content=f"{system}\n\n{self._persona_block()}"),
-            Message(role="user", content=f"{context}{beat}\n\n玩家说：{observation}"),
+            Message(role="user", content=f"{context}{beat}{options}\n\n玩家说：{observation}"),
         ]
+
+    @staticmethod
+    def _validated_option(
+        matched: str | None, event_options: list[dict[str, str]] | None
+    ) -> str | None:
+        """Keep the classification only if it names an option that was on offer.
+
+        Fails closed on invented names, the same stance the Validator takes toward
+        invented action types. The specific harm here: an unrecognised label reaching
+        ``resolve_player_response`` resolves to the *default* outcome, which usually ends
+        the event — so a hallucinated id would not merely be ignored, it would close the
+        scene. Treating it as "nothing recognisable" instead lets the conversation run on.
+        """
+        if matched is None or not event_options:
+            return None
+        return matched if any(o.get("id") == matched for o in event_options) else None
+
+    @staticmethod
+    def _option_block(event_options: list[dict[str, str]] | None) -> str:
+        """The current event's options, for classifying free text against.
+
+        Only ``id`` and ``text`` go in — never the outcomes. Showing the model what each
+        option *leads to* would invite it to pick by preferred consequence rather than by
+        what the player actually said, and consequences are not its to choose
+        (docs/13 §3).
+
+        Absent or empty renders as ``""``: a heading with nothing under it is something
+        the model tries to account for, and an event without options has nothing to
+        classify against anyway.
+        """
+        if not event_options:
+            return ""
+        lines = "\n".join(f"  - {o['id']}：{o['text']}" for o in event_options)
+        return (
+            "\n\n【玩家这一步可以做的事】\n"
+            f"{lines}\n"
+            "如果玩家刚说的话等同于其中某一项，把那一项的 id 填进 matched_option_id；"
+            "都不像就填 null。这只是判断他说了什么，不要考虑哪一项对你更有利。"
+        )
 
     def _dialogue_messages(
         self,

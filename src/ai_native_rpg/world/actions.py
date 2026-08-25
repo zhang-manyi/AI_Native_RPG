@@ -9,18 +9,27 @@ from __future__ import annotations
 
 from enum import Enum
 
+from ..schemas.common import MAX_RELATIONSHIP_STEP, RELATIONSHIP_DIMENSIONS
 from ..schemas.narrative import NarrativeOperator
 
 #: Actors that may propose actions without existing as NPCs in the world.
 SYSTEM_ACTORS = frozenset({"narrative_engine", "system"})
 
-#: Relationship dimensions that ``adjust_relationship`` may touch.
-RELATIONSHIP_DIMENSIONS = frozenset({"trust", "fear", "respect"})
-
-#: Largest change a single proposal may make to one relationship dimension.
-#: Caps how fast an LLM can move the values that gate the whole clue chain; the
-#: model can still move them repeatedly across turns, just not in one leap.
-MAX_RELATIONSHIP_STEP = 15.0
+#: Re-exported from ``schemas.common``, which is where they now live so that the
+#: event schema can validate authored deltas against them without importing the
+#: world package. Kept importable from here because this module is where the
+#: Validator, the state applier and the tool schema look for the action vocabulary.
+__all__ = [
+    "FORESHADOW_PAYOFF_PATH_PREFIXES",
+    "KNOWN_ACTION_TYPES",
+    "KNOWN_OPERATORS",
+    "MAX_CHAPTER_STEP",
+    "MAX_RELATIONSHIP_STEP",
+    "NARRATIVE_ACTION_TYPES",
+    "RELATIONSHIP_DIMENSIONS",
+    "SYSTEM_ACTORS",
+    "ActionType",
+]
 
 
 #: Operator names ``advance_turn`` accepts. Shared with the schema so the two

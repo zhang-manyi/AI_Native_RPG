@@ -25,6 +25,7 @@ moves ``tension`` while the scenario's conditions decide what that unlocks
 
 from __future__ import annotations
 
+import random
 import time
 import uuid
 from pathlib import Path
@@ -36,6 +37,7 @@ from ..agent.harness import PromptLibrary
 from ..llm.base import LLMClient, Message
 from ..scenario import NarrativeDirectives
 from ..schemas.common import Condition
+from ..schemas.events import CheckBand, EventDefinition, EventScript
 from ..schemas.narrative import (
     EventCandidate,
     NarrativeEvent,
@@ -46,6 +48,7 @@ from ..schemas.world_state import ActionProposal, ActionValidationResult
 from ..world.actions import FORESHADOW_PAYOFF_PATH_PREFIXES, ActionType
 from ..world.manager import WorldStateManager
 from .controller import PacingVerdict, Rejection, select_candidate
+from .resolution import apply_outcome, resolve_option, resolve_out_of_patience
 from .rules import check_triggers, earned_stage, progress_quest
 
 #: The actor id every narrative proposal carries. In ``SYSTEM_ACTORS``, and gated
@@ -85,6 +88,43 @@ class GeneratedContent(BaseModel):
     payoff_condition: Condition | None = Field(
         default=None, description="a single clause is enough; no explanation of the threshold"
     )
+
+
+class EventResolutionRecord(BaseModel):
+    """What one player response did inside an event, for the panel and for Eval.
+
+    ``band``, ``threshold`` and ``current_value`` are recorded because docs/07 asks the
+    panel to explain a failure rather than display one. "15 below a threshold of 25"
+    explains; "the probe failed" leaves the player and the developer with the same
+    guess, and the whole reason the check is three-band rather than a dice roll is that
+    failure should be legible after the fact (docs/15 §3).
+    """
+
+    event_id: str
+    outcome_id: str | None = Field(
+        default=None, description="None while the event continues without a recognised option"
+    )
+    option_id: str | None = None
+    band: str | None = None
+    threshold: float | None = None
+    current_value: float | None = None
+
+    exchanges: int = 0
+    finished: bool = False
+    closed: bool = False
+    proposals: list[ActionValidationResult] = Field(default_factory=list)
+
+    @property
+    def margin(self) -> float | None:
+        """How far the checked value sat from the threshold, signed.
+
+        Mirrors ``OptionResolution.margin`` so a caller holding only the record can
+        still say "15 short" rather than re-deriving it. Absent for unchecked options,
+        where there is no threshold to be short of.
+        """
+        if self.threshold is None or self.current_value is None:
+            return None
+        return self.current_value - self.threshold
 
 
 class NarrativeTick(BaseModel):
@@ -129,6 +169,7 @@ class NarrativeEngine:
         llm: LLMClient,
         prompts: PromptLibrary | None = None,
         directives: NarrativeDirectives | None = None,
+        script: EventScript | None = None,
     ) -> None:
         self._manager = manager
         self._llm = llm
@@ -136,7 +177,38 @@ class NarrativeEngine:
         # The pack's authored narrative content. Absent means "pace nothing", not
         # "fall back to some scenario's clues" — see rules.check_triggers.
         self._directives = directives or NarrativeDirectives()
+        # The pack's event network. Absent means quiet turns: docs/13 §2.1 removed the
+        # operator-level fallback, so with no event to hand nothing happens rather than
+        # a filler beat being invented to occupy the slot.
+        self._script = script or EventScript()
         self._pending_event: dict[str, Any] | None = None
+
+    @property
+    def script(self) -> EventScript:
+        """The authored event network this engine runs."""
+        return self._script
+
+    def active_event_options(self) -> list[dict[str, str]]:
+        """The active event's options as ``{id, text}``, for the NPC call to classify against.
+
+        Ids and player-facing text only. The outcomes are deliberately withheld: a model
+        shown what each option leads to would be tempted to pick by preferred consequence
+        rather than by what the player said, and consequences are authored (docs/13 §3).
+        """
+        definition = self.active_event()
+        if definition is None:
+            return []
+        return [{"id": o.option_id, "text": o.text} for o in definition.options]
+
+    def active_event(self) -> EventDefinition | None:
+        """The event definition currently in progress, if any.
+
+        Read from the script by the id the world holds, rather than cached: the world
+        is the single source of truth for *which* event is running (docs/04), and the
+        script is the source of truth for what that event is.
+        """
+        active = self._manager.snapshot().story_beats.active_event
+        return self._script.get(active.event_id) if active else None
 
     # --- pending event ------------------------------------------------------
 
@@ -162,7 +234,9 @@ class NarrativeEngine:
         world = self._manager.snapshot()
         turn = world.story_beats.turn
 
-        candidates = check_triggers(world, player_id=player_id, directives=self._directives)
+        candidates = check_triggers(
+            world, player_id=player_id, script=self._script, directives=self._directives
+        )
         verdict = select_candidate(candidates, beats=world.story_beats, profile=profile)
 
         event: NarrativeEvent | None = None
@@ -196,6 +270,111 @@ class NarrativeEngine:
             latency_ms=(time.perf_counter() - started) * 1000.0,
             model_used=model_used,
             token_usage=token_usage,
+        )
+
+    # --- player response ---------------------------------------------------
+
+    def resolve_player_response(
+        self,
+        *,
+        player_id: str,
+        option_id: str | None,
+        rng: random.Random | None = None,
+    ) -> EventResolutionRecord | None:
+        """Land the player's response on one authored outcome, and apply it.
+
+        ``option_id`` is either the option the player clicked or the label a model
+        assigned to their free text. The two travel the same path on purpose
+        (docs/15 §1.1): if typing had no defined check while clicking did, typing would
+        be strictly worse and everyone would click, which kills the open-input path
+        docs/03 §5 exists to protect. It also makes the options a *vocabulary* — here
+        is what you can do — rather than a menu.
+
+        Returns ``None`` when no event is in progress; a reply outside an event is just
+        conversation, and the NPC handles it.
+
+        The event ends when its outcome closes it or its patience runs out, and running
+        out lands the authored default rather than asking the NPC to advance the plot
+        (docs/13 §3.1).
+        """
+        world = self._manager.snapshot()
+        active = world.story_beats.active_event
+        if active is None:
+            return None
+
+        definition = self._script.get(active.event_id)
+        if definition is None:
+            # The world names an event this script does not have — a pack swapped under
+            # a save. Close it rather than wedging every later turn on a lookup that
+            # cannot succeed.
+            self._submit(ActionType.ADVANCE_STORY_BEAT, payload={"finish_event": True})
+            return None
+
+        self._submit(ActionType.ADVANCE_STORY_BEAT, payload={"record_exchange": True})
+        world = self._manager.snapshot()
+
+        resolution = (
+            resolve_option(definition, option_id, world, player_id=player_id, rng=rng)
+            if option_id
+            else None
+        )
+
+        # No recognised option and patience left: the scene simply continues. Falling to
+        # the default here instead would end an event on the player's first ordinary
+        # remark, which is the "conversation over in one line" failure inverted.
+        out_of_patience = (
+            world.story_beats.active_event is not None
+            and world.story_beats.active_event.is_out_of_patience
+        )
+        if resolution is None and not out_of_patience:
+            return EventResolutionRecord(
+                event_id=definition.event_id,
+                outcome_id=None,
+                exchanges=world.story_beats.active_event.exchanges
+                if world.story_beats.active_event
+                else 0,
+                finished=False,
+            )
+
+        if resolution is None:
+            resolution = resolve_out_of_patience(definition)
+
+        outcome = definition.outcome_for(resolution.outcome_id)
+        results = apply_outcome(
+            self._manager, event=definition, outcome=outcome, player_id=player_id
+        )
+        results.extend(self._sync_progress_stage())
+
+        if outcome.stage_advance:
+            quest = progress_quest(self._manager.snapshot(), self._directives)
+            if quest is not None:
+                results.append(self._submit(ActionType.ADVANCE_QUEST, target_id=quest.quest_id))
+
+        # An outcome that gives the player something without moving the scene on leaves
+        # the event open — [观察] in M3 is the authored case (docs/15 §4).
+        finished = outcome.advances_conversation or out_of_patience
+        if finished:
+            close = outcome.closes_event or (
+                definition.closes_permanently_on_failure
+                and resolution.band is CheckBand.CERTAIN_FAILURE
+            )
+            payload: dict[str, Any] = {"finish_event": True}
+            if close:
+                payload["close_event"] = True
+            results.append(self._submit(ActionType.ADVANCE_STORY_BEAT, payload=payload))
+
+        beats = self._manager.snapshot().story_beats
+        return EventResolutionRecord(
+            event_id=definition.event_id,
+            outcome_id=outcome.outcome_id,
+            option_id=resolution.option_id,
+            band=resolution.band.value,
+            threshold=resolution.threshold,
+            current_value=resolution.current_value,
+            exchanges=beats.active_event.exchanges if beats.active_event else active.exchanges + 1,
+            finished=finished,
+            closed=beats.is_closed(definition.event_id),
+            proposals=results,
         )
 
     # --- generation --------------------------------------------------------
@@ -408,31 +587,89 @@ class NarrativeEngine:
     def _effect_proposals(
         self, candidate: EventCandidate, event: NarrativeEvent | None
     ) -> list[ActionValidationResult]:
-        match candidate.operator:
-            case NarrativeOperator.REVEAL:
-                return self._reveal_effects(candidate)
-            case NarrativeOperator.ESCALATE:
-                return self._escalate_effects()
-            case NarrativeOperator.FORESHADOW:
-                return self._foreshadow_effects(event)
-            case NarrativeOperator.REVERSE:
-                return self._reverse_effects(candidate)
-            case _:
-                return []
+        """Start the selected event. Its outcomes land later, when the player answers.
 
-    def _reveal_effects(self, candidate: EventCandidate) -> list[ActionValidationResult]:
-        """Voice the clue, and settle its ledger entry when it had one.
+        This is the shape change the event layer brings. An operator's whole effect
+        used to happen at selection time, because a rhetorical move has no other moment
+        — there was nothing to wait for. An event does: it opens, the player responds,
+        and the response selects which authored outcome fires (docs/13 §3). So the tick
+        opens the event and the resolution path applies consequences.
 
-        ``reveal_fact`` still goes through ``reveal_requires_condition_met``, so
-        this cannot disclose anything the world had not already unlocked.
+        A ``foreshadow`` event still registers its ledger entry now. What it plants is
+        the *telling*, and the debt is owed from the moment it is spoken; waiting for a
+        response would mean an event with no options (F1 has none) never opened a loop
+        at all.
         """
-        fact_id = candidate.pays_off or candidate.event_type
-        results = [self._submit(ActionType.REVEAL_FACT, target_id=fact_id)]
-        if candidate.pays_off:
-            results.append(
-                self._submit(ActionType.PAY_OFF_FORESHADOWING, target_id=candidate.pays_off)
+        definition = self._script.get(candidate.event_id or "")
+        if definition is None:
+            return []
+
+        results: list[ActionValidationResult] = []
+
+        # The plant goes first, and a failed plant stops the event opening at all. For a
+        # foreshadow event the ledger entry is not a side effect but the substance: an
+        # event that got voiced without one has the NPC allude to a detail that owes the
+        # player a resolution nothing will ever deliver. Better to leave the turn quiet
+        # and let the rejection show in the panel (docs/07 §2.3).
+        if definition.operator is NarrativeOperator.FORESHADOW:
+            results.extend(self._plant_effects(definition, event))
+            if results and not any(r.approved for r in results):
+                return results
+
+        results.append(
+            self._submit(
+                ActionType.ADVANCE_STORY_BEAT,
+                payload={
+                    "open_event": definition.event_id,
+                    "max_exchanges": definition.max_exchanges,
+                },
             )
+        )
         return results
+
+    def _plant_effects(
+        self, definition: EventDefinition, event: NarrativeEvent | None
+    ) -> list[ActionValidationResult]:
+        """Register the ledger entry a foreshadow event owes.
+
+        The payoff condition is the *target fact's own* reveal condition, not something
+        the model wrote. That is the correction of docs/13 §9: a generated condition let
+        the model decide both what to bury and when it counted as recovered, so what it
+        buried led nowhere. Reusing the target's condition means the loop comes due
+        exactly when the truth it points at becomes knowable.
+        """
+        target_id = definition.payoff_target
+        if target_id is None:
+            return []
+
+        world = self._manager.snapshot()
+        if target_id in world.story_beats.open_foreshadowings:
+            return []
+
+        target = world.facts.get(target_id)
+        if target is None or target.reveal_condition is None:
+            return [
+                ActionValidationResult(
+                    proposal_id=uuid.uuid4().hex,
+                    approved=False,
+                    reason=f"event {definition.event_id!r} plants toward {target_id!r}, which has "
+                    "no reveal_condition, so the ledger entry could never come due",
+                    rule_name="payoff_target_has_no_condition",
+                )
+            ]
+
+        return [
+            self._submit(
+                ActionType.PLANT_FORESHADOWING,
+                target_id=f"hint:{definition.event_id}",
+                payload={
+                    "value": (event.generated_content.get("summary", "") if event else ""),
+                    "payoff_condition": target.reveal_condition.model_dump(),
+                    "note": f"{definition.event_id} → {target_id}",
+                    "participants": list(event.participants) if event else [],
+                },
+            )
+        ]
 
     def _escalate_effects(self) -> list[ActionValidationResult]:
         current = self._manager.snapshot().story_beats.tension

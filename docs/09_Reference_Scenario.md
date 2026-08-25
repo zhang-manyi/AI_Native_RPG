@@ -63,7 +63,7 @@
 | 2 | 完成 | 真实 LLM + embedding 记忆检索 + Tool Use | NPC 会查关系值/世界事实再回答 |
 | 3 | 完成 | Narrative Engine + 算子 + 伏笔账本 + `StoryBeats` | 线索按节奏逐步解锁，伏笔有回收 |
 | 4 | 进行中 | Player Model 影响披露方式 + 调试面板 | 两种玩法风格拿到不同的线索呈现 |
-| 5 | 未开始 | 事件层 + 时间制 + 玩家动作（[13](./13_Narrative_Events.md)、[14](./14_Case_Design.md)） | 一次完整调查：3-4 天、多地点、3 个不同结局 |
+| 5 | 进行中 | 事件层 + 时间制 + 玩家动作（[13](./13_Narrative_Events.md)、[14](./14_Case_Design.md)） | 一次完整调查：3-4 天、多地点、3 个不同结局 |
 | 6 | 未开始 | Eval 脚本 + 数据回流一轮 | 改 prompt 前后的指标对比 |
 
 切片 5 是**修正一处设计偏差**，不是加功能：[05 §2.1](./05_Narrative_Engine.md#21-规则触发确定性) 原本写的候选是*事件*，实现走成了*算子*，于是"这回合该发生什么"没有依据可答（症状见下方"一轮真实对局暴露的四件事"，以及新增的第五件）。它同时让 [10 §5](./10_Narrative_Operators.md#5-结构质量优先级) 优先级表第 4 行「收束」从待实现变为可实现——现在做不了，是因为没有任何状态表达"故事走到哪一步了"。
@@ -74,7 +74,16 @@
 - **并发按会话串行。** 每个会话一个单线程执行器，世界因此只有一个写入者，`WorldStateManager` 不改。一个回合入队两个作业（对话、tick），所以 `dialogue` 事件不必等 tick。
 - **面板判定下沉到 `observability/panels.py`**（纯函数），`chat_demo.py` 的三个 print 改为消费同一份模型——终端与 Web 共享判定，各自只拥有渲染。终端版因此仍然可用，是无 JS 环境下最快的排查入口。
 
-**下一步从这里继续**：切片 4 剩下的 Player Model 那一半——Behavior Tracker 写入 `PlayerProfile`，`weight_for()` 是唯一接口，`select_candidate(profile=...)` 已经在消费它。它不依赖 Web；面板届时加一块「玩家画像」即可。
+切片 5 的**第一个垂直切片已完成**（[15 §8](./15_Event_Script.md#8-落地顺序建议) 的第 1-5 项）：事件 schema、`active_event` 状态、事件候选取代算子候选、剧本里的 M1 + M2 + F1、以及玩家回应映射到结果。链路"事件被选中 → 算子表达 → 玩家回应 → 映射到结果 → 数值变化"由 `tests/test_event_chain.py` 端到端钉住。落地时确认的四件事：
+
+- **算子候选整体删除，`rules.py` 只剩事件触发。** 相应的 `tests/test_narrative_rules.py` 也删了（由 `test_event_triggers.py` 取代）——那些测试钉的是"算子作为调度单位"的行为，不是回归。
+- **触发是硬 `Condition`，选项判定才走三段式**（[15 §6.2](./15_Event_Script.md)）。两套规则分在两处：`rules._trigger_holds` 用现有求值器，`schemas/events.check_band` 只被选项判定调用。
+- **`Condition` 新增 `contains`。** 事件依赖图要问"M1 完成了吗"，读的是世界里的一个列表；已有的 `in` 问的是相反方向（世界里的标量是否属于作者写的集合），两者不能互相替代。
+- **`foreshadow` 事件的账本条目用目标 fact 自己的 `reveal_condition`**，不再由模型写。这是 [13 §9](./13_Narrative_Events.md#9-伏笔重新挂到线索链上) 那条修正的落点：埋的东西现在通向剧本线索链，"该不该到期"和"玩家能不能看见"是同一个对象。
+
+**下一步从这里继续**：切片 5 的第二批——时间制（时段/天数推进）、多地点与玩家移动、Web 的选项呈现与 `POST /turn` 之外的"做一件事"入口（[12 §API](./12_Web_Interface.md)），然后是 M3-M7 与支线，以及 `world.yaml` 的 `facts` 段重构。**`facts` 现在仍是旧版**（洛伦是凶手、`killer_identity: npc_b`），与 [14 §1](./14_Case_Design.md#1-真相不是谋杀-已定) 定的"真相不是谋杀"冲突——这是已知的，第一批只动了 `narrative:`/`events:` 与新增的几条 fact，重构留到写 M4/M5/M7 时一起做。
+
+切片 4 剩下的 Player Model 那一半仍然待做：Behavior Tracker 写入 `PlayerProfile`，`weight_for()` 是唯一接口，`select_candidate(profile=...)` 已经在消费它。它不依赖 Web；面板届时加一块「玩家画像」即可。事件层给了它一个新的信号源——四个标签本身就是玩家风格的分类（[15 §2](./15_Event_Script.md#2-四个标签) 把每个标签映到一个 `PreferenceTag`）。
 
 一轮真实对局（11 回合）暴露的四件事，都已修掉，但根因值得记住：
 

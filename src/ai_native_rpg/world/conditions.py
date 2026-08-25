@@ -73,6 +73,16 @@ def _compare(actual: Any, op: ConditionOp, expected: Any) -> bool:
             raise TypeError(f"op 'in' needs a collection value, got {type(expected).__name__}")
         return actual in expected
 
+    if op is ConditionOp.CONTAINS:
+        # Mirror image of `in`, so the same guard applies to the other operand: a
+        # string at the path would match substrings, letting "npc_b" satisfy a
+        # trigger written for "npc".
+        if isinstance(actual, str) or not isinstance(actual, Container | Sized):
+            raise TypeError(
+                f"op 'contains' needs a collection at the path, got {type(actual).__name__}"
+            )
+        return expected in actual
+
     if op in _ORDERED_OPS:
         # bool is an int subclass, so guard it out of numeric comparisons.
         numeric = (int, float)

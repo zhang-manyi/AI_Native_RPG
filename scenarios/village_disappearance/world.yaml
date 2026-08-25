@@ -203,6 +203,206 @@ narrative:
     - 不要写出任何角色的内心独白，只写外部可观察的事
     - 不要替玩家决定他做了什么或想什么
 
+# The event network (docs/13, docs/15 §4). This is the layer that answers "what
+# should happen this turn": each event has a trigger, an outcome set, and branches,
+# which operators never had — so operators are demoted here to `operator:`, meaning
+# only "how is this voiced".
+#
+# First batch: M1 + M2 + F1 (docs/15 §8). Enough to exercise scripted lines, tagged
+# options, the three-band check, and foreshadowing hung on the authored clue chain.
+# M3-M7 and the side events follow with the time system.
+#
+# TWO RULE SETS THAT LOOK ALIKE (docs/15 §6.2):
+#   - `trigger` is a hard Condition. `trust >= 20` at 19 does not fire. No band.
+#   - an option's `check` is the three-band comparison, and only its middle band
+#     rolls. The band comes from the tag (试探 ±12, 追问 ±8), so an author writes a
+#     threshold and nothing else.
+#
+# Every `relationship_changes` delta is bounded by MAX_RELATIONSHIP_STEP (15). That
+# is what makes the social line a sequence of events rather than one generous turn.
+events:
+  # --- M1: 敲响玛尔塔的门 ---------------------------------------------------
+  # The opening. Scripted lines first (the player states who he is and who sent him —
+  # no disagreement there, so it should not cost a decision), then the options.
+  M1_knock:
+    operator: reveal
+    npc_id: npc_a
+    intensity: 0.5
+    preference_tag: social
+    max_exchanges: 4          # 正式值 6
+    trigger:
+      clauses:
+        - path: story_beats.turn
+          op: gte
+          value: 0
+    scripted_lines:
+      - 我受人所托，来问问艾拉失踪那晚的事。
+      - 我不会把你的话到处去说。
+    options:
+      - option_id: goodwill
+        tag: goodwill
+        text: 我不是来添麻烦的
+        on_success: she_opens
+      # Fails by design: trust starts at 10 against a threshold of 25, a 15-point gap,
+      # so it is a *certain* failure rather than an unlucky one (docs/15 §4 M1). This
+      # is where the player learns the rule, and the failure reads as sense — she owes
+      # a stranger at her door nothing.
+      - option_id: press_that_night
+        tag: press
+        text: 那晚你在外面，对吗
+        check:
+          npc_id: npc_a
+          dimension: trust
+          threshold: 25
+        # docs/15 §4 M1 gives one result cell here — `她隔门应答`, fear +10 — because
+        # at opening trust the check *is* a certain failure, so that is the branch play
+        # will actually see. The success branch has to exist anyway (the schema refuses
+        # a check with nowhere to fail to), and it is reachable only if the player
+        # returns later with trust built up, which reads correctly: pressed once she
+        # already trusts you, she gives a short answer instead of retreating.
+        on_success: she_confirms_she_was_out
+        on_failure: she_answers_through_the_door
+      - option_id: observe_woodpile
+        tag: observe
+        text: （看一眼门口的柴堆，比邻居家的都高）
+        on_success: noticed_the_woodpile
+    default_outcome: no_deal
+    outcomes:
+      she_opens:
+        summary: 她开门
+        relationship_changes:
+          npc_a:
+            trust: 3
+      she_answers_through_the_door:
+        summary: 她隔门应答
+        relationship_changes:
+          npc_a:
+            fear: 10
+      she_confirms_she_was_out:
+        summary: 她承认那晚不在屋里
+        relationship_changes:
+          npc_a:
+            trust: 3
+            fear: 5
+      noticed_the_woodpile:
+        summary: 留在门外，但看见了柴堆
+        reveals_facts: [woodpile_note]
+        advances_conversation: false
+      # Not a tombstone: the slot is spent, the door is not shut (docs/15 §3.3).
+      no_deal:
+        summary: 没谈成
+
+  # --- M2: 那晚的窗缝 -----------------------------------------------------
+  # She mentions sawdust in the window crack — an observable detail, offered without
+  # an explanation of what it means.
+  M2_window:
+    operator: reveal
+    npc_id: npc_a
+    intensity: 0.6
+    preference_tag: social
+    max_exchanges: 4          # 正式值 6
+    trigger:
+      mode: all
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 20
+        - path: story_beats.completed_events
+          op: contains
+          value: M1_knock
+    options:
+      # Scales with current trust instead of a fixed delta: the same beat is worth
+      # more once she has decided you are worth hearing (docs/15 §3.2), and §6.1's
+      # slot budget is computed from that curve.
+      - option_id: goodwill
+        tag: goodwill
+        text: 你不用一个人扛着
+        on_success: she_softens
+      - option_id: press_sawdust
+        tag: press
+        text: 木屑是怎么来的
+        check:
+          npc_id: npc_a
+          dimension: trust
+          threshold: 30
+        on_success: she_says_half
+        on_failure: she_changed_the_subject
+      # The gamble. Failing sets `probed_once`, which raises every later probe by 10 —
+      # a road narrowed rather than a number lowered (docs/13 §8).
+      - option_id: probe_seen
+        tag: probe
+        text: 我听说那晚有人看见你了
+        check:
+          npc_id: npc_a
+          dimension: trust
+          threshold: 35
+        on_success: she_lets_it_slip
+        on_failure: she_pulls_back
+      - option_id: observe_hands
+        tag: observe
+        text: （她的手一直按着门框）
+        on_success: noticed_her_hands
+    default_outcome: she_changed_the_subject
+    outcomes:
+      she_softens:
+        summary: 她松一点
+        scales_with_current_trust: true
+      she_says_half:
+        summary: 她说了一半
+        relationship_changes:
+          npc_a:
+            trust: 5
+            fear: 5
+      she_lets_it_slip:
+        summary: 她承认那晚没睡
+        relationship_changes:
+          npc_a:
+            trust: 10
+      she_pulls_back:
+        summary: 她退回门后
+        relationship_changes:
+          npc_a:
+            trust: -8
+            fear: 8
+        sets_flags: [probed_once]
+      noticed_her_hands:
+        summary: 看清了她有多怕
+        reveals_facts: [marta_is_terrified]
+        advances_conversation: false
+      she_changed_the_subject:
+        summary: 她转了话题
+
+  # --- F1: 艾拉的东西少了几件 ----------------------------------------------
+  # No options, because the outcome set has one member (docs/15 §1's criterion, which
+  # the schema enforces). Its job is to put a clue in the player's visible set, not to
+  # ask him anything.
+  #
+  # First of the three clues on the truth side (docs/14 §1.2) and the reason F1 is in
+  # the first batch: this is what `foreshadow` was always supposed to carry, and what
+  # it could not while the generator invented both the detail and its payoff.
+  F1_things_missing:
+    operator: foreshadow
+    npc_id: npc_a
+    intensity: 0.4
+    preference_tag: intrigue
+    max_exchanges: 2
+    payoff_target: ella_whereabouts
+    trigger:
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 20
+    scripted_lines:
+      - 磨坊主家里这几天乱得很吗？
+    default_outcome: mentioned_in_passing
+    outcomes:
+      mentioned_in_passing:
+        summary: 她顺口提起艾拉的东西少了几件
+        reveals_facts: [ella_things_missing]
+    constraints:
+      - 她是在抱怨磨坊主家里乱，不是在提示线索，不要让她显得意有所指
+      - 不要替玩家推论这意味着什么
+
 factions:
   villagers:
     power: 0.4
@@ -285,6 +485,57 @@ facts:
         - path: story_beats.tension
           op: gte
           value: 0.6
+
+  # --- facts the event script voices (docs/15 §4) ---
+  # Environment detail M1's [观察] yields. Revealed outright: looking at someone's
+  # doorstep needs no permission, and gating it would make the one option that takes
+  # no risk also the one that gives nothing.
+  woodpile_note:
+    value: 玛尔塔家门口的柴堆比邻居家的都高，像是准备久留在屋里
+    visibility: revealed
+
+  # M2's [观察]. Also ungated, for the same reason: what a frightened person does
+  # with her hands is visible to anyone standing there.
+  marta_is_terrified:
+    value: 她一直用手按着门框，指节发白
+    visibility: revealed
+
+  # F1's plant, and the first of the three clues on the *truth* side (docs/14 §1.2).
+  # Hidden with a trust gate rather than revealed, because it comes out of her mouth:
+  # she mentions it while complaining about the miller's household, not as a hint.
+  #
+  # Deliberately readable two ways at the moment it lands — a messy house, or a thief
+  # taking valuables — which is what lets it be planted this early without giving the
+  # ending away (docs/14 §1.2). It only means "she packed" in hindsight.
+  ella_things_missing:
+    value: 艾拉的外衣不在，她攒下的钱不在，她母亲留下的那只木梳也不在——可别的东西都还在
+    visibility: hidden
+    partial_value: 玛尔塔提起磨坊主家里这几天乱得很
+    reveal_condition:
+      mode: any
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 20
+
+  # What F1 waits on: the fact whose disclosure settles it (docs/13 §9). Authored
+  # here rather than written by the generator, which is the whole correction — the
+  # ledger entry now points at the clue chain instead of wherever a model guessed.
+  #
+  # Its own condition is a placeholder gate at stage 3: the events that earn this
+  # (M4/M5/M7) arrive in the next batch, so for now nothing reaches it. That is a
+  # visible unmet debt rather than a silent one, which is the state docs/10 §4 wants
+  # the ledger to surface.
+  ella_whereabouts:
+    value: 艾拉还活着，是她自己走的，有人帮了她
+    visibility: hidden
+    partial_value: 有些事情对不上，但还说不清是哪里
+    reveal_condition:
+      mode: all
+      clauses:
+        - path: quests.investigation.stage
+          op: gte
+          value: 3
 
   # --- NPC_A's motive: why she is afraid to talk ---
   npc_a_threatened:

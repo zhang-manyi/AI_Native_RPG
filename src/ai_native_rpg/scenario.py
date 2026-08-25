@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from .agent.memory_store import MemoryStore
 from .schemas.common import Condition
+from .schemas.events import EventScript
 from .schemas.memory import EpisodicMemory, SemanticMemory
 from .schemas.npc_agent import NPCGoal, NPCPersona, NPCState
 from .schemas.world_state import (
@@ -178,6 +179,76 @@ def load_narrative_directives(name_or_path: str | Path) -> NarrativeDirectives:
             f"{directives.progress_quest!r}"
         )
     return directives
+
+
+def load_event_script(name_or_path: str | Path) -> EventScript:
+    """A pack's ``events:`` block, cross-checked against its world.
+
+    Absence is valid: a pack with no events gets quiet turns rather than an error,
+    which is the honest consequence of docs/13 §2.1 removing the operator-level
+    fallback — no event to hand, nothing happens.
+
+    Ids are injected from the mapping keys, as everywhere else in the format, so an
+    author writes each id once.
+
+    The cross-references are the point of doing this at load. docs/13 §11 records two
+    content bugs of exactly one shape — an author wrote a path and nobody checked it
+    led anywhere — and neither was visible at runtime as anything but a scene that
+    never came.
+    """
+    world_file, raw = _read_pack(name_or_path)
+    block = raw.get("events") or {}
+    if not isinstance(block, dict):
+        raise ScenarioError(f"{world_file}: 'events' must be a mapping if present")
+
+    events: dict[str, Any] = {}
+    for event_id, spec in block.items():
+        if not isinstance(spec, dict):
+            raise ScenarioError(f"{world_file}: event {event_id!r} must be a mapping")
+        outcomes = {
+            outcome_id: {"outcome_id": outcome_id, **(outcome_spec or {})}
+            for outcome_id, outcome_spec in (spec.get("outcomes") or {}).items()
+        }
+        events[event_id] = {**spec, "event_id": event_id, "outcomes": outcomes}
+
+    try:
+        script = EventScript.model_validate({"events": events})
+    except ValidationError as exc:
+        raise ScenarioError(
+            f"{world_file}: 'events' does not match the expected shape: {exc}"
+        ) from exc
+
+    known_facts = set(raw.get("facts") or {})
+    unknown_facts = sorted(script.fact_ids() - known_facts)
+    if unknown_facts:
+        raise ScenarioError(
+            f"{world_file}: events name unknown fact(s) {unknown_facts}; an outcome pointing "
+            "at a fact the world does not have could never fire"
+        )
+
+    known_npcs = set(raw.get("npcs") or {})
+    unknown_npcs = sorted(script.npc_ids() - known_npcs)
+    if unknown_npcs:
+        raise ScenarioError(
+            f"{world_file}: events name unknown npc(s) {unknown_npcs}; the cast is "
+            f"{sorted(known_npcs)}"
+        )
+
+    # Trigger paths get the same treatment as reveal_condition paths: resolved against
+    # a freshly built world, because a trigger nobody can evaluate is an event that
+    # silently never happens.
+    world = _build_world(raw)
+    for event in script.events.values():
+        for clause in event.trigger.clauses:
+            try:
+                resolve_path(world, clause.path)
+            except UnknownPathError as exc:
+                raise ScenarioError(
+                    f"{world_file}: event {event.event_id!r} has a trigger referencing an "
+                    f"unresolvable path {clause.path!r}: {exc}"
+                ) from exc
+
+    return script
 
 
 def pack_prompts_dir(name_or_path: str | Path) -> Path:

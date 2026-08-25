@@ -110,4 +110,12 @@ class NPCAgentResponse(BaseModel):
         default=None,
         description="the ActionProposal id if this response changed world state, else None",
     )
+    matched_option_id: str | None = Field(
+        default=None,
+        description="which option of the active event the player's words amounted to, as "
+        "classified by the planning call (docs/13 §3). The caller hands this to "
+        "``NarrativeEngine.resolve_player_response``, so free text and a clicked button "
+        "travel the same path (docs/15 §1.1). None means 'nothing recognisable', which "
+        "lets the scene continue rather than resolving it.",
+    )
     timestamp: datetime = Field(default_factory=utc_now)

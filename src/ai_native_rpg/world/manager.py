@@ -191,6 +191,43 @@ class WorldStateManager:
             key = str(proposal.payload["spend_one_shot"])
             beats.spend_one_shot(key)
             changes[f"story_beats.spent_one_shots.{key}"] = True
+        changes.update(self._apply_event_lifecycle(proposal))
+        return changes
+
+    def _apply_event_lifecycle(self, proposal: ActionProposal) -> dict[str, object]:
+        """Open / count / finish the active event, and raise outcome flags.
+
+        Ordering is deliberate: a proposal may both finish one event and raise the
+        flags its outcome set, and the flags must survive the finish. Opening is last
+        so that a single proposal can close one event and start the next without the
+        finish wiping what it just opened.
+        """
+        payload = proposal.payload
+        beats = self._state.story_beats
+        changes: dict[str, object] = {}
+
+        for flag in payload.get("raise_flags") or []:
+            beats.raise_flag(str(flag))
+            changes[f"story_beats.flags.{flag}"] = True
+
+        if payload.get("record_exchange"):
+            beats.record_exchange()
+            if beats.active_event is not None:
+                changes["story_beats.active_event.exchanges"] = beats.active_event.exchanges
+
+        if payload.get("finish_event"):
+            finished = beats.active_event.event_id if beats.active_event else None
+            beats.finish_event(close=bool(payload.get("close_event")))
+            if finished is not None:
+                changes["story_beats.completed_events"] = list(beats.completed_events)
+                if payload.get("close_event"):
+                    changes["story_beats.closed_events"] = list(beats.closed_events)
+
+        if "open_event" in payload:
+            event_id = str(payload["open_event"])
+            beats.open_event(event_id, max_exchanges=int(payload["max_exchanges"]))
+            changes["story_beats.active_event.event_id"] = event_id
+
         return changes
 
     def _apply_plant_foreshadowing(self, proposal: ActionProposal) -> dict[str, object]:

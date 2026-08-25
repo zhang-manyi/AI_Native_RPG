@@ -157,6 +157,102 @@ class TestAdvanceStoryBeat:
         assert result.rule_name == "beat_advance_must_change_something"
 
 
+class TestEventLifecycleWrites:
+    """Opening, counting and closing an event go through the same single write path.
+
+    docs/13 §11 records the failure this avoids: ``quests.investigation.stage`` had
+    an author and a reader and no writer, so three foreshadowings waited forever on a
+    number nothing moved. New state needs its writer wired the same day it is added,
+    and the writer has to be a proposal — a setter on the Manager would be a second
+    path around the Validator, which is the one thing docs/04 forbids.
+    """
+
+    def test_opening_an_event_records_it_as_active(self, world: WorldState):
+        manager = WorldStateManager(world)
+
+        result = manager.submit(
+            _proposal("advance_story_beat", open_event="M1_knock", max_exchanges=4)
+        )
+
+        assert result.approved, result.reason
+        active = manager.snapshot().story_beats.active_event
+        assert active is not None
+        assert (active.event_id, active.exchanges, active.max_exchanges) == ("M1_knock", 0, 4)
+
+    def test_opening_without_a_budget_is_rejected(self, world: WorldState):
+        """An event with no patience limit could never fall to its default outcome."""
+        manager = WorldStateManager(world)
+
+        result = manager.submit(_proposal("advance_story_beat", open_event="M1_knock"))
+
+        assert not result.approved
+        assert result.rule_name == "event_lifecycle_payload_is_coherent"
+
+    def test_recording_an_exchange_counts_up(self, world: WorldState):
+        manager = WorldStateManager(world)
+        manager.submit(_proposal("advance_story_beat", open_event="M1_knock", max_exchanges=4))
+
+        result = manager.submit(_proposal("advance_story_beat", record_exchange=True))
+
+        assert result.approved, result.reason
+        active = manager.snapshot().story_beats.active_event
+        assert active is not None and active.exchanges == 1
+
+    def test_finishing_an_event_completes_it_without_closing(self, world: WorldState):
+        manager = WorldStateManager(world)
+        manager.submit(_proposal("advance_story_beat", open_event="M1_knock", max_exchanges=4))
+
+        result = manager.submit(_proposal("advance_story_beat", finish_event=True))
+
+        assert result.approved, result.reason
+        beats = manager.snapshot().story_beats
+        assert beats.active_event is None
+        assert beats.has_completed("M1_knock")
+        assert not beats.is_closed("M1_knock")
+
+    def test_finishing_with_closure_closes_it(self, world: WorldState):
+        manager = WorldStateManager(world)
+        manager.submit(_proposal("advance_story_beat", open_event="M3_witness", max_exchanges=4))
+
+        result = manager.submit(
+            _proposal("advance_story_beat", finish_event=True, close_event=True)
+        )
+
+        assert result.approved, result.reason
+        assert manager.snapshot().story_beats.is_closed("M3_witness")
+
+    def test_raising_a_flag_is_recorded(self, world: WorldState):
+        manager = WorldStateManager(world)
+
+        result = manager.submit(_proposal("advance_story_beat", raise_flags=["probed_once"]))
+
+        assert result.approved, result.reason
+        assert manager.snapshot().story_beats.has_flag("probed_once")
+
+    def test_an_npc_cannot_open_an_event(self, world: WorldState):
+        """The event layer decides what happens; an NPC inside one must not.
+
+        Same reasoning as the turn counter: an NPC able to open events could open the
+        one whose outcome hands over what it wants to say.
+        """
+        manager = WorldStateManager(world)
+
+        result = manager.submit(
+            _proposal("advance_story_beat", actor=NPC_A, open_event="M1_knock", max_exchanges=4)
+        )
+
+        assert not result.approved
+        assert result.rule_name == "narrative_actions_are_system_only"
+
+    def test_flags_must_be_a_list_of_strings(self, world: WorldState):
+        manager = WorldStateManager(world)
+
+        result = manager.submit(_proposal("advance_story_beat", raise_flags="probed_once"))
+
+        assert not result.approved
+        assert result.rule_name == "event_lifecycle_payload_is_coherent"
+
+
 class TestPlantForeshadowing:
     def test_writes_a_hidden_fact_and_a_ledger_entry(self, world: WorldState):
         manager = WorldStateManager(world)

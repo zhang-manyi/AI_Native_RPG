@@ -127,3 +127,65 @@ class TestTypeMismatch:
         )
         with pytest.raises(TypeError):
             evaluate(cond, world)
+
+
+class TestContains:
+    """``contains`` is ``in`` with the operands the other way round.
+
+    Both are needed and neither substitutes for the other: ``in`` asks whether a
+    scalar in the world belongs to a set the author wrote, while ``contains`` asks
+    whether a *list in the world* holds a value the author named. The event layer
+    needs the second — "has M1 been completed" reads a list living in the world
+    (docs/13 §7, where every new state must be condition-readable).
+    """
+
+    def _cond(self, value) -> Condition:
+        return Condition(
+            clauses=[
+                ConditionClause(
+                    path="story_beats.recent_operators", op=ConditionOp.CONTAINS, value=value
+                )
+            ]
+        )
+
+    def test_true_when_the_list_at_the_path_holds_the_value(self, world):
+        world.story_beats.recent_operators = ["relieve", "reveal"]
+
+        assert evaluate(self._cond("reveal"), world) is True
+
+    def test_false_when_it_does_not(self, world):
+        world.story_beats.recent_operators = ["relieve"]
+
+        assert evaluate(self._cond("reveal"), world) is False
+
+    def test_false_on_an_empty_list_rather_than_raising(self, world):
+        world.story_beats.recent_operators = []
+
+        assert evaluate(self._cond("reveal"), world) is False
+
+    def test_contains_against_a_non_collection_raises(self, world):
+        """Fails loudly, per this module's stance: a silent False here would be an
+        event whose trigger can never fire, with nothing in the logs to say why."""
+        cond = Condition(
+            clauses=[
+                ConditionClause(
+                    path=f"relationships.{NPC_A}.{PLAYER}.trust",
+                    op=ConditionOp.CONTAINS,
+                    value="reveal",
+                )
+            ]
+        )
+        with pytest.raises(TypeError):
+            evaluate(cond, world)
+
+    def test_a_string_at_the_path_is_not_treated_as_a_collection(self, world):
+        """Substring matching is never what an author means by ``contains``.
+
+        Same reasoning as ``in`` rejecting a string value: "npc_b" containing "npc"
+        would silently satisfy a trigger nobody wrote.
+        """
+        cond = Condition(
+            clauses=[ConditionClause(path="world_id", op=ConditionOp.CONTAINS, value="vil")]
+        )
+        with pytest.raises(TypeError):
+            evaluate(cond, world)

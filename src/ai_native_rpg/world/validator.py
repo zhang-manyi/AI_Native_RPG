@@ -217,7 +217,22 @@ def _quest_must_be_advanceable(proposal: ActionProposal, state: WorldState) -> R
 #: player already has, so the marker recording that it happened is the entire
 #: write. Routing it through a proposal keeps the Manager's single write path
 #: intact rather than adding a setter that skips validation.
-_BEAT_ADVANCE_KEYS = frozenset({"chapter", "tension", "spend_one_shot"})
+#:
+#: The event-lifecycle keys join it for the same reason. ``active_event`` is state
+#: like any other, and docs/13 §11's recurring bug is state whose writer was never
+#: wired up — so the writer arrives with the field, and it arrives as a proposal.
+_BEAT_ADVANCE_KEYS = frozenset(
+    {
+        "chapter",
+        "tension",
+        "spend_one_shot",
+        "open_event",
+        "record_exchange",
+        "finish_event",
+        "close_event",
+        "raise_flags",
+    }
+)
 
 
 def _narrative_actions_are_system_only(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
@@ -253,6 +268,49 @@ def _beat_advance_must_change_something(proposal: ActionProposal, state: WorldSt
             f"advance_story_beat requires at least one of {sorted(_BEAT_ADVANCE_KEYS)}, "
             "but none was given"
         )
+    return RuleOutcome.passed()
+
+
+def _event_lifecycle_payload_is_coherent(
+    proposal: ActionProposal, state: WorldState
+) -> RuleOutcome:
+    """Event-lifecycle keys must carry usable values.
+
+    Checked here rather than trusted because the applier writes ``ActiveEvent``, and a
+    malformed payload would either raise mid-turn or, worse, open an event with no
+    patience budget — one that could never fall to its default outcome and so would
+    never end (docs/13 §3.1).
+    """
+    payload = proposal.payload
+
+    if "open_event" in payload:
+        event_id = payload["open_event"]
+        if not isinstance(event_id, str) or not event_id.strip():
+            return RuleOutcome.failed(f"open_event needs an event id, got {event_id!r}")
+        budget = payload.get("max_exchanges")
+        if isinstance(budget, bool) or not isinstance(budget, int) or budget <= 0:
+            return RuleOutcome.failed(
+                f"opening event {event_id!r} requires a positive max_exchanges, got "
+                f"{budget!r}; without one the event could never reach its default outcome"
+            )
+
+    if "raise_flags" in payload:
+        flags = payload["raise_flags"]
+        if not isinstance(flags, list) or not all(isinstance(f, str) and f.strip() for f in flags):
+            return RuleOutcome.failed(
+                f"raise_flags must be a list of non-empty strings, got {flags!r}"
+            )
+
+    if payload.get("close_event") and not payload.get("finish_event"):
+        return RuleOutcome.failed(
+            "close_event only makes sense together with finish_event: closing is how an "
+            "event ends permanently, not a state it sits in while still running"
+        )
+
+    for key in ("record_exchange", "finish_event", "close_event"):
+        if key in payload and not isinstance(payload[key], bool):
+            return RuleOutcome.failed(f"{key} must be a boolean, got {payload[key]!r}")
+
     return RuleOutcome.passed()
 
 
@@ -494,6 +552,11 @@ DEFAULT_RULES: tuple[Rule, ...] = (
     Rule(
         "beat_advance_must_change_something",
         _beat_advance_must_change_something,
+        frozenset({ActionType.ADVANCE_STORY_BEAT.value}),
+    ),
+    Rule(
+        "event_lifecycle_payload_is_coherent",
+        _event_lifecycle_payload_is_coherent,
         frozenset({ActionType.ADVANCE_STORY_BEAT.value}),
     ),
     Rule(

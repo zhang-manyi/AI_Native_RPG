@@ -88,6 +88,36 @@ class Foreshadowing(BaseModel):
         return self.turns_owed(current_turn=current_turn) > self.overdue_after_turns
 
 
+class ActiveEvent(BaseModel):
+    """The event currently in progress, and how far into it we are (docs/13 §3.2).
+
+    The world had no way to say this before: turns were independent and
+    ``pending_event`` carried a single hook that then vanished. An event spanning
+    several exchanges has nowhere to live without it.
+
+    ``max_exchanges`` is copied from the definition rather than looked up each turn,
+    so the budget the event opened under is the budget it runs on. Re-reading the
+    script mid-event would let a pack edit change the patience of a conversation
+    already underway — and would make a resumed save behave differently from the
+    session that wrote it.
+    """
+
+    event_id: str
+    exchanges: int = Field(default=0, ge=0, description="player turns spent inside this event")
+    max_exchanges: int = Field(gt=0)
+
+    @property
+    def is_out_of_patience(self) -> bool:
+        """Whether the default outcome is now due (docs/13 §3.1).
+
+        The limit lands the *authored* default outcome; it never asks the NPC to
+        advance the plot. An NPC that volunteered the truth on line five because a
+        counter tripped would be deciding an outcome, which changes what is unlocked
+        — the thing docs/13 §3 forbids — and players notice it besides.
+        """
+        return self.exchanges >= self.max_exchanges
+
+
 class StoryBeats(BaseModel):
     """Narrative progress: the only state the Narrative Engine may advance.
 
@@ -95,6 +125,12 @@ class StoryBeats(BaseModel):
     condition table decides what that unlocks, so the Engine never knows what it
     revealed. That is why ``chapter`` and ``tension`` are here rather than the
     Engine holding a "reveal this fact" power.
+
+    The event-layer fields (``active_event``, ``completed_events``, ``closed_events``,
+    ``flags``) all hang here for one reason: docs/13 §7 requires every new state to be
+    a legal ``Condition`` path, and ``story_beats.*`` is already whitelisted. A new
+    top-level field would have meant authors writing triggers against something the
+    evaluator cannot reach — which is how the last two content bugs happened.
     """
 
     chapter: int = Field(default=1, ge=1)
@@ -122,6 +158,70 @@ class StoryBeats(BaseModel):
         "'reverse:npc_a_threatened'. Unbounded (unlike recent_operators) because "
         "forgetting one would let the beat fire a second time.",
     )
+
+    # --- event layer (docs/13 §3.2, §7) ------------------------------------
+
+    active_event: ActiveEvent | None = Field(
+        default=None, description="the event in progress, or None between events"
+    )
+    completed_events: list[str] = Field(
+        default_factory=list,
+        description="events that have finished at least once. Most may run again — M1 "
+        "is expected to, since a slot spent knocking without success is not a "
+        "permanent loss (docs/15 §4).",
+    )
+    closed_events: list[str] = Field(
+        default_factory=list,
+        description="events that will never trigger again (docs/15 §3.3). Kept separate "
+        "from completed because the two mean opposite things for re-triggering: only M3 "
+        "and M5 close, and both have another route to the same information, so closure "
+        "is a cost rather than a dead end.",
+    )
+    flags: list[str] = Field(
+        default_factory=list,
+        description="named state an outcome raised, e.g. 'probed_once', "
+        "'promised_silence'. A list rather than one field per flag so a pack can "
+        "introduce its own without a schema change, and readable by a Condition "
+        "through the 'contains' operator.",
+    )
+
+    def open_event(self, event_id: str, *, max_exchanges: int) -> None:
+        """Begin an event, replacing any that was running.
+
+        Replacement rather than a stack: docs/13 §5.2 allows one conversation partner
+        at a time, so nesting has nothing to represent, and a stack would leave an
+        abandoned event able to resurface turns later out of context.
+        """
+        self.active_event = ActiveEvent(event_id=event_id, max_exchanges=max_exchanges)
+
+    def record_exchange(self) -> None:
+        """Count one player turn against the active event's patience."""
+        if self.active_event is not None:
+            self.active_event.exchanges += 1
+
+    def finish_event(self, *, close: bool = False) -> None:
+        """End the active event, recording it as completed and optionally closed."""
+        if self.active_event is None:
+            return
+        event_id = self.active_event.event_id
+        if event_id not in self.completed_events:
+            self.completed_events.append(event_id)
+        if close and event_id not in self.closed_events:
+            self.closed_events.append(event_id)
+        self.active_event = None
+
+    def has_completed(self, event_id: str) -> bool:
+        return event_id in self.completed_events
+
+    def is_closed(self, event_id: str) -> bool:
+        return event_id in self.closed_events
+
+    def raise_flag(self, flag: str) -> None:
+        if flag not in self.flags:
+            self.flags.append(flag)
+
+    def has_flag(self, flag: str) -> bool:
+        return flag in self.flags
 
     def spend_one_shot(self, key: str) -> None:
         if key not in self.spent_one_shots:
@@ -189,6 +289,20 @@ class EventCandidate(BaseModel):
     pays_off: str | None = Field(
         default=None,
         description="fact_id of the ledger entry this settles, when the candidate is a payoff",
+    )
+    event_id: str | None = Field(
+        default=None,
+        description="the authored event this candidate came from (docs/13 §2). Present for "
+        "every candidate the event layer produces; the field is optional only so that "
+        "``EventCandidate`` stays constructible in tests that do not need a script.",
+    )
+    plants_toward: str | None = Field(
+        default=None,
+        description="for a foreshadow event: the fact whose eventual disclosure settles what "
+        "this plants. The mirror image of ``pays_off``, not a synonym — that one settles a "
+        "debt now, this one opens one. Authored rather than model-written, which is what "
+        "reconnects the ledger to the clue chain (docs/13 §9): a generated payoff condition "
+        "could point anywhere, and in play it did.",
     )
 
 

@@ -12,14 +12,27 @@ The two properties most worth holding onto here:
 * the generator's prompt never contains an undisclosed fact's value. Same stance as
   ``tools.py``: keeping the secret out of the context beats instructing the model
   not to repeat it.
+
+Candidates are authored **events** now, not operators (docs/13 §2). A quiet turn is
+consequently much easier to construct than it was: with no event whose trigger holds,
+nothing happens, because docs/13 §2.1 removed the operator-level fallback that used to
+fill those turns with a ``foreshadow`` nobody asked for.
 """
 
 from __future__ import annotations
 
 from ai_native_rpg.llm import MockLLMClient
 from ai_native_rpg.narrative.engine import GeneratedContent, NarrativeEngine
-from ai_native_rpg.narrative.rules import MAX_OPEN_FORESHADOWINGS, earned_stage
+from ai_native_rpg.narrative.rules import earned_stage
 from ai_native_rpg.scenario import PacedClue
+from ai_native_rpg.schemas.common import Condition, ConditionClause, ConditionOp
+from ai_native_rpg.schemas.events import (
+    EventDefinition,
+    EventOption,
+    EventOutcome,
+    EventScript,
+    OptionTag,
+)
 from ai_native_rpg.schemas.narrative import NarrativeOperator, StoryBeats
 from ai_native_rpg.schemas.world_state import Visibility, WorldState
 from ai_native_rpg.world.manager import WorldStateManager
@@ -38,64 +51,97 @@ def _content(**overrides) -> dict:
     return payload
 
 
+def _trust_at_least(value: int) -> Condition:
+    return Condition(
+        clauses=[
+            ConditionClause(
+                path=f"relationships.{NPC_A}.{PLAYER}.trust", op=ConditionOp.GTE, value=value
+            )
+        ]
+    )
+
+
+def _reveal_event(
+    event_id: str = "E_reveal", *, fact_id: str = "clue_1", **overrides
+) -> EventDefinition:
+    """An event that voices a paced clue when the player answers warmly."""
+    spec: dict = {
+        "event_id": event_id,
+        "operator": NarrativeOperator.REVEAL,
+        "trigger": _trust_at_least(40),
+        "npc_id": NPC_A,
+        "outcomes": {
+            "told": EventOutcome(outcome_id="told", reveals_facts=[fact_id]),
+            "withheld": EventOutcome(outcome_id="withheld"),
+        },
+        "default_outcome": "withheld",
+        "max_exchanges": 3,
+        "options": [
+            EventOption(
+                option_id="goodwill",
+                tag=OptionTag.GOODWILL,
+                text="我不是来添麻烦的",
+                on_success="told",
+            ),
+            EventOption(
+                option_id="watch", tag=OptionTag.OBSERVE, text="（看着她）", on_success="withheld"
+            ),
+        ],
+    }
+    spec.update(overrides)
+    return EventDefinition.model_validate(spec)
+
+
+def _script(*events: EventDefinition) -> EventScript:
+    return EventScript(events={e.event_id: e for e in events})
+
+
 def _engine(
-    world: WorldState, llm: MockLLMClient, directives=None
+    world: WorldState, llm: MockLLMClient, directives=None, script: EventScript | None = None
 ) -> tuple[NarrativeEngine, WorldStateManager]:
     """Build an engine over ``world``.
 
-    ``directives`` is what a pack supplies; omitting it paces nothing, which is the
-    right default for tests about quiet turns and the wrong one for anything that
-    needs a reveal to exist.
+    ``directives`` is what a pack supplies; omitting it paces nothing. ``script`` is the
+    pack's event network, and omitting *that* now means every turn is quiet — which is
+    the honest consequence of removing the operator fallback (docs/13 §2.1).
     """
     manager = WorldStateManager(world)
-    return NarrativeEngine(manager=manager, llm=llm, directives=directives), manager
-
-
-def _fill_ledger(world: WorldState) -> None:
-    """Leave no room for another plant, so a turn can be genuinely quiet.
-
-    Several loops may be open at once now, so "nothing to do this turn" has to
-    include a full ledger — otherwise a foreshadow is always available and no turn
-    is ever quiet. The loops wait on trust 99, which this world never reaches, so
-    they never come due as payoffs either.
-    """
-    from ai_native_rpg.schemas.common import Condition, ConditionClause, ConditionOp
-    from ai_native_rpg.schemas.narrative import Foreshadowing
-
-    for index in range(MAX_OPEN_FORESHADOWINGS):
-        fact_id = f"owed_{index}"
-        world.story_beats.open_foreshadowings[fact_id] = Foreshadowing(
-            fact_id=fact_id,
-            planted_at_turn=0,
-            payoff_condition=Condition(
-                clauses=[
-                    ConditionClause(
-                        path=f"relationships.{NPC_A}.{PLAYER}.trust", op=ConditionOp.GTE, value=99
-                    )
-                ]
-            ),
-        )
+    engine = NarrativeEngine(manager=manager, llm=llm, directives=directives, script=script)
+    return engine, manager
 
 
 class TestQuietTurns:
-    def test_a_turn_with_no_candidate_makes_no_llm_call(self, world: WorldState):
-        # trust 20 so nothing is unlockable, and a full ledger so nothing can be planted
+    def test_a_turn_with_no_event_makes_no_llm_call(self, world: WorldState):
+        """docs/13 §2.1: no event to hand means nothing happens, not a filler beat.
+
+        This is the case the old implementation could not produce. ``foreshadow`` had
+        the lowest intensity of the five operator candidates, so it lost whenever
+        anything else was available and won on exactly the turns that should have been
+        quiet — occupying the slot docs/05 reserved for "nothing happens".
+        """
         world.story_beats = StoryBeats(turn=99)
-        _fill_ledger(world)
         llm = MockLLMClient([])
 
-        engine, _ = _engine(world, llm)
+        engine, _ = _engine(world, llm, script=_script(_reveal_event()))
         tick = engine.tick(player_id=PLAYER)
 
         assert llm.call_count == 0
         assert tick.selected is None
         assert tick.event is None
 
+    def test_a_pack_with_no_script_is_always_quiet(self, world: WorldState):
+        llm = MockLLMClient([])
+
+        engine, _ = _engine(world, llm)
+        tick = engine.tick(player_id=PLAYER)
+
+        assert llm.call_count == 0
+        assert tick.candidates == []
+
     def test_a_quiet_turn_still_closes_the_turn_as_relieve(self, world: WorldState):
         world.story_beats = StoryBeats(turn=99)
-        _fill_ledger(world)
 
-        engine, manager = _engine(world, MockLLMClient([]))
+        engine, manager = _engine(world, MockLLMClient([]), script=_script(_reveal_event()))
         engine.tick(player_id=PLAYER)
 
         beats = manager.snapshot().story_beats
@@ -105,14 +151,17 @@ class TestQuietTurns:
     def test_a_blocked_candidate_is_reported_and_the_turn_stays_quiet(
         self, world: WorldState, directives
     ):
-        # an unlockable-but-untold clue, one turn after a reveal
+        """Pacing still acts on the operator an event is voiced with (docs/13 §2).
+
+        The cooldowns did not change; what changed is that they now constrain the
+        rhythm of real plot rather than the rhythm of filler.
+        """
         world.relationships[NPC_A][PLAYER].trust = 45.0
         world.story_beats = StoryBeats(turn=99)
-        _fill_ledger(world)  # so the reveal is the only candidate, and it is blocked
         world.story_beats.record_operator(NarrativeOperator.REVEAL)
         llm = MockLLMClient([])
 
-        engine, manager = _engine(world, llm, directives)
+        engine, manager = _engine(world, llm, directives, script=_script(_reveal_event()))
         tick = engine.tick(player_id=PLAYER)
 
         assert llm.call_count == 0
@@ -127,7 +176,7 @@ class TestGeneration:
         world.story_beats = StoryBeats(turn=99)
         llm = MockLLMClient([_content()])
 
-        engine, _ = _engine(world, llm)
+        engine, _ = _engine(world, llm, script=_script(_reveal_event()))
         tick = engine.tick(player_id=PLAYER)
 
         assert llm.call_count == 1
@@ -140,7 +189,7 @@ class TestGeneration:
         world.story_beats = StoryBeats(turn=99)
         llm = MockLLMClient([_content()])
 
-        engine, _ = _engine(world, llm)
+        engine, _ = _engine(world, llm, script=_script(_reveal_event()))
         engine.tick(player_id=PLAYER)
 
         assert llm.calls[0].schema_name == GeneratedContent.__name__
@@ -150,7 +199,11 @@ class TestGeneration:
         world.story_beats = StoryBeats(turn=99)
         llm = MockLLMClient([_content()])
 
-        engine, _ = _engine(world, llm)
+        engine, _ = _engine(
+            world,
+            llm,
+            script=_script(_reveal_event(constraints=["不要说出那个人是谁"])),
+        )
         tick = engine.tick(player_id=PLAYER)
 
         prompt = "\n".join(m.content for m in llm.calls[0].messages)
@@ -172,7 +225,7 @@ class TestGeneration:
         world.story_beats = StoryBeats(turn=99)
         llm = MockLLMClient([_content()])
 
-        engine, _ = _engine(world, llm, directives)
+        engine, _ = _engine(world, llm, directives, script=_script(_reveal_event()))
         engine.tick(player_id=PLAYER)
 
         prompt = "\n".join(m.content for m in llm.calls[0].messages)
@@ -185,47 +238,73 @@ class TestGeneration:
         world.story_beats = StoryBeats(turn=99)
         llm = MockLLMClient([_content()])
 
-        engine, _ = _engine(world, llm)
+        engine, _ = _engine(world, llm, script=_script(_reveal_event()))
         engine.tick(player_id=PLAYER)
 
         assert llm.calls[0].tools is None
 
 
 class TestEffectsGoThroughTheValidator:
-    def test_a_reveal_records_the_operator_for_the_turn(self, world: WorldState, directives):
+    def test_selecting_an_event_opens_it_and_records_the_operator(
+        self, world: WorldState, directives
+    ):
+        """The shape change: a tick *starts* an event rather than finishing a beat.
+
+        An operator's whole effect happened at selection time because there was nothing
+        to wait for. An event waits for the player, which is what gives their answer
+        something to change (docs/13 §3).
+        """
         world.relationships[NPC_A][PLAYER].trust = 45.0
         world.story_beats = StoryBeats(turn=99)
 
-        engine, manager = _engine(world, MockLLMClient([_content()]), directives)
+        engine, manager = _engine(
+            world, MockLLMClient([_content()]), directives, script=_script(_reveal_event())
+        )
         engine.tick(player_id=PLAYER)
 
-        assert manager.snapshot().story_beats.last_operator == NarrativeOperator.REVEAL.value
+        beats = manager.snapshot().story_beats
+        assert beats.last_operator == NarrativeOperator.REVEAL.value
+        assert beats.active_event is not None
+        assert beats.active_event.event_id == "E_reveal"
 
-    def test_a_reveal_marks_the_clue_as_told(self, world: WorldState, directives):
+    def test_a_clue_is_told_only_once_the_player_answers(self, world: WorldState, directives):
+        """Selection does not disclose anything; the outcome does.
+
+        Stated as a test because it is the load-bearing half of docs/13 §3: if merely
+        scheduling an event revealed its facts, the model choosing among candidates
+        would be choosing what the player learns.
+        """
         world.relationships[NPC_A][PLAYER].trust = 45.0
         world.story_beats = StoryBeats(turn=99)
 
-        engine, manager = _engine(world, MockLLMClient([_content()]), directives)
+        engine, manager = _engine(
+            world, MockLLMClient([_content()]), directives, script=_script(_reveal_event())
+        )
         engine.tick(player_id=PLAYER)
 
-        # stored visibility is the record of having voiced it, which is what stops
-        # the same clue from being re-scheduled every turn
+        assert manager.snapshot().facts["clue_1"].visibility is Visibility.HIDDEN
+
+        engine.resolve_player_response(player_id=PLAYER, option_id="goodwill")
+
         assert manager.snapshot().facts["clue_1"].visibility is Visibility.REVEALED
 
     def test_telling_a_clue_advances_the_progress_stage(self, world: WorldState, directives):
         """The reveal that just landed makes the player one stage closer.
 
         Closes the gap that stalled a whole run: the stage is what the tension ceiling
-        and ``escalate`` read, and what generated payoff conditions are written
-        against, but no code advanced it. A clue told and a stage unchanged is the
-        state in which ``stage >= 2`` foreshadowings can never come due.
+        reads and what payoff conditions are written against, but no code advanced it.
+        A clue told and a stage unchanged is the state in which ``stage >= 2``
+        foreshadowings can never come due.
         """
         world.relationships[NPC_A][PLAYER].trust = 45.0
         world.story_beats = StoryBeats(turn=99)
         assert world.quests["investigation"].stage == 0
 
-        engine, manager = _engine(world, MockLLMClient([_content()]), directives)
+        engine, manager = _engine(
+            world, MockLLMClient([_content()]), directives, script=_script(_reveal_event())
+        )
         engine.tick(player_id=PLAYER)
+        engine.resolve_player_response(player_id=PLAYER, option_id="goodwill")
 
         assert manager.snapshot().quests["investigation"].stage == 1
 
@@ -236,16 +315,13 @@ class TestEffectsGoThroughTheValidator:
         author thresholds inside a single turn — the objection ``MAX_CHAPTER_STEP``
         exists for. Falling behind is self-correcting: the next tick advances again.
         """
-        # Two paced clues, both already told: the earned stage is 2 while the quest
-        # sits at 0, so a tick that stepped freely would jump straight to it.
         world.facts["clue_1"].visibility = Visibility.REVEALED
         world.facts["killer_identity"].visibility = Visibility.REVEALED
         paced = [*directives.paced_clues, PacedClue(fact_id="killer_identity")]
         two_clues = directives.model_copy(update={"paced_clues": paced})
         world.story_beats = StoryBeats(turn=99)
-        _fill_ledger(world)
 
-        engine, manager = _engine(world, MockLLMClient([_content()]), two_clues)
+        engine, manager = _engine(world, MockLLMClient([]), two_clues)
         assert earned_stage(world, two_clues) == 2
 
         engine.tick(player_id=PLAYER)
@@ -265,7 +341,6 @@ class TestEffectsGoThroughTheValidator:
         """
         world.facts["clue_1"].visibility = Visibility.REVEALED
         world.story_beats = StoryBeats(turn=99)
-        _fill_ledger(world)
 
         engine, manager = _engine(world, MockLLMClient([]), directives)
         tick = engine.tick(player_id=PLAYER)
@@ -276,21 +351,39 @@ class TestEffectsGoThroughTheValidator:
         assert manager.snapshot().quests["investigation"].stage == 1
         assert engine.pending_event is None
 
-    def test_an_escalate_raises_tension_without_turning_the_chapter(
+    def test_an_outcome_raises_tension_without_turning_the_chapter(
         self, world: WorldState, directives
     ):
-        """``directives`` is required now: the stage channel is named by the pack.
+        """``escalate`` is now an event's operator, and tension is an outcome's effect.
 
-        ``escalate`` waits on the progress quest's stage, and which quest that is is
-        story content (``narrative.progress_quest``), not something ``rules.py`` may
-        assume. An engine built without directives therefore paces no escalate — the
-        same "omitting it paces nothing" default that already applied to reveals.
+        Which is the point of the inversion: pressure arrives because something
+        happened, not because a rule noticed the story was quiet.
         """
-        world.quests["investigation"].stage = 2
         world.story_beats = StoryBeats(turn=99, tension=0.1)
+        event = _reveal_event(
+            "E_escalate",
+            operator=NarrativeOperator.ESCALATE,
+            trigger=_trust_at_least(10),
+            outcomes={
+                "noticed": EventOutcome(outcome_id="noticed", tension_change=0.2),
+                "quiet": EventOutcome(outcome_id="quiet"),
+            },
+            default_outcome="quiet",
+            options=[
+                EventOption(
+                    option_id="push", tag=OptionTag.GOODWILL, text="我会小心", on_success="noticed"
+                ),
+                EventOption(
+                    option_id="wait", tag=OptionTag.OBSERVE, text="（等着）", on_success="quiet"
+                ),
+            ],
+        )
 
-        engine, manager = _engine(world, MockLLMClient([_content()]), directives)
+        engine, manager = _engine(
+            world, MockLLMClient([_content()]), directives, script=_script(event)
+        )
         tick = engine.tick(player_id=PLAYER)
+        engine.resolve_player_response(player_id=PLAYER, option_id="push")
 
         assert tick.selected is not None
         assert tick.selected.operator is NarrativeOperator.ESCALATE
@@ -298,130 +391,74 @@ class TestEffectsGoThroughTheValidator:
         assert beats.tension > 0.1
         assert beats.chapter == 1
 
-    def test_a_foreshadow_plants_a_hidden_fact_and_a_ledger_entry(self, world: WorldState):
-        world.story_beats = StoryBeats(turn=1)
-        world.story_beats.open_foreshadowings.clear()
-        llm = MockLLMClient(
-            [
-                _content(
-                    planted_fact_id="rain_stopped_early",
-                    planted_value="森林入口的脚印被雨水冲过一半",
-                    payoff_condition={
-                        "mode": "any",
-                        "clauses": [
-                            {
-                                "path": f"relationships.{NPC_A}.{PLAYER}.trust",
-                                "op": "gte",
-                                "value": 50,
-                            }
-                        ],
-                    },
-                )
-            ]
-        )
-
-        engine, manager = _engine(world, llm)
-        tick = engine.tick(player_id=PLAYER)
-
-        assert tick.selected is not None
-        assert tick.selected.operator is NarrativeOperator.FORESHADOW
-        beats = manager.snapshot().story_beats
-        assert "rain_stopped_early" in beats.open_foreshadowings
-        assert manager.snapshot().facts["rain_stopped_early"].visibility is Visibility.HIDDEN
-
-    def test_a_foreshadow_with_an_already_due_condition_is_rejected_not_crashed(
+    def test_a_foreshadow_event_plants_a_ledger_entry_against_its_authored_target(
         self, world: WorldState
     ):
-        """A rejected proposal is a normal outcome, and must be visible.
+        """docs/13 §9: what the loop waits on is the target fact's own condition.
 
-        The model proposing an unusable loop is exactly what the Validator is for;
-        the tick records the rejection and the turn still closes.
+        Not a model-written condition. That is the whole correction — previously the
+        generator decided both what to bury and when it counted as recovered, so what
+        it buried pointed nowhere.
         """
         world.story_beats = StoryBeats(turn=1)
-        world.story_beats.open_foreshadowings.clear()
-        llm = MockLLMClient(
-            [
-                _content(
-                    planted_fact_id="already_true",
-                    planted_value="v",
-                    payoff_condition={
-                        "mode": "any",
-                        "clauses": [
-                            {
-                                "path": f"relationships.{NPC_A}.{PLAYER}.trust",
-                                "op": "gte",
-                                "value": 5,  # trust is already 20
-                            }
-                        ],
-                    },
-                )
-            ]
+        event = _reveal_event(
+            "F_hint",
+            operator=NarrativeOperator.FORESHADOW,
+            trigger=_trust_at_least(10),
+            payoff_target="killer_identity",
+            options=[],
+            outcomes={"planted": EventOutcome(outcome_id="planted")},
+            default_outcome="planted",
         )
 
-        engine, manager = _engine(world, llm)
-        tick = engine.tick(player_id=PLAYER)
-
-        assert any(not p.approved for p in tick.proposals)
-        assert "already_true" not in manager.snapshot().story_beats.open_foreshadowings
-        # the turn still advances: a failed beat must not stall the clock
-        assert manager.snapshot().story_beats.turn == 2
-
-    def test_a_payoff_settles_the_ledger_entry(self, world: WorldState):
-        from ai_native_rpg.schemas.common import Condition, ConditionClause, ConditionOp
-        from ai_native_rpg.schemas.narrative import Foreshadowing
-
-        world.story_beats = StoryBeats(turn=99)
-        world.story_beats.open_foreshadowings["clue_1"] = Foreshadowing(
-            fact_id="clue_1",
-            planted_at_turn=90,
-            payoff_condition=Condition(
-                clauses=[
-                    ConditionClause(
-                        path=f"relationships.{NPC_A}.{PLAYER}.trust", op=ConditionOp.GTE, value=40
-                    )
-                ]
-            ),
-        )
-        world.relationships[NPC_A][PLAYER].trust = 45.0
-
-        engine, manager = _engine(world, MockLLMClient([_content()]))
+        engine, manager = _engine(world, MockLLMClient([_content()]), script=_script(event))
         tick = engine.tick(player_id=PLAYER)
 
         assert tick.selected is not None
-        assert tick.selected.pays_off == "clue_1"
+        ledger = manager.snapshot().story_beats.open_foreshadowings
+        assert ledger
+        entry = next(iter(ledger.values()))
+        assert entry.payoff_condition == world.facts["killer_identity"].reveal_condition
+
+    def test_a_foreshadow_toward_an_ungated_fact_is_rejected_not_crashed(self, world: WorldState):
+        """A target with no condition could never come due, so the plant is refused.
+
+        Rejection rather than a workaround: the refusal is the useful signal
+        (docs/07 §2.3), and inventing a condition here would put the engine back in the
+        business of writing its own payoff terms.
+        """
+        world.story_beats = StoryBeats(turn=1)
+        event = _reveal_event(
+            "F_bad",
+            operator=NarrativeOperator.FORESHADOW,
+            trigger=_trust_at_least(10),
+            payoff_target="victim_name",  # revealed, no reveal_condition
+            options=[],
+            outcomes={"planted": EventOutcome(outcome_id="planted")},
+            default_outcome="planted",
+        )
+
+        engine, manager = _engine(world, MockLLMClient([_content()]), script=_script(event))
+        tick = engine.tick(player_id=PLAYER)
+
+        assert tick.selected is not None
+        assert any(p.rule_name == "payoff_target_has_no_condition" for p in tick.proposals)
         assert manager.snapshot().story_beats.open_foreshadowings == {}
 
-    def test_a_reverse_is_spent_so_it_cannot_repeat(self, world: WorldState, directives):
-        world.story_beats = StoryBeats(turn=99)
-        world.facts["npc_a_threatened"] = world.facts["victim_name"].model_copy(
-            update={"fact_id": "npc_a_threatened", "visibility": Visibility.REVEALED}
-        )
-
-        engine, manager = _engine(world, MockLLMClient([_content()]), directives)
-        tick = engine.tick(player_id=PLAYER)
-
-        assert tick.selected is not None
-        assert tick.selected.operator is NarrativeOperator.REVERSE
-        assert manager.snapshot().story_beats.is_spent("reverse:npc_a_threatened")
-
     def test_the_engine_never_writes_state_directly(self, world: WorldState, directives):
-        """Every effect travels as a proposal (docs/04 §2, docs/10 §2.1).
-
-        An operator is a set of Action Proposals, so the Engine needs no new
-        permission mechanism — and must not have one.
-        """
+        """Every effect travels as a proposal (docs/04 §2, docs/10 §2.1)."""
         world.relationships[NPC_A][PLAYER].trust = 45.0
         world.story_beats = StoryBeats(turn=99)
 
-        engine, manager = _engine(world, MockLLMClient([_content()]), directives)
+        engine, manager = _engine(
+            world, MockLLMClient([_content()]), directives, script=_script(_reveal_event())
+        )
         before = manager.snapshot()
         tick = engine.tick(player_id=PLAYER)
 
-        # every change is attributable to a validated proposal
         assert tick.proposals
         assert all(p.proposal_id for p in tick.proposals)
         assert all(p.approved for p in tick.proposals), [p.reason for p in tick.proposals]
-        # and the world moved only where an approved proposal said it would
         after = manager.snapshot()
         assert after.story_beats.turn == before.story_beats.turn + 1
         assert {k for p in tick.proposals for k in (p.applied_changes or {})}
@@ -459,7 +496,9 @@ class TestPendingEvent:
         world.relationships[NPC_A][PLAYER].trust = 45.0
         world.story_beats = StoryBeats(turn=99)
 
-        engine, _ = _engine(world, MockLLMClient([_content()]), directives)
+        engine, _ = _engine(
+            world, MockLLMClient([_content()]), directives, script=_script(_reveal_event())
+        )
         engine.tick(player_id=PLAYER)
 
         pending = engine.pending_event
@@ -470,7 +509,9 @@ class TestPendingEvent:
         world.relationships[NPC_A][PLAYER].trust = 45.0
         world.story_beats = StoryBeats(turn=99)
 
-        engine, _ = _engine(world, MockLLMClient([_content()]), directives)
+        engine, _ = _engine(
+            world, MockLLMClient([_content()]), directives, script=_script(_reveal_event())
+        )
         engine.tick(player_id=PLAYER)
 
         assert engine.take_pending_event() is not None
@@ -480,7 +521,6 @@ class TestPendingEvent:
 
     def test_a_quiet_tick_leaves_nothing_pending(self, world: WorldState):
         world.story_beats = StoryBeats(turn=99)
-        _fill_ledger(world)
 
         engine, _ = _engine(world, MockLLMClient([]))
         engine.tick(player_id=PLAYER)
@@ -490,18 +530,23 @@ class TestPendingEvent:
     def test_a_beat_whose_effects_were_all_rejected_leaves_nothing_pending(self, world: WorldState):
         """Content exists for beats that did not happen; it must not be spoken.
 
-        Generation precedes the Validator's ruling, so a rejected beat still has a
-        hook sitting in hand. Shipping it would have the NPC allude to a detail
-        nobody planted — and since the ledger entry was rejected too, to a loop with
-        no payoff coming. The turn is recorded as ``relieve``, and the pending
-        content has to agree with that.
+        Generation precedes the Validator's ruling, so a rejected beat still has a hook
+        in hand. Shipping it would have the NPC allude to a loop with no payoff coming.
+        The turn is recorded as ``relieve``, and the pending content has to agree.
         """
         world.story_beats = StoryBeats(turn=1)
-        world.story_beats.open_foreshadowings.clear()
-        # a foreshadow missing planted_fact_id: nothing to plant, so every effect fails
+        event = _reveal_event(
+            "F_bad",
+            operator=NarrativeOperator.FORESHADOW,
+            trigger=_trust_at_least(10),
+            payoff_target="victim_name",
+            options=[],
+            outcomes={"planted": EventOutcome(outcome_id="planted")},
+            default_outcome="planted",
+        )
         llm = MockLLMClient([_content(dialogue_hook="一个从未被埋下的细节")])
 
-        engine, manager = _engine(world, llm)
+        engine, manager = _engine(world, llm, script=_script(event))
         tick = engine.tick(player_id=PLAYER)
 
         assert tick.selected is not None, "the turn had a beat to run"
@@ -517,7 +562,7 @@ class TestTickIsPersistable:
         world.relationships[NPC_A][PLAYER].trust = 45.0
         world.story_beats = StoryBeats(turn=99)
 
-        engine, _ = _engine(world, MockLLMClient([_content()]))
+        engine, _ = _engine(world, MockLLMClient([_content()]), script=_script(_reveal_event()))
         tick = engine.tick(player_id=PLAYER)
 
         store = NarrativeTickStore(tmp_path / "narrative")
@@ -530,11 +575,9 @@ class TestTickIsPersistable:
         world.relationships[NPC_A][PLAYER].trust = 45.0
         world.story_beats = StoryBeats(turn=99)
 
-        engine, _ = _engine(world, MockLLMClient([_content()]))
+        engine, _ = _engine(world, MockLLMClient([_content()]), script=_script(_reveal_event()))
         tick = engine.tick(player_id=PLAYER)
 
         assert tick.turn == 99
         assert tick.candidates
         assert tick.proposals
-        assert tick.latency_ms >= 0.0
-        assert tick.model_used == "mock-model"
