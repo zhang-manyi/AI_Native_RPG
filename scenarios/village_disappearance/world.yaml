@@ -13,6 +13,24 @@
 world_id: village_disappearance
 time_day: 1
 
+# How long this case runs (docs/13 §4.1, docs/15 §6.2). Here rather than left to the
+# engine's default for the same reason `progress_quest` and `paced_clues` are here: the
+# budget is **this案件的长度**, not a property of the runtime, so a different story must
+# be able to be shorter or longer without touching code (docs/09 §6).
+#
+# 4 is the output of §6.2's arithmetic, not a round number: 4 × 3 = 12 slots, and the
+# 查明真相 path needs 9, leaving 3 for a failed check or two. Three days (9 slots) would
+# leave zero buffer. It is also the clock that explains why Loren acts *now* instead of
+# needing a separate reason to.
+#
+# Note the endings are deliberately *not* the same length — 指控错人 lands at 5 slots
+# because concluding on insufficient evidence is meant to be available the moment the
+# player wants it (docs/14 §4.2: 完全由玩家自己挣来，没有任何系统判定说他错了). Padding
+# it out to match 查明真相 would mean refusing an accusation the player has decided on,
+# and refusing is the system judging for him. Uneven lengths are the design's output.
+story_beats:
+  day_limit: 4
+
 # Presentation-only text for the opening screen. Optional and genre-specific: a
 # pack that omits it gets neutral defaults, so the renderer stays story-agnostic
 # (a detective pack calls it a "调查笔记", a wuxia pack would not). Not world
@@ -274,6 +292,27 @@ narrative:
           - path: relationships.npc_a.player_1.fear
             op: gte
             value: 70
+
+    - ending_id: never_found_out
+      summary: 没查明白
+      # The third failure ending. docs/15 §4 M7 lists 天数用尽 as one of its triggers and
+      # docs/14 §4.3 calls it the only true终局 — 闭口 merely closes one line — but it was
+      # missing from this list, which is the same omission in a new place: the other four
+      # were checked for reachability and this one was not declared at all.
+      #
+      # It is the clock's own ending, so it needs no events: `time_day` turns over at each
+      # wrap-up regardless of what the player does. That also makes it the one ending
+      # nobody can avoid by playing carefully — which is what gives the slot budget teeth.
+      path_note: 12 个时段用完（第 4 天的收束段之后）而 ella_whereabouts 仍未揭露
+      condition:
+        mode: all
+        clauses:
+          - path: time_day
+            op: gt
+            value: 4
+          - path: facts.ella_whereabouts.visibility
+            op: eq
+            value: hidden
 
 # The event network (docs/13, docs/15 §4). This is the layer that answers "what
 # should happen this turn": each event has a trigger, an outcome set, and branches,

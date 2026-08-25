@@ -259,9 +259,15 @@ class TestTheDeadline:
         assert world.time_day == DEFAULT_DAY_LIMIT + 1
         assert world.story_beats.is_out_of_days(current_day=world.time_day)
 
-    def test_a_pack_can_shorten_the_case(self):
-        """The limit is a field so a pack can run a shorter case without a code change —
-        and so a test can reach the deadline in three moves rather than twelve."""
+    def test_the_limit_is_a_field_not_a_constant(self):
+        """So a pack can run a shorter case without a code change — and so a test can reach
+        the deadline in three moves rather than twelve.
+
+        Note this only proves the *field* works. Whether a pack can actually set it is a
+        separate question, and the answer was no until the loader read it: see
+        ``tests/test_scenario_loader.py``. A field with a default and no reader is the shape
+        of bug docs/13 §11 is about, and this test would not have caught it.
+        """
         beats = StoryBeats(day_limit=1)
 
         assert not beats.is_out_of_days(current_day=1)

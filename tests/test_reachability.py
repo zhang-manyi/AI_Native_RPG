@@ -55,6 +55,12 @@ class TestTheShippedPacksEndings:
     """The village pack declares its endings and they check out."""
 
     def test_the_pack_declares_its_endings(self):
+        """Five: the three of docs/14 §4 plus 指控错人, plus the clock's own ending.
+
+        ``never_found_out`` is named by docs/15 §4 M7 and docs/14 §4.3 and was missing from
+        this list — the same omission in a new place, since the other four were checked for
+        reachability and this one was not declared at all.
+        """
         endings = load_endings(PACK)
 
         assert {e.ending_id for e in endings} == {
@@ -62,6 +68,7 @@ class TestTheShippedPacksEndings:
             "accused_the_wrong_man",
             "loren_moves_first",
             "marta_clams_up",
+            "never_found_out",
         }
 
     def test_every_non_pending_ending_is_reachable(self, pack):
@@ -122,6 +129,67 @@ class TestTheShippedPacksEndings:
 
         assert len(problems) == 1
         assert "story_beats.tension" in str(problems[0])
+
+
+class TestAClauseAlreadyTrueNeedsNoWriter:
+    """The question is "can this clause hold", not "can this value move".
+
+    The two come apart for failure endings, which are built out of clauses asking the world
+    to have *not* changed. "``ella_whereabouts`` is still hidden" is satisfied at turn 0, so
+    demanding a writer for it would report the one ending nobody has to earn as unreachable
+    — the checker being wrong in the opposite direction from the bugs it exists to catch.
+    """
+
+    def test_the_ran_out_of_days_ending_is_reachable(self, pack):
+        world, script = pack
+        condition = next(
+            e.condition for e in load_endings(PACK) if e.ending_id == "never_found_out"
+        )
+
+        assert unreachable_clauses({"never_found_out": condition}, world=world, script=script) == []
+
+    def test_a_stay_hidden_clause_passes_without_a_revealer(self, pack):
+        """``ella_whereabouts`` has no outcome revealing it, and that is fine here."""
+        world, script = pack
+        stay_hidden = Condition(
+            mode="all",
+            clauses=[
+                ConditionClause(
+                    path="facts.ella_whereabouts.visibility", op=ConditionOp.EQ, value="hidden"
+                )
+            ],
+        )
+
+        assert unreachable_clauses({"x": stay_hidden}, world=world, script=script) == []
+
+    def test_but_a_become_revealed_clause_still_needs_one(self, pack):
+        """The same fact, the other direction: nothing reveals it, so this cannot hold."""
+        world, script = pack
+        must_reveal = Condition(
+            mode="all",
+            clauses=[
+                ConditionClause(
+                    path="facts.ella_whereabouts.visibility", op=ConditionOp.EQ, value="revealed"
+                )
+            ],
+        )
+
+        problems = unreachable_clauses({"x": must_reveal}, world=world, script=script)
+
+        assert len(problems) == 1
+        assert "ella_whereabouts" in problems[0].reason
+
+    def test_the_clock_ending_needs_no_events_at_all(self, pack):
+        """``time_day`` turns over at each wrap-up regardless of what the player does.
+
+        That is what gives the slot budget teeth: it is the one ending careful play cannot
+        avoid, so it needs no authored event behind it.
+        """
+        world, script = pack
+
+        problems = unreachable_clauses({"clock": _gate("time_day", 5)}, world=world, script=script)
+
+        assert problems == []
 
 
 class TestResolvableIsNotEnough:

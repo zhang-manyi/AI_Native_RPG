@@ -39,6 +39,17 @@ from .world.conditions import UnknownPathError, resolve_path
 
 SCENARIOS_ROOT = Path(__file__).resolve().parents[2] / "scenarios"
 
+#: ``story_beats`` keys a pack may author. Everything else there is runtime progress.
+#:
+#: A whitelist rather than a blacklist, and deliberately tiny: ``turn``,
+#: ``completed_events``, ``open_foreshadowings`` and friends are what *play* writes, so a
+#: pack able to set them would be shipping a half-played game — and the failure would look
+#: like a mystery whose first beat never fires because M1 is already marked complete.
+#:
+#: ``day_limit`` is the case's length (docs/15 §6.2), which is story rather than runtime:
+#: the same reasoning that puts ``progress_quest`` in the pack rather than in ``rules.py``.
+_PACK_AUTHORABLE_BEATS = frozenset({"day_limit"})
+
 
 class ScenarioError(ValueError):
     """A scenario pack is missing, malformed, or internally inconsistent."""
@@ -419,6 +430,31 @@ def _build_world(raw: dict[str, Any]) -> WorldState:
         p_id: spec.get("location", "") for p_id, spec in (raw.get("players") or {}).items()
     }
 
+    # The pack's opening narrative state. Only the authored knobs are accepted — the rest
+    # of ``StoryBeats`` is runtime progress, and a pack that could set ``turn`` or
+    # ``completed_events`` would be shipping a half-played game.
+    #
+    # ``day_limit`` is the one that matters today: the slot budget is *this case's* length
+    # rather than a property of the engine, so it belongs beside ``progress_quest`` in the
+    # pack (docs/09 §6). It had a field and a default and no reader, which is the exact
+    # shape of bug docs/13 §11 is about — the pack could declare 7 days and silently get 4.
+    beats_spec = raw.get("story_beats") or {}
+    if not isinstance(beats_spec, dict):
+        raise ScenarioError("'story_beats' must be a mapping if present")
+    unknown = sorted(set(beats_spec) - _PACK_AUTHORABLE_BEATS)
+    if unknown:
+        raise ScenarioError(
+            f"story_beats key(s) {unknown} are runtime progress, not authored setup; "
+            f"a pack may set only {sorted(_PACK_AUTHORABLE_BEATS)}"
+        )
+    story_beats = StoryBeats(
+        # Where the player starts counts as visited: he is standing there on turn one, so
+        # a "首次到达" trigger for his own doorstep must not fire when he comes back to it.
+        # Sorted for determinism — a replayed trace must not depend on dict order.
+        visited_locations=sorted({loc for loc in player_locations.values() if loc}),
+        **{key: beats_spec[key] for key in beats_spec},
+    )
+
     return WorldState(
         world_id=raw.get("world_id", "unnamed_world"),
         time_day=raw.get("time_day", 0),
@@ -463,13 +499,7 @@ def _build_world(raw: dict[str, Any]) -> WorldState:
         facts=facts,
         relationships=relationships,
         player_locations=player_locations,
-        # Where the player starts counts as visited: he is standing there on turn one,
-        # so a "首次到达" trigger for his own starting location would otherwise fire the
-        # moment he came back to it. Sorted for determinism — a single-player pack has
-        # one entry, but a replayed trace must not depend on dict order.
-        story_beats=StoryBeats(
-            visited_locations=sorted({loc for loc in player_locations.values() if loc})
-        ),
+        story_beats=story_beats,
     )
 
 

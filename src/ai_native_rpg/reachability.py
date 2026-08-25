@@ -37,12 +37,13 @@ natural home in either package.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 
 from .schemas.common import Condition, ConditionClause
 from .schemas.events import EventScript
 from .schemas.narrative import NarrativeOperator
 from .schemas.world_state import WorldState
-from .world.conditions import UnknownPathError, resolve_path
+from .world.conditions import UnknownPathError, clause_holds_for, resolve_path
 
 #: Paths the engine writes regardless of what a pack authors, each with the writer.
 #:
@@ -161,7 +162,17 @@ def writers_for_paths(script: EventScript) -> Writers:
 
 
 def _clause_is_writable(clause: ConditionClause, writers: Writers) -> str | None:
-    """``None`` if something can move this clause's path, else why not."""
+    """``None`` if this clause can become true, else why not.
+
+    Note the question is *can this clause hold*, not *can this value move* — the two come
+    apart for a clause that is *already* true at the start, which needs no writer at all.
+    A failure ending is the honest case: "``ella_whereabouts`` is still hidden" asks the
+    world to have *not* changed, and demanding a writer for it would report the one ending
+    nobody has to earn as unreachable.
+
+    The caller checks the opening state first, so by the time this runs the clause is known
+    to be unsatisfied right now, and something therefore has to move it.
+    """
     path = clause.path
 
     if path.startswith("relationships."):
@@ -224,11 +235,20 @@ def unreachable_clauses(
 
         for clause in condition.clauses:
             try:
-                resolve_path(world, clause.path)
+                actual = resolve_path(world, clause.path)
             except UnknownPathError as exc:
                 problems.append(
                     UnreachableClause(ending_id=ending_id, path=clause.path, reason=str(exc))
                 )
+                continue
+
+            # A clause already true in the opening state needs no writer. Failure endings
+            # are built out of these — "``ella_whereabouts`` is still hidden" asks the world
+            # to have *not* changed — so requiring a writer here would report the one ending
+            # nobody has to earn as unreachable. Enums resolve to their member, hence the
+            # tolerant comparison, which reports False rather than raising on a type
+            # mismatch (a mismatch is a real problem, and the writer check below names it).
+            if clause_holds_for(_comparable(actual), clause):
                 continue
 
             reason = _clause_is_writable(clause, writers)
@@ -238,3 +258,13 @@ def unreachable_clauses(
                 )
 
     return problems
+
+
+def _comparable(value: object) -> object:
+    """An authored YAML scalar's counterpart for a resolved value.
+
+    ``Visibility`` and ``TimeSlot`` resolve to enum members while a pack writes
+    ``hidden`` / ``evening`` as plain strings. ``str`` enums compare equal to their value
+    anyway, but being explicit keeps this working if one is ever a plain ``Enum``.
+    """
+    return value.value if isinstance(value, Enum) else value

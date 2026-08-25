@@ -201,6 +201,113 @@ facts:
         assert world.facts["f1"].reveal_condition is None
 
 
+class TestThePackOwnsTheSlotBudget:
+    """``day_limit`` is the case's length, so the pack sets it (docs/15 §6.2).
+
+    It had a field, a default, and no reader: a pack could declare 7 days and silently get
+    4. That is the shape of bug docs/13 §11 is about, and ``StoryBeats(day_limit=1)`` in
+    ``test_time_slots.py`` did not catch it because it tested the field rather than the
+    authoring path. Same reasoning as ``progress_quest`` living in the pack rather than in
+    ``rules.py``: swapping the story must not require touching code.
+    """
+
+    def _write(self, tmp_path, body: str):
+        pack = tmp_path / "pack"
+        pack.mkdir()
+        (pack / "world.yaml").write_text(body, encoding="utf-8")
+        return pack
+
+    def test_a_pack_can_set_the_day_limit(self, tmp_path):
+        """Deliberately not 4: the default is 4, so 4 would prove nothing."""
+        pack = self._write(
+            tmp_path,
+            """
+world_id: long_case
+story_beats:
+  day_limit: 7
+""",
+        )
+
+        assert load_scenario(pack).story_beats.day_limit == 7
+
+    def test_a_pack_that_says_nothing_gets_the_default(self, tmp_path):
+        from ai_native_rpg.schemas.narrative import DEFAULT_DAY_LIMIT
+
+        pack = self._write(tmp_path, "world_id: quiet\n")
+
+        assert load_scenario(pack).story_beats.day_limit == DEFAULT_DAY_LIMIT
+
+    def test_the_shipped_pack_declares_its_own_budget(self):
+        """Written down rather than inherited, so the number lives with the story."""
+        raw = (
+            __import__("pathlib")
+            .Path("scenarios/village_disappearance/world.yaml")
+            .read_text(encoding="utf-8")
+        )
+
+        assert "day_limit: 4" in raw
+        assert load_scenario(SCENARIO).story_beats.day_limit == 4
+
+    def test_runtime_progress_cannot_be_authored(self, tmp_path):
+        """A pack able to set ``turn`` or ``completed_events`` would ship a half-played game.
+
+        The failure would look like a mystery whose opening beat never fires, because M1 is
+        already recorded as complete — so this is refused rather than merged.
+        """
+        pack = self._write(
+            tmp_path,
+            """
+world_id: cheating
+story_beats:
+  turn: 5
+  completed_events: [M1_knock]
+""",
+        )
+
+        with pytest.raises(ScenarioError, match="runtime progress"):
+            load_scenario(pack)
+
+    def test_the_error_names_what_is_authorable(self, tmp_path):
+        pack = self._write(
+            tmp_path,
+            """
+world_id: cheating
+story_beats:
+  tension: 0.9
+""",
+        )
+
+        with pytest.raises(ScenarioError, match="day_limit"):
+            load_scenario(pack)
+
+    def test_story_beats_must_be_a_mapping(self, tmp_path):
+        pack = self._write(tmp_path, "world_id: bad\nstory_beats: 4\n")
+
+        with pytest.raises(ScenarioError, match="mapping"):
+            load_scenario(pack)
+
+    def test_the_starting_location_is_still_seeded_as_visited(self, tmp_path):
+        """The other thing the loader puts on the beats must survive the new block."""
+        pack = self._write(
+            tmp_path,
+            """
+world_id: with_player
+locations:
+  room:
+    name: 房间
+players:
+  player_1:
+    location: room
+story_beats:
+  day_limit: 2
+""",
+        )
+
+        beats = load_scenario(pack).story_beats
+        assert beats.visited_locations == ["room"]
+        assert beats.day_limit == 2
+
+
 class TestManagerIntegration:
     def test_loaded_world_drives_the_manager(self):
         from ai_native_rpg.world import WorldStateManager
