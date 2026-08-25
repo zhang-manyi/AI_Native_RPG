@@ -22,6 +22,7 @@ from .agent.memory_store import MemoryStore
 from .schemas.common import Condition
 from .schemas.events import EventScript
 from .schemas.memory import EpisodicMemory, SemanticMemory
+from .schemas.narrative import StoryBeats
 from .schemas.npc_agent import NPCGoal, NPCPersona, NPCState
 from .schemas.world_state import (
     Fact,
@@ -287,6 +288,10 @@ def _build_world(raw: dict[str, Any]) -> WorldState:
             for target_id, values in (targets or {}).items()
         }
 
+    player_locations = {
+        p_id: spec.get("location", "") for p_id, spec in (raw.get("players") or {}).items()
+    }
+
     return WorldState(
         world_id=raw.get("world_id", "unnamed_world"),
         time_day=raw.get("time_day", 0),
@@ -330,9 +335,14 @@ def _build_world(raw: dict[str, Any]) -> WorldState:
         },
         facts=facts,
         relationships=relationships,
-        player_locations={
-            p_id: spec.get("location", "") for p_id, spec in (raw.get("players") or {}).items()
-        },
+        player_locations=player_locations,
+        # Where the player starts counts as visited: he is standing there on turn one,
+        # so a "首次到达" trigger for his own starting location would otherwise fire the
+        # moment he came back to it. Sorted for determinism — a single-player pack has
+        # one entry, but a replayed trace must not depend on dict order.
+        story_beats=StoryBeats(
+            visited_locations=sorted({loc for loc in player_locations.values() if loc})
+        ),
     )
 
 

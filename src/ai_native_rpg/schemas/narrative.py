@@ -39,6 +39,14 @@ RECENT_OPERATOR_WINDOW = 5
 #: auto-selecting a payoff moment is explicitly left for later.
 DEFAULT_OVERDUE_AFTER_TURNS = 8
 
+#: Days the case runs before it closes out (docs/13 §4.1, docs/15 §6).
+#:
+#: Four, not three: docs/15 §6.2's slot arithmetic puts the "查明真相" path at 9 slots
+#: of the 12 that four days give, and three days (9 slots) would leave zero buffer for a
+#: failed check. It is also the clock that explains why Loren acts *now* rather than
+#: needing a separate reason to.
+DEFAULT_DAY_LIMIT = 4
+
 
 class NarrativeOperator(str, Enum):
     """The discrete dramatic moves the deterministic layer can schedule.
@@ -60,6 +68,52 @@ class NarrativeOperator(str, Enum):
     ESCALATE = "escalate"
     REVERSE = "reverse"
     RELIEVE = "relieve"
+
+
+class TimeSlot(str, Enum):
+    """One of a day's three slots, or the wrap-up that follows them (docs/13 §4.1).
+
+    Slots are what give the game a *cost*. Every action was free before, so a player
+    who got nothing out of a question simply asked again and "进展慢" felt like being
+    stuck rather than like pressure. With three slots a day, each choice excludes the
+    others — which is also the precondition for telling play styles apart at all, since
+    ``PlayerProfile`` cannot be written from behaviour that never had to choose.
+
+    ``WRAP_UP`` is a member rather than a separate flag because it is a *position* in
+    the day, and the alternative — a boolean beside the slot — would allow the
+    incoherent state "afternoon, and also wrapping up". It costs no slot: it is the
+    automatic interlude of docs/13 §4.2 (review the clues, read the cards).
+
+    Evening deliberately stays a real, spendable slot. Making it a safe default
+    "tidy up at home" was considered and rejected (docs/13 §4.1): night is when this
+    story should be at its most dangerous — the girl vanished in a rainy night, Marta
+    will not open her door after dark, Loren is out near the forest — so fixing the
+    tensest slot as the safest one inverts the design. It would also quietly halve the
+    cost just established, and players would work that out.
+    """
+
+    MORNING = "morning"
+    AFTERNOON = "afternoon"
+    EVENING = "evening"
+    WRAP_UP = "wrap_up"
+
+    @property
+    def is_spendable(self) -> bool:
+        """Whether an action taken in this slot consumes it."""
+        return self is not TimeSlot.WRAP_UP
+
+
+#: The day's spendable slots, in order. ``WRAP_UP`` is excluded by construction.
+SPENDABLE_SLOTS: tuple[TimeSlot, ...] = (
+    TimeSlot.MORNING,
+    TimeSlot.AFTERNOON,
+    TimeSlot.EVENING,
+)
+
+#: Spendable slots per day. Derived, never written by hand: docs/15 §6's budget is
+#: ``days × slots``, and two constants that could disagree is how that arithmetic
+#: silently stops matching the document.
+SLOTS_PER_DAY = len(SPENDABLE_SLOTS)
 
 
 class Foreshadowing(BaseModel):
@@ -184,6 +238,87 @@ class StoryBeats(BaseModel):
         "introduce its own without a schema change, and readable by a Condition "
         "through the 'contains' operator.",
     )
+    visited_locations: list[str] = Field(
+        default_factory=list,
+        description="every location the player has ever been, oldest first (docs/13 §7). "
+        "``player_locations`` holds only where he is now, so '首次到达酒馆' — the trigger "
+        "M4 and F2 are written against — had nothing to read. Seeded with the starting "
+        "location by the scenario loader: the player is standing there from turn one, and "
+        "an empty list would make his own doorstep read as unvisited.",
+    )
+
+    # --- the clock (docs/13 §4) --------------------------------------------
+
+    time_slot: TimeSlot = Field(
+        default=TimeSlot.MORNING,
+        description="which slot of the day it is. Here rather than beside "
+        "``WorldState.time_day`` for the reason docs/13 §7 gives for all of these: "
+        "``story_beats.*`` is a whitelisted Condition path, so a pack can write "
+        "'晚上才会发生' as a trigger. The day counter stays where it was — it is already "
+        "reachable — and the two advance together through ``advance_slot``.",
+    )
+    slots_spent_today: int = Field(
+        default=0,
+        ge=0,
+        description="spendable slots used on the current day. Reset when the day turns. "
+        "Kept alongside ``time_slot`` because the wrap-up is a slot *position* with no "
+        "cost, so position alone cannot say how much of the day is gone.",
+    )
+    day_limit: int = Field(
+        default=DEFAULT_DAY_LIMIT,
+        gt=0,
+        description="days before the case closes out (docs/15 §6). A field rather than "
+        "the constant inlined, so a pack can run a shorter case without a code change — "
+        "and so a test can reach the deadline in three moves instead of twelve.",
+    )
+
+    def advance_slot(self, *, current_day: int) -> tuple[TimeSlot, int]:
+        """Move the clock on one step. Returns the new ``(slot, day)``.
+
+        The day is passed in and returned rather than stored here because ``time_day``
+        already exists on ``WorldState`` (docs/13 §4.1: "这不是加字段，是让已有字段动起来").
+        Splitting the clock across two models is the cost of not duplicating it; the
+        Manager is the only caller and writes both in one place.
+
+        Order is morning → afternoon → evening → wrap-up → next morning. The wrap-up sits
+        *after* the third slot rather than replacing it, which is what keeps evening
+        spendable (docs/13 §4.1).
+        """
+        if self.time_slot is TimeSlot.WRAP_UP:
+            self.time_slot = TimeSlot.MORNING
+            self.slots_spent_today = 0
+            return self.time_slot, current_day + 1
+
+        index = SPENDABLE_SLOTS.index(self.time_slot)
+        self.slots_spent_today += 1
+        self.time_slot = (
+            SPENDABLE_SLOTS[index + 1] if index + 1 < len(SPENDABLE_SLOTS) else TimeSlot.WRAP_UP
+        )
+        return self.time_slot, current_day
+
+    def is_out_of_days(self, *, current_day: int) -> bool:
+        """Whether the case has run past its deadline.
+
+        Strictly greater: on the last day the player is still playing. This is what
+        docs/14 §4.3 calls the third failure ending — the days ran out with nothing
+        concluded — and what makes "闭口" a cost rather than a tombstone, since the
+        clock is the only thing that actually ends the case.
+        """
+        return current_day > self.day_limit
+
+    def record_visit(self, location_id: str) -> bool:
+        """Note that the player has been here. True if this was the first time.
+
+        The return value is what makes "first arrival" expressible at all — after the
+        write, the state cannot distinguish a first visit from a fifth.
+        """
+        if location_id in self.visited_locations:
+            return False
+        self.visited_locations.append(location_id)
+        return True
+
+    def has_visited(self, location_id: str) -> bool:
+        return location_id in self.visited_locations
 
     def open_event(self, event_id: str, *, max_exchanges: int) -> None:
         """Begin an event, replacing any that was running.

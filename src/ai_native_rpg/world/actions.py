@@ -26,6 +26,7 @@ __all__ = [
     "MAX_CHAPTER_STEP",
     "MAX_RELATIONSHIP_STEP",
     "NARRATIVE_ACTION_TYPES",
+    "PLAYER_ACTION_TYPES",
     "RELATIONSHIP_DIMENSIONS",
     "SYSTEM_ACTORS",
     "ActionType",
@@ -74,6 +75,18 @@ NARRATIVE_ACTION_TYPES = frozenset(
         ActionType.PAY_OFF_FORESHADOWING.value,
     }
 )
+
+#: Actions a *player* may propose. Only ``move``.
+#:
+#: docs/13 §12 gives the player two verbs, and this is the one that touches the world;
+#: ending a conversation closes ``active_event``, which is narrative state and stays
+#: with the Engine. The list is a whitelist rather than a subtraction because the
+#: interesting failure is the other direction: a player-actor ``reveal_fact`` would
+#: hand the player the power to unlock his own clues, and a player-actor
+#: ``adjust_relationship`` would let him set what an NPC feels about him. Both were
+#: unreachable only because ``_actor_must_exist`` happened to reject every player id
+#: — an accident, now that players legitimately act (docs/04 §3.3).
+PLAYER_ACTION_TYPES = frozenset({ActionType.MOVE.value})
 
 #: Largest chapter jump a single proposal may make.
 #:

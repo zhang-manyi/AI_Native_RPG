@@ -149,8 +149,36 @@ class WorldStateManager:
         return changes
 
     def _apply_move(self, proposal: ActionProposal) -> dict[str, object]:
-        self._state.npcs[proposal.actor_id].location = proposal.target_id
-        return {f"npcs.{proposal.actor_id}.location": proposal.target_id}
+        """Move an NPC or a player to the destination.
+
+        Players live in ``player_locations``, not in ``npcs``, and this method used to
+        write only the latter — so ``ActionType.MOVE`` existed, validated, reported
+        success, and moved nobody whenever the actor was the player. The player could
+        therefore never leave his starting location, which silently killed
+        ``killer_identity``'s second channel: ``quests.investigation.stage >= 3`` needs
+        clues that only the tavern and the forest hold (docs/13 §12, docs/14 §1.2.1).
+
+        A ``KeyError`` on an unknown actor is deliberate: ``_move_actor_must_have_a_location``
+        has already established that the actor is one or the other, so reaching here with
+        neither means the rules and the applier disagree, and that should be loud.
+        """
+        destination = str(proposal.target_id)
+        actor = proposal.actor_id
+
+        if actor in self._state.npcs:
+            self._state.npcs[actor].location = destination
+            return {f"npcs.{actor}.location": destination}
+
+        self._state.player_locations[actor] = destination
+        changes: dict[str, object] = {f"player_locations.{actor}": destination}
+        # "First arrival at X" is a trigger the script uses (docs/15 §4 M4/M5), and it
+        # is only expressible while the visit is being recorded — afterwards the world
+        # cannot tell a first visit from a fifth.
+        if self._state.story_beats.record_visit(destination):
+            changes["story_beats.visited_locations"] = list(
+                self._state.story_beats.visited_locations
+            )
+        return changes
 
     def _apply_quest(self, proposal: ActionProposal) -> dict[str, object]:
         quest = self._state.quests[proposal.target_id]
@@ -214,6 +242,17 @@ class WorldStateManager:
             beats.record_exchange()
             if beats.active_event is not None:
                 changes["story_beats.active_event.exchanges"] = beats.active_event.exchanges
+
+        if payload.get("advance_slot"):
+            # The one place the clock moves. ``time_slot`` lives on the beats and
+            # ``time_day`` on the world (docs/13 §4.1 wanted the existing day field to
+            # start moving rather than a parallel one), so both are written here to keep
+            # them from drifting a slot apart.
+            slot, day = beats.advance_slot(current_day=self._state.time_day)
+            self._state.time_day = day
+            changes["story_beats.time_slot"] = slot.value
+            changes["story_beats.slots_spent_today"] = beats.slots_spent_today
+            changes["time_day"] = day
 
         if payload.get("finish_event"):
             finished = beats.active_event.event_id if beats.active_event else None

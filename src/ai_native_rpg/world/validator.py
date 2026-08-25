@@ -32,6 +32,7 @@ from .actions import (
     MAX_CHAPTER_STEP,
     MAX_RELATIONSHIP_STEP,
     NARRATIVE_ACTION_TYPES,
+    PLAYER_ACTION_TYPES,
     RELATIONSHIP_DIMENSIONS,
     SYSTEM_ACTORS,
     ActionType,
@@ -84,7 +85,18 @@ def _action_type_is_known(proposal: ActionProposal, state: WorldState) -> RuleOu
 
 
 def _actor_must_exist(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
-    if proposal.actor_id in SYSTEM_ACTORS or proposal.actor_id in state.npcs:
+    """The actor is a system actor, an NPC, or a player.
+
+    Players are included because they act too: docs/13 §12 routes player moves through
+    Action Proposals rather than a second write path, which is docs/04's single-writer
+    rule applied to the player. ``player_locations`` is the membership test — the same
+    one ``_relationship_target_must_exist`` already uses for the other direction.
+    """
+    if (
+        proposal.actor_id in SYSTEM_ACTORS
+        or proposal.actor_id in state.npcs
+        or proposal.actor_id in state.player_locations
+    ):
         return RuleOutcome.passed()
     return RuleOutcome.failed(f"actor {proposal.actor_id!r} does not exist in the world")
 
@@ -93,6 +105,28 @@ def _actor_must_be_alive(proposal: ActionProposal, state: WorldState) -> RuleOut
     npc = state.npcs.get(proposal.actor_id)
     if npc is not None and not npc.alive:
         return RuleOutcome.failed(f"actor {proposal.actor_id!r} is dead and cannot act")
+    return RuleOutcome.passed()
+
+
+def _players_may_only_move(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """A player actor may propose ``move`` and nothing else.
+
+    The counterpart of letting players act at all. Without it, widening
+    ``_actor_must_exist`` to accept player ids would also let a proposal carrying a
+    player's id reveal a fact or set an NPC's trust — the player deciding what he has
+    earned, which is the one thing the asymmetry mechanism exists to prevent
+    (docs/04 §3.3). An id in both ``npcs`` and ``player_locations`` is treated as the
+    NPC, matching ``_location_of`` and ``_apply_move``.
+    """
+    actor = proposal.actor_id
+    is_player = (
+        actor not in SYSTEM_ACTORS and actor not in state.npcs and actor in state.player_locations
+    )
+    if is_player and proposal.action_type not in PLAYER_ACTION_TYPES:
+        return RuleOutcome.failed(
+            f"player {actor!r} may not propose {proposal.action_type!r}; "
+            f"players may only {sorted(PLAYER_ACTION_TYPES)}"
+        )
     return RuleOutcome.passed()
 
 
@@ -178,20 +212,40 @@ def _relationship_step_limit(proposal: ActionProposal, state: WorldState) -> Rul
 # --- move ------------------------------------------------------------------
 
 
+def _location_of(state: WorldState, actor_id: str) -> str | None:
+    """Where this actor is, whether they are an NPC or a player.
+
+    The two live in different places (``npcs[id].location`` and
+    ``player_locations[id]``), and the move rules used to read only the first — so every
+    player move was judged against a location the player did not have. NPCs are checked
+    first because an id cannot be both, and that order matches ``_apply_move``.
+    """
+    npc = state.npcs.get(actor_id)
+    if npc is not None:
+        return npc.location
+    return state.player_locations.get(actor_id)
+
+
 def _move_must_be_adjacent(proposal: ActionProposal, state: WorldState) -> RuleOutcome:
+    """Only to a connected location, and only from somewhere.
+
+    docs/13 §12 requires this rule to hold for the player as much as for an NPC, which
+    is what routing player movement through the Validator buys: one adjacency rule, not
+    a second one written for the player and free to drift.
+    """
     destination = proposal.target_id
     if destination not in state.locations:
         return RuleOutcome.failed(f"no such location {destination!r}")
 
-    npc = state.npcs.get(proposal.actor_id)
-    if npc is None:
+    origin = _location_of(state, proposal.actor_id)
+    if origin is None:
         return RuleOutcome.failed(f"actor {proposal.actor_id!r} has no location to move from")
-    if npc.location == destination:
+    if origin == destination:
         return RuleOutcome.passed()
 
-    current = state.locations.get(npc.location)
+    current = state.locations.get(origin)
     if current is None or destination not in current.connected_to:
-        return RuleOutcome.failed(f"{destination!r} is not reachable from {npc.location!r}")
+        return RuleOutcome.failed(f"{destination!r} is not reachable from {origin!r}")
     return RuleOutcome.passed()
 
 
@@ -221,6 +275,10 @@ def _quest_must_be_advanceable(proposal: ActionProposal, state: WorldState) -> R
 #: The event-lifecycle keys join it for the same reason. ``active_event`` is state
 #: like any other, and docs/13 §11's recurring bug is state whose writer was never
 #: wired up — so the writer arrives with the field, and it arrives as a proposal.
+#: The clock keys join them too. docs/13 §4.1 asks for an existing field to start
+#: moving rather than for a new one, and the writer arrives the same way everything
+#: else does — as a proposal, so that "a slot was spent" is visible in a trace and
+#: cannot be done behind the Validator's back.
 _BEAT_ADVANCE_KEYS = frozenset(
     {
         "chapter",
@@ -231,6 +289,7 @@ _BEAT_ADVANCE_KEYS = frozenset(
         "finish_event",
         "close_event",
         "raise_flags",
+        "advance_slot",
     }
 )
 
@@ -486,6 +545,9 @@ DEFAULT_RULES: tuple[Rule, ...] = (
     Rule("action_type_must_be_known", _action_type_is_known),
     Rule("actor_must_exist", _actor_must_exist),
     Rule("actor_must_be_alive", _actor_must_be_alive),
+    # Right after the actor is known to exist: everything below may then reason about
+    # what that actor is allowed to ask for, rather than re-deriving it.
+    Rule("players_may_only_move", _players_may_only_move),
     # Ordered before every target-dereferencing rule below, so those can assume a
     # target is present rather than each re-checking it.
     Rule(
