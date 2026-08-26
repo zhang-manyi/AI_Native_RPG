@@ -12,7 +12,7 @@ drawn narrowly:
     private knowledge of hidden matters lives (and may be mistaken: memory is the
     NPC's belief, not ground truth).
   * ``check_public_fact`` — only facts already visible to the player. An
-    undisclosed fact such as ``killer_identity`` therefore never enters a prompt
+    undisclosed fact such as ``loren_that_night`` therefore never enters a prompt
     at all, instead of entering it and relying on the Validator to catch the leak
     after the model has already seen it.
 

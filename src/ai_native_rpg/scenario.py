@@ -333,7 +333,7 @@ def _check_endings_are_reachable(
 
     This is the check docs/13 §11 asks for, and it is stronger than the resolvability
     check above in the one way that matters: all three historical bugs resolved cleanly.
-    ``stage``, the second ``killer_identity`` channel and ``fear`` were each a legal path
+    ``stage``, the second ``loren_that_night`` channel and ``fear`` were each a legal path
     to a number the game never changed, which at runtime looks like a scene that simply
     never comes.
 

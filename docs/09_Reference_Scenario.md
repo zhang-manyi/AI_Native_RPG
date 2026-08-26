@@ -83,7 +83,7 @@
 
 切片 5 的**第二批也已完成**：三件地基，各带测试。共同点是三件都不是"加功能"，而是**给已有的读者补上写入者**——这一批结束时全套 750 个测试通过。
 
-- **玩家移动**（[13 §12](./13_Narrative_Events.md#12-玩家动作)）。`ActionType.MOVE` 存在、能通过校验、报告成功、而**谁也没动**：`_apply_move` 写的是 `npcs[actor_id].location`，玩家不在 `npcs` 里；`_move_must_be_adjacent` 也拿 NPC 的位置判邻接。两处现在都按 actor 的种类取位置。连带修掉一个内容 bug：`killer_identity` 的第二条通道（`stage >= 3`，"独立调查"）需要玩家能走到酒馆和森林，所以作者写了两条路、其中一条是碎石。
+- **玩家移动**（[13 §12](./13_Narrative_Events.md#12-玩家动作)）。`ActionType.MOVE` 存在、能通过校验、报告成功、而**谁也没动**：`_apply_move` 写的是 `npcs[actor_id].location`，玩家不在 `npcs` 里；`_move_must_be_adjacent` 也拿 NPC 的位置判邻接。两处现在都按 actor 的种类取位置。连带修掉一个内容 bug：`loren_that_night` 的第二条通道（`stage >= 3`，"独立调查"）需要玩家能走到酒馆和森林，所以作者写了两条路、其中一条是碎石。
 - **放宽 actor 检查必须同时收紧动作。** 让玩家 id 通过 `_actor_must_exist`，同时就暴露了其余所有动作类型给它——`reveal_fact` 会让玩家解锁自己的线索，`adjust_relationship` 会让他设定 NPC 对自己的观感，两者都是 [04 §3.3](./04_World_State_Manager.md#33-叙事推进不等于披露授权) 禁止的披露旁路。它们此前**只是被意外挡住的**（玩家 id 恰好通不过 actor 检查），所以新增 `players_may_only_move`。
 - **时间制**（[13 §4](./13_Narrative_Events.md#4-时间制)）。`TimeSlot` 挂在 `story_beats` 下（该前缀已在 `Condition` 白名单里，所以剧本能把「只有晚上」写成触发条件），`time_day` 留在 `WorldState` 原处，由 Manager 一处同时写两半。晚上保持为可消耗的时段，理由见 §4.1。收束段（`wrap_up.py`）签名只收 `VisibleState`，因此在类型上就读不到 hidden fact；塔罗读的是聚合量而非内容。
 - **fear 会涨了**（[14 §4.3](./14_Case_Design.md#43-被洛伦先动手-玛尔塔彻底闭口)）。两半：prompt 现在写全三个维度并明说 trust 与 fear 不是一根轴的两头；另有一条失败 [追问]/[试探] 的确定性下限。**只改 prompt 不够**——模型没有理由知道"闭口"这个结局存在，靠模型自愿选对维度的通道和死通道差不多。作者写了 fear 的结果优先于下限，否则 [15 §4](./15_Event_Script.md) 的每个数字都会悄悄膨胀。
@@ -93,7 +93,7 @@
 
 两块**已知未做**，都不是疏漏：
 
-- **`facts` 段仍是旧版**（洛伦是凶手、`killer_identity: npc_b`），与 [14 §1](./14_Case_Design.md#1-真相不是谋杀-已定) 定的"真相不是谋杀"冲突。前两批只动了 `narrative:`/`events:` 与新增的几条 fact，重构留到写 M4/M5/M7 时一起做。
+- **`facts` 段已对齐新真相**（[14 §1](./14_Case_Design.md#1-真相不是谋杀-已定)：洛伦以为是自己弄死了她,而他错了）。`killer_identity` 连名带值一起改成了 `loren_that_night`——一个案子里没有凶手却有个叫 `killer_identity` 的 fact,正是 [13 §11](./13_Narrative_Events.md#11-每个结局必须可达) 说的那种过期断言。`ella_whereabouts`、`npc_a_threatened`（`reversal_fact`,措辞承载整个重读）以及洛伦的 persona 与 seed memories 同批改掉。**仍待做**:真相侧三条线索只落地了第一条,`ella_asked_the_road` 与 `timeline_mismatch` 随 F2/F3 一起来。
 - **可达性是窄的那个断言**："有东西写这条路径"，不是"12 个时段内可达"。后者需要搜索整个事件图与时段预算，错起来没人能调；[15 §6.2](./15_Event_Script.md) 的验算改由测试走一遍（4 天 × 3 时段 = 12）。
 
 切片 4 剩下的 Player Model 那一半仍然待做：Behavior Tracker 写入 `PlayerProfile`，`weight_for()` 是唯一接口，`select_candidate(profile=...)` 已经在消费它。它不依赖 Web；面板届时加一块「玩家画像」即可。事件层给了它一个新的信号源——四个标签本身就是玩家风格的分类（[15 §2](./15_Event_Script.md#2-四个标签) 把每个标签映到一个 `PreferenceTag`）。
@@ -127,7 +127,7 @@
 - `scripts/chat_demo.py` 可手动跑真实对话，`/beats` `/ledger` `/unlock` 三个命令对应 [07 §2.3](./07_Observability.md#23-narrative-state-panel叙事状态面板) 的前三块面板内容——切片 4 的可视化页面可以直接照这三个渲染函数搬。
 - `OpenAICompatibleClient` / `MockLLMClient` 同实现 `LLMClient` Protocol，`USE_MOCK_LLM` 或 `--mock` 切换。前者走通用 OpenAI 兼容 `chat/completions`，`LLM_PROVIDER=deepseek|openai` 选一组 `*_API_KEY` / `*_BASE_URL` / `*_MODEL`（表在 `config._PROVIDERS`）。换 provider 是配置项而非第二个实现，这是当初不用 vendor SDK 换来的。
 - 剧本包已承载叙事内容：`world.yaml` 的 `narrative:` 块给出 `language` / `paced_clues`（fact_id + 该线索被压着时的禁止项）/ `reversal_fact` / `universal_constraints`，由 `load_narrative_directives()` 读出并在加载时做交叉引用校验。`rules.py` 因此不含任何具体 fact id 或中文字符串——**结构留在 Python，内容属于剧本**。省掉 `directives` 参数的调用方会退化成「什么都不铺垫」，不会继承别的剧本的 fact id。
-- `NPCWorldState.name` 是公开显示名（`玛尔塔` / `洛伦`），与 `Location.name` 同性质的客观事实。叙事生成 prompt 只给名字不给 id：id 会漏进生成的散文，而且 fact 的值本身可能就是一个 id（本场景 `killer_identity` 的值是 `npc_b`），按 id 列出场名单等于把未披露的值写进 prompt。
+- `NPCWorldState.name` 是公开显示名（`玛尔塔` / `洛伦`），与 `Location.name` 同性质的客观事实。叙事生成 prompt 只给名字不给 id：id 会漏进生成的散文，而且 fact 的值本身可能就是一个 id（本场景 `loren_that_night` 的值是 `npc_b`），按 id 列出场名单等于把未披露的值写进 prompt。
 
 切片 3 实现时发现、值得记住的四件事：
 

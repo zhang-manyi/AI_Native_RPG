@@ -4,7 +4,7 @@ The same content bug has happened three times, and each time it was invisible ex
 scene that never came:
 
 * ``quests.investigation.stage`` had an author and readers and no writer;
-* ``killer_identity``'s second channel needed a player who could move, and he could not;
+* ``loren_that_night``'s second channel needed a player who could move, and he could not;
 * ``fear`` gated the clam-up ending while NPCs only ever adjusted trust.
 
 One shape: an author wrote a road and nobody checked it went anywhere. The loader already
@@ -109,7 +109,7 @@ class TestTheShippedPacksEndings:
         It shuts Marta's social line while the tavern and the forest remain, and
         『只有天数用尽仍未查明才是终局』. Listing it as a peer of 查明真相 would have a panel
         render a **cost** as a **conclusion**, and tell the player the game is over while he
-        is still in it. This is also the reason `killer_identity`'s second channel exists.
+        is still in it. This is also the reason `loren_that_night`'s second channel exists.
         """
         clams_up = next(e for e in load_endings(PACK) if e.ending_id == "marta_clams_up")
 

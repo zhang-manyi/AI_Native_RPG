@@ -115,9 +115,9 @@ class TestApprovedActionTurn:
 
 class TestRejectedActionTurn:
     def test_reveal_blocked_leaves_world_unchanged_and_feeds_reason(self, martha, manager):
-        # trust is 10, far below killer_identity's threshold of 85: reveal is rejected.
+        # trust is 10, far below loren_that_night's threshold of 85: reveal is rejected.
         before = manager.player_view(PLAYER).visible_facts
-        assert "killer_identity" not in before
+        assert "loren_that_night" not in before
 
         llm = MockLLMClient(
             [
@@ -125,7 +125,7 @@ class TestRejectedActionTurn:
                     reasoning="玩家逼问，我想直接说出凶手",
                     strategy="blurt_it_out",
                     dialogue="（初稿）",
-                    action={"action_type": "reveal_fact", "target_id": "killer_identity"},
+                    action={"action_type": "reveal_fact", "target_id": "loren_that_night"},
                 ),
                 {"dialogue": "我……我不知道你在说什么。"},
             ]
@@ -138,7 +138,7 @@ class TestRejectedActionTurn:
 
         assert llm.call_count == 2
         # rejected: fact still hidden, no proposal id surfaced
-        assert "killer_identity" not in manager.player_view(PLAYER).visible_facts
+        assert "loren_that_night" not in manager.player_view(PLAYER).visible_facts
         assert response.action_proposal_id is None
 
         validation = next(s for s in trace.steps if s.step_name == "action_validation")
@@ -168,7 +168,7 @@ class TestWhatTheSecondCallIsTold:
                     reasoning="他在打探那晚的事，我不能直说",
                     strategy="deflect",
                     dialogue="（初稿）",
-                    action={"action_type": "reveal_fact", "target_id": "killer_identity"},
+                    action={"action_type": "reveal_fact", "target_id": "loren_that_night"},
                 ),
                 {"dialogue": "你问这些做什么……"},
             ]

@@ -62,7 +62,7 @@ class TestFullChain:
                     reasoning="玩家逼问",
                     strategy="blurt_it_out",
                     dialogue="（初稿）",
-                    action={"action_type": "reveal_fact", "target_id": "killer_identity"},
+                    action={"action_type": "reveal_fact", "target_id": "loren_that_night"},
                 ),
                 {"dialogue": "我不知道你在说什么。"},
             ]
@@ -83,7 +83,7 @@ class TestFullChain:
         ]
         assert loaded.final_dialogue == "我不知道你在说什么。"
         # rejected action: the world on disk-adjacent state is untouched
-        assert "killer_identity" not in manager.player_view(PLAYER).visible_facts
+        assert "loren_that_night" not in manager.player_view(PLAYER).visible_facts
 
     def test_persisted_trace_carries_provenance_but_no_secret(self, tmp_path):
         llm = MockLLMClient(

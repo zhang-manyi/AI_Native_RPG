@@ -218,7 +218,7 @@ class TestGeneration:
     ):
         """A secret absent from the context cannot be generated out of it.
 
-        killer_identity is unlockable at trust 70 / stage 3; at trust 45 its value
+        loren_that_night is unlockable at trust 70 / stage 3; at trust 45 its value
         must not appear in the generator's prompt at all.
         """
         world.relationships[NPC_A][PLAYER].trust = 45.0
@@ -229,7 +229,7 @@ class TestGeneration:
         engine.tick(player_id=PLAYER)
 
         prompt = "\n".join(m.content for m in llm.calls[0].messages)
-        assert str(world.facts["killer_identity"].value) not in prompt
+        assert str(world.facts["loren_that_night"].value) not in prompt
 
     def test_no_tools_are_offered_to_the_generator(self, world: WorldState):
         # The Engine is handed its inputs; a tool loop here would be a second read
@@ -316,8 +316,8 @@ class TestEffectsGoThroughTheValidator:
         exists for. Falling behind is self-correcting: the next tick advances again.
         """
         world.facts["clue_1"].visibility = Visibility.REVEALED
-        world.facts["killer_identity"].visibility = Visibility.REVEALED
-        paced = [*directives.paced_clues, PacedClue(fact_id="killer_identity")]
+        world.facts["loren_that_night"].visibility = Visibility.REVEALED
+        paced = [*directives.paced_clues, PacedClue(fact_id="loren_that_night")]
         two_clues = directives.model_copy(update={"paced_clues": paced})
         world.story_beats = StoryBeats(turn=99)
 
@@ -405,7 +405,7 @@ class TestEffectsGoThroughTheValidator:
             "F_hint",
             operator=NarrativeOperator.FORESHADOW,
             trigger=_trust_at_least(10),
-            payoff_target="killer_identity",
+            payoff_target="loren_that_night",
             options=[],
             outcomes={"planted": EventOutcome(outcome_id="planted")},
             default_outcome="planted",
@@ -418,7 +418,7 @@ class TestEffectsGoThroughTheValidator:
         ledger = manager.snapshot().story_beats.open_foreshadowings
         assert ledger
         entry = next(iter(ledger.values()))
-        assert entry.payoff_condition == world.facts["killer_identity"].reveal_condition
+        assert entry.payoff_condition == world.facts["loren_that_night"].reveal_condition
 
     def test_a_foreshadow_toward_an_ungated_fact_is_rejected_not_crashed(self, world: WorldState):
         """A target with no condition could never come due, so the plant is refused.

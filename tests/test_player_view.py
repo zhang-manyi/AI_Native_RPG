@@ -23,7 +23,7 @@ class TestVisibilityFiltering:
     def test_hidden_facts_are_excluded(self, world):
         view = player_view(world, PLAYER)
         assert "clue_1" not in view.visible_facts
-        assert "killer_identity" not in view.visible_facts
+        assert "loren_that_night" not in view.visible_facts
 
     def test_hidden_fact_value_never_appears_anywhere_in_view(self, world):
         """Stronger than key absence: the secret must not leak through any field."""
@@ -31,9 +31,9 @@ class TestVisibilityFiltering:
         assert NPC_B not in view.model_dump_json()
 
     def test_partial_visibility_shows_partial_value_only(self, world):
-        world.facts["killer_identity"].visibility = Visibility.PARTIAL
+        world.facts["loren_that_night"].visibility = Visibility.PARTIAL
         view = player_view(world, PLAYER)
-        assert view.visible_facts["killer_identity"] == "村里有个嫌疑人"
+        assert view.visible_facts["loren_that_night"] == "村里有人那晚在外面"
         assert NPC_B not in view.model_dump_json()
 
     def test_partial_without_partial_value_is_omitted(self, world):
@@ -63,14 +63,14 @@ class TestRevealConditions:
         """Trust stays low but the quest advanced — the OR branch must fire."""
         world.quests["investigation"].stage = 3
         view = player_view(world, PLAYER)
-        assert view.visible_facts["killer_identity"] == NPC_B
+        assert view.visible_facts["loren_that_night"] == NPC_B
 
     def test_projection_does_not_mutate_world_state(self, world):
         """A reveal condition being satisfied must not persist visibility changes;
         PlayerView is a pure projection, only the Validator writes state."""
         world.quests["investigation"].stage = 3
         player_view(world, PLAYER)
-        assert world.facts["killer_identity"].visibility is Visibility.HIDDEN
+        assert world.facts["loren_that_night"].visibility is Visibility.HIDDEN
 
 
 class TestNPCLocations:

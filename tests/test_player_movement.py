@@ -5,7 +5,7 @@
 every player move either raised or silently moved an NPC that happened to share the id.
 docs/13 §12 records it as never having existed.
 
-The content consequence is what makes it worth its own file. ``killer_identity`` is
+The content consequence is what makes it worth its own file. ``loren_that_night`` is
 gated on ``trust >= 85`` **or** ``stage >= 3``, and the second channel is the
 "independent investigation" route (docs/14 §1.2.1). The clues that raise the stage live
 in the tavern and at the forest edge, so a player who cannot leave Marta's doorstep has
@@ -261,7 +261,7 @@ class TestMovingCostsASlot:
 class TestTheSecondChannelIsReachable:
     """The content bug the movement bug caused (docs/13 §11, docs/14 §1.2.1).
 
-    ``killer_identity`` declares two channels and the second one — ``stage >= 3``, the
+    ``loren_that_night`` declares two channels and the second one — ``stage >= 3``, the
     independent-investigation route — was unreachable, because the clues that raise the
     stage are in the tavern and at the forest edge and the player could not get to
     either. The point of asserting it here is that reachability be *checked* rather than
@@ -296,7 +296,7 @@ class TestTheSecondChannelIsReachable:
         assert reached == set(world.locations)
 
     def test_the_stage_channel_can_be_reached_while_trust_stays_low(self, manager):
-        """Both of ``killer_identity``'s channels must be independently satisfiable.
+        """Both of ``loren_that_night``'s channels must be independently satisfiable.
 
         Trust is held at its starting value throughout: if the only way to the answer
         ran through Marta, the "independent investigation" route would be decoration.
@@ -310,6 +310,6 @@ class TestTheSecondChannelIsReachable:
 
         from ai_native_rpg.world.conditions import evaluate
 
-        condition = world.facts["killer_identity"].reveal_condition
+        condition = world.facts["loren_that_night"].reveal_condition
         assert condition is not None
         assert evaluate(condition, world)

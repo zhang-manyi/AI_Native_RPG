@@ -581,10 +581,14 @@ class NarrativeEngine:
 
         * ids leak into prose — a model handed ``npc_a`` will occasionally write it;
         * a fact's *value* can be an id. In the reference scenario
-          ``killer_identity`` is literally ``npc_b``, so listing the cast by id would
-          put an undisclosed fact's value in the prompt as a side effect. Which
-          character exists is public; which one is the killer is not, and only the
-          second is a secret. Names keep the two apart.
+          a fact's value may be nothing but an NPC id, in which case listing the cast
+          by id puts an undisclosed fact's value in the prompt as a side effect. Which
+          characters exist is public; what one of them did that night is not, and only
+          the second is a secret. Names keep the two apart.
+
+        The reference pack no longer has an id-valued secret (``loren_that_night`` is a
+        sentence now), but the fixture in ``tests/conftest.py`` keeps one deliberately —
+        the guarantee is about the shape of the leak, not about one pack's wording.
 
         Living NPCs only: a dead one is still in ``world.npcs`` and would otherwise
         read as available. The player's location is stated because a beat happens

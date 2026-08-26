@@ -5,7 +5,7 @@ is a hole in the information asymmetry: whatever it returns lands in the model's
 context, and anything in context can be talked out of the model. So the tool
 exposes only facts already revealed to the player — "what the whole village
 knows". An NPC's private knowledge of hidden matters comes from its own Memory
-instead, which means an undisclosed fact like ``killer_identity`` never enters a
+instead, which means an undisclosed fact like ``loren_that_night`` never enters a
 prompt at all, rather than entering it and relying on the Validator to catch the
 leak afterwards.
 """
@@ -155,8 +155,8 @@ class TestCheckPublicFact:
 
     def test_refuses_hidden_fact_without_leaking_it(self, registry, world):
         """The refusal must not carry the value, or the "refusal" is the leak."""
-        secret = str(world.facts["killer_identity"].value)
-        result = registry.call("check_public_fact", {"fact_id": "killer_identity"})
+        secret = str(world.facts["loren_that_night"].value)
+        result = registry.call("check_public_fact", {"fact_id": "loren_that_night"})
 
         assert result["known"] is False
         assert secret not in str(result)

@@ -387,14 +387,14 @@ class TestPlantForeshadowing:
         assert result.rule_name == "payoff_condition_must_be_checkable"
 
     def test_it_cannot_overwrite_an_existing_fact(self, world: WorldState):
-        # Overwriting killer_identity with a "foreshadowing" would rewrite the
+        # Overwriting loren_that_night with a "foreshadowing" would rewrite the
         # answer to the mystery through a side door.
         manager = WorldStateManager(world)
 
         result = manager.submit(
             _proposal(
                 "plant_foreshadowing",
-                target="killer_identity",
+                target="loren_that_night",
                 value="v",
                 payoff_condition=_trust_condition(90),
             )
@@ -447,7 +447,7 @@ class TestPlantForeshadowing:
         """The prompt hands out names, not ids, so names must validate.
 
         Ids leak into prose, and a fact's value can itself be an id
-        (``killer_identity`` is ``npc_b`` here), so listing the cast by id would put
+        (``loren_that_night`` is ``npc_b`` here), so listing the cast by id would put
         an undisclosed value into the prompt. Rejecting names here would reject the
         vocabulary the prompt just supplied.
         """

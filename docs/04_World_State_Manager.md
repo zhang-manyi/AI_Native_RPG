@@ -53,7 +53,7 @@ RPG 的核心问题：世界的完整事实 ≠ 玩家应该看到的信息。�
 
 ```json
 {
-  "fact_id": "killer_identity",
+  "fact_id": "loren_that_night",
   "value": "NPC_B",
   "visibility": "hidden",
   "reveal_condition": {
@@ -102,7 +102,7 @@ reveal_condition:
       value: 2
 ```
 
-由此得到的性质：**Engine 推进 chapter 时不知道自己解锁了什么。** 谁在第几章解锁写在剧本里；`killer_identity` 的条件中没有 `chapter`，所以推进章节永远不会泄漏凶手。
+由此得到的性质：**Engine 推进 chapter 时不知道自己解锁了什么。** 谁在第几章解锁写在剧本里；`loren_that_night` 的条件中没有 `chapter`，所以推进章节永远不会泄漏案子的答案。
 
 代价：每个想要的披露都必须被剧本作者预先写成条件。作者不留通道 = 硬约束，不是可绕过的默认值。
 

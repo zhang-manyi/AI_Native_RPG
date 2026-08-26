@@ -33,7 +33,7 @@ class TestReferenceScenario:
 
     def test_hidden_facts_stay_hidden_at_load(self):
         world = load_scenario(SCENARIO)
-        assert world.facts["killer_identity"].visibility is Visibility.HIDDEN
+        assert world.facts["loren_that_night"].visibility is Visibility.HIDDEN
 
     def test_conditions_are_parsed_into_models(self):
         world = load_scenario(SCENARIO)
@@ -316,4 +316,4 @@ class TestManagerIntegration:
         assert mgr.get_trust("npc_a", "player_1") == 10.0
         view = mgr.player_view("player_1")
         assert "victim_name" in view.visible_facts
-        assert "killer_identity" not in view.visible_facts
+        assert "loren_that_night" not in view.visible_facts

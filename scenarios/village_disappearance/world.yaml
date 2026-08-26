@@ -274,7 +274,7 @@ narrative:
   # three times, each time invisible except as a scene that never came:
   #
   #   - `quests.investigation.stage` had an author and readers and no writer;
-  #   - `killer_identity`'s second channel needed a player who could move, and he could not;
+  #   - `loren_that_night`'s second channel needed a player who could move, and he could not;
   #   - `fear` gated 闭口 while NPCs only ever adjusted trust.
   #
   # So a startup error now, rather than a mystery in play. Note that reachability here is
@@ -339,7 +339,7 @@ narrative:
       # NOT terminal. docs/14 §4.3: 闭口不等于失败终局——它关闭玛尔塔这条社交线，玩家仍可走
       # 酒馆 + 森林的独立调查通道到 §4.1，『只有天数用尽仍未查明才是终局』。
       #
-      # 这一条正是 `killer_identity` 第二通道（stage >= 3，独立调查）存在的理由：社交线断在
+      # 这一条正是 `loren_that_night` 第二通道（stage >= 3，独立调查）存在的理由：社交线断在
       # 玛尔塔身上时，独立调查得有落点。把它列成和「查明真相」并列的结局会让面板把一个**代价**
       # 画成一个**结论**，也会告诉玩家游戏结束了——而他其实还在局中。
       terminal: false
@@ -638,7 +638,7 @@ facts:
   # is referenced across the test suite and the rename is that restructure's job, not this
   # change's. Left as a marker rather than silently kept: an id asserting a killer in a case
   # with no killer is exactly the kind of stale authored claim docs/13 §11 is about.
-  killer_identity:
+  loren_that_night:
     value: 洛伦以为那晚是他弄死了艾拉——他撞到的人确实倒了，但那是擦伤，她爬起来继续走了
     visibility: hidden
     partial_value: 村里有人知情，但没人愿意先开口

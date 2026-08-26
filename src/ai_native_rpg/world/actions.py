@@ -103,6 +103,6 @@ MAX_CHAPTER_STEP = 1
 #: the condition table decide what that unlocks, rather than by flipping
 #: visibility directly. A bypass action was considered and rejected: the only
 #: facts it could unlock that beats cannot are the ones an author *deliberately*
-#: gave no beat channel — i.e. endings like ``killer_identity``. See
+#: gave no beat channel — i.e. endings like ``loren_that_night``. See
 #: docs/04_World_State_Manager.md#33.
 KNOWN_ACTION_TYPES = frozenset(a.value for a in ActionType)

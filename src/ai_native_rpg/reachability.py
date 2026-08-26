@@ -5,7 +5,7 @@ time it looked like nothing at all:
 
 * ``quests.investigation.stage`` had an author and readers and no writer, so three
   foreshadowings waited forever on ``stage >= 2`` and tension stayed 0;
-* ``killer_identity`` declared two channels and the "independent investigation" one was
+* ``loren_that_night`` declared two channels and the "independent investigation" one was
   rubble, because the player could not move;
 * ``relationships.npc_a.player_1.fear`` gated the clam-up ending and almost nothing moved
   it, because the planning prompt only ever exemplified trust.

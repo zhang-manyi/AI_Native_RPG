@@ -162,7 +162,7 @@ class TestOpenQuestionsDoNotDescribeTheAnswer:
         assert any("谁" in q for q in before.unanswered)
 
         world = manager.snapshot()
-        world.facts["killer_identity"].visibility = Visibility.REVEALED
+        world.facts["loren_that_night"].visibility = Visibility.REVEALED
         reopened = WorldStateManager(world)
 
         after = review_clues(reopened.player_view(PLAYER))

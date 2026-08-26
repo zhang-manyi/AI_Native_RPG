@@ -122,21 +122,25 @@ def review_clues(view: VisibleState, *, day: int | None = None) -> ClueReview:
     )
 
 
-def _is_answered(gap: str, known: dict[str, object]) -> bool:
-    """Whether the visible set settles this question.
+#: Which visible fact ids settle which open question.
+#:
+#: Substrings, so a pack adding another clue about the same question needs no registration
+#: — but *listed here* rather than inlined in the matching code, because the coupling is
+#: invisible otherwise: renaming ``killer_identity`` to ``loren_that_night`` silently made
+#: the "who" question unanswerable, and only a test caught it. A pack whose ids share none
+#: of these simply keeps every question open, which is the safe direction: the review
+#: overstates what is unknown rather than claiming something is settled.
+_ANSWERED_BY = {
+    "who": ("identity", "that_night", "who_"),
+    "why": ("threatened", "hides", "motive"),
+    "where": ("whereabouts", "found"),
+}
 
-    Keyed on substrings of fact ids rather than on an authored list, so a pack that adds
-    a clue about the same question does not have to register it anywhere. The cost is
-    that an id naming its own subject matters — which is already true of every id here.
-    """
-    match gap:
-        case "who":
-            return any("identity" in fact_id for fact_id in known)
-        case "why":
-            return any("threatened" in fact_id or "hides" in fact_id for fact_id in known)
-        case "where":
-            return any("whereabouts" in fact_id for fact_id in known)
-    return False
+
+def _is_answered(gap: str, known: dict[str, object]) -> bool:
+    """Whether the visible set settles this question."""
+    markers = _ANSWERED_BY.get(gap, ())
+    return any(marker in fact_id for fact_id in known for marker in markers)
 
 
 def tarot_reading(world: WorldState, view: VisibleState) -> TarotReading:

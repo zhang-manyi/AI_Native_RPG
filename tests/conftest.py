@@ -74,11 +74,17 @@ def world() -> WorldState:
                     ],
                 ),
             ),
-            "killer_identity": Fact(
-                fact_id="killer_identity",
+            # Its value is deliberately a bare NPC id. Several tests exist because *that*
+            # is the leak: listing the cast by id in a prompt would print an undisclosed
+            # fact's value as a side effect (see test_narrative_actions, test_tools,
+            # test_web_isolation). So the property is load-bearing here even though the
+            # shipped pack's version of this fact is now a sentence — the fixture is not
+            # the pack, and already diverges elsewhere (``clue_1`` vs ``clue_1_witness``).
+            "loren_that_night": Fact(
+                fact_id="loren_that_night",
                 value=NPC_B,
                 visibility=Visibility.HIDDEN,
-                partial_value="村里有个嫌疑人",
+                partial_value="村里有人那晚在外面",
                 reveal_condition=Condition(
                     mode="any",
                     clauses=[

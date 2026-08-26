@@ -79,12 +79,12 @@ class TestSubmitProposal:
 
     def test_rejected_proposal_leaves_state_untouched(self, manager):
         before = manager.snapshot().model_dump_json()
-        result = manager.submit(proposal(target="killer_identity"))
+        result = manager.submit(proposal(target="loren_that_night"))
         assert not result.approved
         assert manager.snapshot().model_dump_json() == before
 
     def test_rejection_carries_a_reason_for_the_dialogue_prompt(self, manager):
-        result = manager.submit(proposal(target="killer_identity"))
+        result = manager.submit(proposal(target="loren_that_night"))
         assert result.reason
         assert result.rule_name == "reveal_requires_condition_met"
 
@@ -236,4 +236,4 @@ class TestPersistence:
                 pid="q3",
             )
         )
-        assert "killer_identity" in restored.player_view(PLAYER).visible_facts
+        assert "loren_that_night" in restored.player_view(PLAYER).visible_facts

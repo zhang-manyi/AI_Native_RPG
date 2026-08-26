@@ -272,7 +272,7 @@ narrative_traces.save(tick)
 
 1. **调试路由独立前缀 `/debug/*`，非本地默认关闭。** 由 `DEV_MODE` 决定（默认按 bind 地址是否 loopback 推断，可用环境变量显式开启）。关闭时整个 `/debug` 路由不注册——不是返回 403，而是不存在：一个 403 说明端点在那里，只是这次没让进。
 2. **玩家侧响应模型只接受 `VisibleState`，用类型签名钉死。** `SceneView.from_view(view: VisibleState, ...)` 的构造路径拿不到 `WorldState`。玩家侧模块**不导入** `WorldState`——一条 import 检查的测试比人工 review 可靠。
-3. **一条测试断言玩家侧响应里不出现任何 hidden fact 的 value。** 扩展 `test_player_view.py` 里 `test_hidden_fact_value_never_appears_anywhere_in_view` 的思路到 HTTP 层：把 `SceneView` 与 `dialogue` 事件序列化成 JSON 字符串，断言每个 hidden fact 的 `value` 的字符串形式不出现在里面（`killer_identity` 的值是 `npc_b`，所以这条测试顺带覆盖了「id 当作值泄漏」）。
+3. **一条测试断言玩家侧响应里不出现任何 hidden fact 的 value。** 扩展 `test_player_view.py` 里 `test_hidden_fact_value_never_appears_anywhere_in_view` 的思路到 HTTP 层：把 `SceneView` 与 `dialogue` 事件序列化成 JSON 字符串，断言每个 hidden fact 的 `value` 的字符串形式不出现在里面（`loren_that_night` 的值是 `npc_b`，所以这条测试顺带覆盖了「id 当作值泄漏」）。
 
 再加两条本层特有的：
 

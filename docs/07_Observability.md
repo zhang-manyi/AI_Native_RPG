@@ -39,7 +39,7 @@ Trace Viewer 回答"这一轮 Agent 是怎么决策的"，回答不了"这个故
 ```
 clue_1_witness      trust 32/40          ▓▓▓▓▓▓▓▓░░  80%
 clue_2_identity     trust 32/70          ▓▓▓▓░░░░░░  46%
-killer_identity     trust 32/85  或  stage 1/3       (any)
+loren_that_night     trust 32/85  或  stage 1/3       (any)
 npc_a_threatened    trust 32/70 且 fear 30/≤20       (all, fear 不达标)
 ```
 
@@ -50,7 +50,7 @@ npc_a_threatened    trust 32/70 且 fear 30/≤20       (all, fear 不达标)
 **3. 被拒绝的 Action Proposal**
 
 ```
-第 4 轮  npc_a  reveal_fact(killer_identity)
+第 4 轮  npc_a  reveal_fact(loren_that_night)
          ✗ reveal_requires_condition_met — 条件未满足 (trust 32 < 85)
 ```
 

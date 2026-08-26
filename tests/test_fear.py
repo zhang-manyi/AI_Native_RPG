@@ -329,7 +329,7 @@ class TestTheClamUpEndingIsReachable:
         """docs/14 §4.3: 闭口不等于失败终局 — it is a cost, not a tombstone.
 
         With Marta silent the tavern and the forest must still be reachable, which is
-        what makes ``killer_identity``'s stage channel the fallback it was written to be.
+        what makes ``loren_that_night``'s stage channel the fallback it was written to be.
         """
         world = manager.snapshot()
         world.relationships[NPC_A][PLAYER].fear = 80.0

@@ -155,7 +155,7 @@ class WorldStateManager:
         write only the latter — so ``ActionType.MOVE`` existed, validated, reported
         success, and moved nobody whenever the actor was the player. The player could
         therefore never leave his starting location, which silently killed
-        ``killer_identity``'s second channel: ``quests.investigation.stage >= 3`` needs
+        ``loren_that_night``'s second channel: ``quests.investigation.stage >= 3`` needs
         clues that only the tavern and the forest hold (docs/13 §12, docs/14 §1.2.1).
 
         A ``KeyError`` on an unknown actor is deliberate: ``_move_actor_must_have_a_location``

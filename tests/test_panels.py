@@ -50,7 +50,7 @@ def test_unlock_board_lists_only_gated_facts(world):
     rows = {row.fact_id for row in build_unlock_board(world)}
 
     assert "clue_1" in rows
-    assert "killer_identity" in rows
+    assert "loren_that_night" in rows
     # visibility=revealed: already visible, no progress to show.
     assert "victim_name" not in rows
 
@@ -69,7 +69,7 @@ def test_unlock_board_shows_actual_value_against_threshold(world):
 
 def test_unlock_board_reports_partial_visibility_separately(world):
     """A partial fact is still gated: the player has the hint, not the value."""
-    row = next(r for r in build_unlock_board(world) if r.fact_id == "killer_identity")
+    row = next(r for r in build_unlock_board(world) if r.fact_id == "loren_that_night")
     assert row.visibility == "partial" or row.visibility == "hidden"
     assert row.fact_id in {f.fact_id for f in world.facts.values()}
 
@@ -236,7 +236,7 @@ def test_rejected_from_tick_keeps_only_refusals():
     tick = _tick(
         selected=EventCandidate(
             operator=NarrativeOperator.REVEAL,
-            event_type="killer_identity",
+            event_type="loren_that_night",
             intensity=0.9,
             preference_tag="intrigue",
             trigger_reason="unlockable but unspoken",
@@ -269,7 +269,7 @@ def test_rejected_from_trace_captures_the_npcs_blocked_action():
         steps=[
             TraceStep(
                 step_name="action_validation",
-                input_summary={"action_type": "reveal_fact", "target_id": "killer_identity"},
+                input_summary={"action_type": "reveal_fact", "target_id": "loren_that_night"},
                 output_summary={
                     "approved": False,
                     "reason": "条件未满足 (trust 32 < 85)",
@@ -283,7 +283,7 @@ def test_rejected_from_trace_captures_the_npcs_blocked_action():
     assert len(rejected) == 1
     assert rejected[0].actor == NPC_A
     assert rejected[0].action_type == "reveal_fact"
-    assert rejected[0].target_id == "killer_identity"
+    assert rejected[0].target_id == "loren_that_night"
 
 
 def test_approved_action_is_not_listed(world):

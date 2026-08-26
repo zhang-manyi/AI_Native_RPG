@@ -141,7 +141,7 @@ def _hidden_values(scenario: str) -> list[str]:
 def test_hidden_fact_values_never_appear_in_the_scene_payload():
     """The HTTP-layer counterpart of test_player_view's leak assertion.
 
-    ``killer_identity``'s value is the string ``npc_b``, so this also covers the
+    ``loren_that_night``'s value is the string ``npc_b``, so this also covers the
     subtler failure of leaking a value that happens to be an id.
     """
     with TestClient(create_app(dev_mode=True)) as client:

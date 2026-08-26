@@ -66,7 +66,7 @@ prompt_lab/
     world_snapshot: fixtures/trust_10.json
     visible_facts: [victim_name, disappearance_night]
   constraints:
-    must_not_mention: [clue_1_witness, killer_identity, npc_b]
+    must_not_mention: [clue_1_witness, loren_that_night, npc_b]
     must_stay_in_character: true
 
 - id: reveal_when_trust_high
@@ -77,7 +77,7 @@ prompt_lab/
     visible_facts: [victim_name, disappearance_night, clue_1_witness]
   constraints:
     should_mention: [clue_1_witness]
-    must_not_mention: [killer_identity]
+    must_not_mention: [loren_that_night]
 ```
 
 场景集必须包含**约束冲突**的情况（NPC 想说但不允许说），因为那是 prompt 最容易失效的地方。
