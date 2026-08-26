@@ -124,20 +124,32 @@ npc_personas:
     beliefs:
       saw_something_that_night: true
       talking_endangers_her_son: true
+  # Rewritten for the truth of docs/14 §1: he is not the killer, and there is no killer.
+  # He *believes* he killed her — in the dark someone ran from him, he reached out to stop
+  # them, they fell, and when he raised his lamp there was blood on a stone and cloth on the
+  # thorns and no one there. She had grazed herself and kept going.
+  #
+  # So he is calculating and dishonest for a reason that is not villainy: he is a man
+  # covering an accident he cannot even name, because naming it means admitting he was
+  # poaching on the lord's land that night. `calm` stays high because it is the surface he
+  # keeps; what is underneath is closer to dread. Do NOT write him as enjoying the pressure
+  # he applies (docs/15 §4 M6).
   npc_b:
     persona:
       background: >
         洛伦，村里的猎人，沉默寡言，熟悉森林里每一条路。表面上和所有人一样配合搜寻，
-        实际上是这起失踪案的关键人物。
+        而他比谁都想找到那个孩子——因为那晚在林子里，他以为是自己弄死了她。
       traits:
         calm: 0.9
         honest: 0.2
         calculating: 0.85
+        afraid: 0.8
     goal:
-      primary: 不让任何人查到自己头上
+      primary: 不让任何人知道那晚他在林子里做了什么
       secondary:
         - 留意玩家的调查进度
         - 必要时施压让目击者闭口
+        - 想知道那孩子到底在哪（哪怕是最坏的答案）
 
 # What each NPC already remembered before the player arrived. Agent-private, so
 # this loads via load_seed_memories() and never enters WorldState. These are the
@@ -171,8 +183,25 @@ npc_seed_memories:
       - id: npc_a_belief_stranger
         fact: 外来人问得越急，越可能只是想看热闹，不会留下来保护我们
         confidence: 0.6
+  # Loren's memories are where the truth of docs/14 §1 is *hidden in plain sight*: what he
+  # experienced is accurate and his conclusion from it is wrong. This is the best possible
+  # home for it — docs/06 says NPC memory is subjective cognition, so a mistaken belief
+  # needs no special mechanism. The episodic entries describe only what he perceived; the
+  # semantic entry is where he draws the conclusion, at confidence 0.9 rather than 1.0
+  # because a part of him keeps re-counting the blood and finding it too little.
+  #
+  # He must never say any of this outright. It comes out only when the player tells him she
+  # is alive (docs/14 §1.0), and until then it reads to the player as ordinary guilt.
   npc_b:
     episodic:
+      - id: npc_b_the_collision
+        description: 那晚林子里有人从我面前跑开，我伸手拦了一下，那人倒了——我听见身体撞在地上的声音
+        importance: 1.0
+        emotion: dread
+      - id: npc_b_the_stone
+        description: 我举灯过去的时候人已经不见了，只有石头上一片血，荆棘上挂着一小块布
+        importance: 1.0
+        emotion: dread
       - id: npc_b_that_night
         description: 那晚我从森林回村的时候，看见玛尔塔家的窗帘动了一下
         importance: 0.95
@@ -180,13 +209,29 @@ npc_seed_memories:
       - id: npc_b_warning
         description: 我去玛尔塔家门口提醒过她，孩子乱跑很危险。她听懂了
         importance: 0.85
+      - id: npc_b_why_he_was_there
+        description: 我那晚是去收林地里的猎套。那片地不是我们能下套的地方
+        importance: 0.9
+        emotion: shame
     semantic:
+      # The misreading itself. Everything he does follows from this one sentence.
+      - id: npc_b_belief_he_killed_her
+        fact: 那晚倒在石头上的就是磨坊主的女儿，是我把她弄死的
+        confidence: 0.9
+      - id: npc_b_belief_cannot_explain
+        fact: 就算说出那晚的事，也没人会信是意外——而且我得先解释自己为什么在那片林地里
+        confidence: 0.95
       - id: npc_b_belief_quiet
         fact: 只要玛尔塔不开口，没有人能把这件事查到我头上
         confidence: 0.8
       - id: npc_b_belief_helpful
         fact: 主动配合搜寻比躲着不出面更不容易被怀疑
         confidence: 0.9
+      # Why he searches hardest of anyone. It also keeps him talkable-to: he wants the
+      # answer more than the player does.
+      - id: npc_b_belief_needs_to_know
+        fact: 我想知道她到底在哪，哪怕是最坏的答案——不知道比知道更难熬
+        confidence: 0.85
 
 # What the narrative operators work on in *this* story. The rules in
 # narrative/rules.py decide pacing and read this for content, so the engine never
@@ -581,9 +626,20 @@ facts:
           op: gte
           value: 70
 
-  # --- the answer: either high trust, or independent investigation ---
+  # --- the answer about Loren: either high trust, or independent investigation ---
+  #
+  # The value is rewritten for docs/14 §1: there is no killer, so `npc_b` was an assertion
+  # the story no longer makes. What this fact answers is the question the player is actually
+  # chasing about him — 那晚他做了什么 — and the true answer is that he believes he killed
+  # her and is wrong.
+  #
+  # **The id is now a misnomer** and should become something like `loren_that_night` in the
+  # `facts` restructure docs/09 defers to the M4-M7 batch. Not renamed here because the id
+  # is referenced across the test suite and the rename is that restructure's job, not this
+  # change's. Left as a marker rather than silently kept: an id asserting a killer in a case
+  # with no killer is exactly the kind of stale authored claim docs/13 §11 is about.
   killer_identity:
-    value: npc_b
+    value: 洛伦以为那晚是他弄死了艾拉——他撞到的人确实倒了，但那是擦伤，她爬起来继续走了
     visibility: hidden
     partial_value: 村里有人知情，但没人愿意先开口
     reveal_condition:
@@ -653,8 +709,12 @@ facts:
   # (M4/M5/M7) arrive in the next batch, so for now nothing reaches it. That is a
   # visible unmet debt rather than a silent one, which is the state docs/10 §4 wants
   # the ledger to surface.
+  # Rewritten for docs/14 §1. Two changes: "有人帮了她" is dropped — she needed no
+  # accomplice once she was simply leaving, and an unnamed helper is a loose end the case
+  # never pays off — and the collision is named, because this fact is what the player hands
+  # *Loren* at the end (docs/14 §1.0). It is the only thing that makes him talk.
   ella_whereabouts:
-    value: 艾拉还活着，是她自己走的，有人帮了她
+    value: 艾拉还活着。她那晚在逃家，在林子里撞上了洛伦、摔了一跤，爬起来继续往镇上走了
     visibility: hidden
     partial_value: 有些事情对不上，但还说不清是哪里
     reveal_condition:
@@ -665,8 +725,15 @@ facts:
           value: 3
 
   # --- NPC_A's motive: why she is afraid to talk ---
+  #
+  # This is the pack's `reversal_fact`, so its wording carries the whole re-read: once it is
+  # known, her evasions stop looking like shielding a killer. Rewritten for docs/14 §1 —
+  # "她的儿子会是下一个" was a murderer's threat, and there is no murderer. What he actually
+  # said is what he believes: children who wander are in danger, because he thinks he is the
+  # danger. **He is being literal** (docs/14 §1.1), and Marta heard a threat because a threat
+  # is what the sentence sounds like from outside. Neither of them is lying.
   npc_a_threatened:
-    value: 洛伦警告过玛尔塔，如果她说出去，她的儿子会是下一个
+    value: 洛伦站在玛尔塔门口说"孩子乱跑是很危险的"，眼睛看着里屋——她听成了威胁，而他说的是他以为自己已经做过的事
     visibility: hidden
     reveal_condition:
       mode: all
