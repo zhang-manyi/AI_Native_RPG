@@ -290,6 +290,13 @@ _BEAT_ADVANCE_KEYS = frozenset(
         "close_event",
         "raise_flags",
         "advance_slot",
+        # `_apply_story_beat` (manager.py) writes `story_beats.ended_at` from this key,
+        # but the key was missing here — every `end_case` proposal was rejected before it
+        # reached the apply step, so `check_terminal_ending` (rules.py) could compute the
+        # right ending id and no terminal ending would ever actually be recorded. Same
+        # shape as the `stage` writer bug docs/13 §11 already records: authored on one
+        # side, connected on none.
+        "end_case",
     }
 )
 
