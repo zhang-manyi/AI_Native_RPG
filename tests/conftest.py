@@ -34,6 +34,26 @@ def _force_offline(monkeypatch):
     monkeypatch.setenv("USE_MOCK_LLM", "1")
 
 
+@pytest.fixture(autouse=True)
+def _saves_go_to_tmp(monkeypatch, tmp_path):
+    """Point ``SAVE_DIR`` at a temp dir for every test.
+
+    Autouse for the same reason ``_force_offline`` is: a session saves every turn, and a
+    test that forgets ``save_dir=`` writes a playthrough into the repo's own ``saves/``.
+    That is not merely untidy — the web front end offers to resume the *newest* save it
+    finds, so a leaked save from a fixture pack that exists only under ``tmp_path`` made
+    ``POST /api/session`` fail with a 400 and the game would not start at all.
+
+    Patched at the module attribute rather than passed per test: the default is what gets
+    used when nobody remembers, so the default is what has to be safe.
+    """
+    try:
+        from ai_native_rpg.web import session as web_session
+    except ImportError:  # the web extra is optional
+        return
+    monkeypatch.setattr(web_session, "SAVE_DIR", tmp_path / "saves")
+
+
 @pytest.fixture
 def world() -> WorldState:
     return WorldState(
