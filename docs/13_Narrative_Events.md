@@ -223,13 +223,14 @@
 
 ## 12. 玩家动作
 
-事件层需要玩家能主动做两件事，而现在玩家唯一能做的是说话——所有进展都得从 NPC 嘴里出来，这是"进展慢"的结构原因之一。
+事件层需要玩家能主动做几件事，而现在玩家唯一能做的是说话——所有进展都得从 NPC 嘴里出来，这是"进展慢"的结构原因之一。
 
 | 动作 | 说明 |
 |---|---|
 | 移动到某地点 | 消耗一个时段；`ActionType.MOVE` 已存在但 `_apply_move` 写的是 `npcs[actor_id].location`，玩家不在 `npcs` 里，所以这条路径**从未存在** |
 | 结束当前对话 | 关闭 `active_event`，落到默认结果（§3.1） |
+| 做出结论 | 打开剧本声明的 `conclusion_event`（第三个动词，切片 5 第三批新增，见 [15 §4](./15_Event_Script.md) M7）。与前两个不同的是它**绕过 `trigger` 检查**：`check_triggers`/`triggerable_events` 只在事件的硬条件成立时才开它，而 [14 §4.2](./14_Case_Design.md#42-指控错人) 的"指控错人"恰恰要求能在证据不全时随时下结论——这不是世界状态触发的，是玩家意愿触发的。同样只在没有 `active_event` 时可用（§5.2 一次一个对话对象），拒绝时不花时段 |
 
 玩家动作**同样走 Action Proposal → Validator**，不新开写入路径。这是 [04](./04_World_State_Manager.md) 单一写入路径的直接要求，也意味着需要一条"玩家只能移动到相邻地点"的规则（`_move_must_be_adjacent` 已有，但它读的是 NPC 的位置）。
 
-对应的 API 面变化见 [12_Web_Interface.md](./12_Web_Interface.md)：现在只有 `POST /turn`（说一句话），没有"做一件事"的入口。
+对应的 API 面变化见 [12_Web_Interface.md](./12_Web_Interface.md)：`POST /turn`（说一句话）、`POST /move`（移动）、`POST /conclude`（做出结论）。

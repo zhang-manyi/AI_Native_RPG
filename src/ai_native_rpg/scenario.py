@@ -199,6 +199,14 @@ class NarrativeDirectives(BaseModel):
         default_factory=list,
         description="prohibitions that hold for every generated scene in this pack",
     )
+    conclusion_event: str | None = Field(
+        default=None,
+        description="the event a player-initiated accusation opens (docs/15 §4 M7, "
+        "docs/13 §12's third verb). Named here rather than hardcoded, for the same "
+        "reason as ``progress_quest``: which event *is* the conclusion is the "
+        "story's business, not the player-action layer's. Absent means the pack has "
+        "no such event yet, and the action refuses rather than guessing one.",
+    )
     endings: list[Ending] = Field(
         default_factory=list,
         description="how this case can end (docs/14 §4), each with the state that "

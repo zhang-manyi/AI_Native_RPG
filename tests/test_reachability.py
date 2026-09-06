@@ -179,18 +179,33 @@ class TestTheShippedPacksEndings:
     def test_the_pending_ending_would_otherwise_fail(self, pack):
         """It is genuinely unreachable, so the flag is carrying real weight.
 
-        Nothing raises tension until an `escalate` event exists, and M6 is the next batch.
+        M5 gave ``story_beats.tension`` a writer (a failed [追问] against Loren at the
+        forest), so the pending ending's real gap moved to its other clause:
+        ``npc_b_aware_of_investigation`` is still nothing's to reveal until M6 lands.
         """
         world, script = pack
 
         problems = unreachable_clauses(
-            {"loren_moves_first": _gate("story_beats.tension", 0.8)},
+            {
+                "loren_moves_first": _gate("story_beats.tension", 0.8),
+                "loren_moves_first_full": Condition(
+                    mode="all",
+                    clauses=[
+                        ConditionClause(path="story_beats.tension", op=ConditionOp.GTE, value=0.8),
+                        ConditionClause(
+                            path="facts.npc_b_aware_of_investigation.visibility",
+                            op=ConditionOp.EQ,
+                            value="revealed",
+                        ),
+                    ],
+                ),
+            },
             world=world,
             script=script,
         )
 
         assert len(problems) == 1
-        assert "story_beats.tension" in str(problems[0])
+        assert "npc_b_aware_of_investigation" in problems[0].path
 
 
 class TestAClauseAlreadyTrueNeedsNoWriter:
@@ -211,13 +226,14 @@ class TestAClauseAlreadyTrueNeedsNoWriter:
         assert unreachable_clauses({"never_found_out": condition}, world=world, script=script) == []
 
     def test_a_stay_hidden_clause_passes_without_a_revealer(self, pack):
-        """``ella_whereabouts`` has no outcome revealing it, and that is fine here."""
+        """``npc_a_threatened`` has no outcome revealing it yet (M6 is unwritten), and that
+        is fine here — a clause asking it to stay hidden needs no writer at all."""
         world, script = pack
         stay_hidden = Condition(
             mode="all",
             clauses=[
                 ConditionClause(
-                    path="facts.ella_whereabouts.visibility", op=ConditionOp.EQ, value="hidden"
+                    path="facts.npc_a_threatened.visibility", op=ConditionOp.EQ, value="hidden"
                 )
             ],
         )
@@ -225,13 +241,18 @@ class TestAClauseAlreadyTrueNeedsNoWriter:
         assert unreachable_clauses({"x": stay_hidden}, world=world, script=script) == []
 
     def test_but_a_become_revealed_clause_still_needs_one(self, pack):
-        """The same fact, the other direction: nothing reveals it, so this cannot hold."""
+        """The same fact, the other direction: nothing reveals it yet, so this cannot hold.
+
+        ``ella_whereabouts`` no longer serves as this example: M7's ``told_loren_truth``
+        outcome reveals it now (docs/15 §4 M7), so a clause asking it to become revealed
+        is reachable and would make a poor negative case.
+        """
         world, script = pack
         must_reveal = Condition(
             mode="all",
             clauses=[
                 ConditionClause(
-                    path="facts.ella_whereabouts.visibility", op=ConditionOp.EQ, value="revealed"
+                    path="facts.npc_a_threatened.visibility", op=ConditionOp.EQ, value="revealed"
                 )
             ],
         )
@@ -239,7 +260,7 @@ class TestAClauseAlreadyTrueNeedsNoWriter:
         problems = unreachable_clauses({"x": must_reveal}, world=world, script=script)
 
         assert len(problems) == 1
-        assert "ella_whereabouts" in problems[0].reason
+        assert "npc_a_threatened" in problems[0].reason
 
     def test_the_clock_ending_needs_no_events_at_all(self, pack):
         """``time_day`` turns over at each wrap-up regardless of what the player does.
@@ -293,16 +314,19 @@ class TestDimensionsAreTrackedPerNpc:
     """
 
     def test_an_untouched_npc_is_reported(self, pack):
+        """A checker property, not a pack fact: pick an id no event could plausibly
+        write rather than a real NPC, since which cast members have writers is
+        exactly what changes as the script grows (M5 gave ``npc_b`` one)."""
         world, script = pack
 
         problems = unreachable_clauses(
-            {"needs_npc_b": _gate(f"relationships.npc_b.{PLAYER}.trust", 50)},
+            {"needs_npc_x": _gate(f"relationships.npc_x.{PLAYER}.trust", 50)},
             world=world,
             script=script,
         )
 
         assert len(problems) == 1
-        assert "npc_b" in problems[0].reason
+        assert "npc_x" in problems[0].reason
 
     def test_the_reason_names_what_does_move(self, pack):
         """A message that gets fixed rather than shrugged at."""
@@ -365,10 +389,15 @@ class TestTheEngineTableIsNarrow:
         assert "story_beats.time_slot" in ENGINE_WRITTEN_PREFIXES
         assert "time_day" in ENGINE_WRITTEN_PREFIXES
 
-    def test_an_escalate_event_makes_tension_movable(self, pack):
-        """The pack side of the same claim."""
+    def test_a_tension_change_outcome_makes_tension_movable(self, pack):
+        """The pack side of the same claim.
+
+        Any outcome may carry ``tension_change`` (docs/15 §4 M5: a failed [追问] against
+        Loren at the forest raises it), not only an `escalate`-operator event — so the
+        writer check has to look at outcomes, not at the operator label.
+        """
         _, script = pack
-        assert "story_beats.tension" not in writers_for_paths(script).prefixes
+        assert "story_beats.tension" in writers_for_paths(script).prefixes
 
 
 class TestTheLoaderRefusesADeadEnding:

@@ -103,6 +103,45 @@ def move_player(
     )
 
 
+def conclude_case(
+    manager: WorldStateManager, *, event_id: str, max_exchanges: int
+) -> PlayerActionResult:
+    """Open the conclusion event on the player's own initiative (docs/13 §12, docs/15 §4 M7).
+
+    The third verb, alongside moving and ending a conversation: M7's 指认洛伦/指认老板 are
+    "随时可选" (docs/15 §4), which the trigger-driven event layer cannot express on its own
+    — ``check_triggers`` only opens an event once its authored ``Condition`` holds, and
+    docs/14 §4.2's 指控错人 is precisely the ending reached by concluding *before* the
+    evidence is in. So this bypasses the trigger check the way a player's decision to speak
+    up is supposed to.
+
+    Refuses while another event is running, matching docs/13 §5.2's one-conversation-at-a-
+    time rule: replacing it instead would let a player abandon M4 mid-exchange by the same
+    click that opens M7, discarding progress no outcome authored that loss for.
+
+    No slot is charged here — opening a conversation is not itself travel, the same
+    accounting ``end_conversation`` uses. ``event_id``/``max_exchanges`` are the caller's
+    (the pack names which event a conclusion is; this stays story-agnostic).
+    """
+    beats = manager.snapshot().story_beats
+    if beats.active_event is not None:
+        return PlayerActionResult(
+            approved=False,
+            reason=f"another conversation ({beats.active_event.event_id}) is already in progress",
+        )
+
+    result = _submit_beat(manager, {"open_event": event_id, "max_exchanges": max_exchanges})
+    world = manager.snapshot()
+    return PlayerActionResult(
+        approved=result.approved,
+        reason=result.reason,
+        slot=world.story_beats.time_slot,
+        day=world.time_day,
+        out_of_days=world.story_beats.is_out_of_days(current_day=world.time_day),
+        proposals=[result],
+    )
+
+
 def end_conversation(manager: WorldStateManager, *, spend_slot: bool = False) -> PlayerActionResult:
     """Close the active event, whatever it had reached (docs/13 §12).
 

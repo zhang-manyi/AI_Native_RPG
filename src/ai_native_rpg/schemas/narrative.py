@@ -246,6 +246,16 @@ class StoryBeats(BaseModel):
         "location by the scenario loader: the player is standing there from turn one, and "
         "an empty list would make his own doorstep read as unvisited.",
     )
+    ended_at: str | None = Field(
+        default=None,
+        description="the ``Ending.ending_id`` a *terminal* ending's condition first became "
+        "true under, or None while the case is still open. Only a terminal ending writes "
+        "this — a milestone (``terminal: false``, e.g. 'marta_clams_up') is recorded as a "
+        "``flags`` entry instead (docs/14 §4.3), because setting it here would read as "
+        "'the game is over' when play continues. Sticky once set: nothing un-ends a case, "
+        "and re-checking after a terminal ending fires would let a later state overwrite "
+        "which one the player actually reached first.",
+    )
 
     # --- the clock (docs/13 §4) --------------------------------------------
 

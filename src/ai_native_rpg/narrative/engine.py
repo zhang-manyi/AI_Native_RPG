@@ -36,9 +36,9 @@ from pydantic import BaseModel, Field
 
 from ..agent.harness import PromptLibrary
 from ..llm.base import LLMClient, Message
-from ..scenario import NarrativeDirectives
+from ..scenario import Ending, NarrativeDirectives
 from ..schemas.common import Condition
-from ..schemas.events import CheckBand, EventDefinition, EventScript
+from ..schemas.events import CheckBand, EventDefinition, EventOption, EventScript
 from ..schemas.narrative import (
     EventCandidate,
     NarrativeEvent,
@@ -48,16 +48,25 @@ from ..schemas.narrative import (
 )
 from ..schemas.world_state import ActionProposal, ActionValidationResult
 from ..world.actions import FORESHADOW_PAYOFF_PATH_PREFIXES, ActionType
+from ..world.conditions import UnknownPathError, evaluate
 from ..world.manager import WorldStateManager
 from .controller import PacingVerdict, Rejection, select_candidate
 from .player_actions import (
     PlayerActionResult,
     advance_past_wrap_up,
+    conclude_case,
     end_conversation,
     move_player,
 )
 from .resolution import apply_outcome, resolve_option, resolve_out_of_patience
-from .rules import check_triggers, earned_stage, progress_quest
+from .rules import (
+    check_terminal_ending,
+    check_triggers,
+    earned_stage,
+    milestone_flag,
+    newly_reached_milestones,
+    progress_quest,
+)
 from .wrap_up import ClueReview, TarotReading, review_clues, tarot_reading
 
 #: The actor id every narrative proposal carries. In ``SYSTEM_ACTORS``, and gated
@@ -193,6 +202,7 @@ class NarrativeEngine:
         prompts: PromptLibrary | None = None,
         directives: NarrativeDirectives | None = None,
         script: EventScript | None = None,
+        endings: list[Ending] | None = None,
     ) -> None:
         self._manager = manager
         self._llm = llm
@@ -204,6 +214,10 @@ class NarrativeEngine:
         # operator-level fallback, so with no event to hand nothing happens rather than
         # a filler beat being invented to occupy the slot.
         self._script = script or EventScript()
+        # The pack's declared endings. Absent means no case ever ends — the same "no
+        # content, no behaviour" stance as an empty script, not a framework-level default
+        # ending that would apply to every story regardless of what it actually declares.
+        self._endings = endings or []
         self._pending_event: dict[str, Any] | None = None
 
     @property
@@ -217,11 +231,39 @@ class NarrativeEngine:
         Ids and player-facing text only. The outcomes are deliberately withheld: a model
         shown what each option leads to would be tempted to pick by preferred consequence
         rather than by what the player said, and consequences are authored (docs/13 §3).
+
+        Filtered by ``requires`` (docs/15 §7 M7): an option gated on state the player has
+        not earned is not offered to the classifier either, so free text cannot land on a
+        choice the buttons do not show.
+        """
+        return [{"id": o.option_id, "text": o.text} for o in self.visible_event_options()]
+
+    def visible_event_options(self) -> list[EventOption]:
+        """The active event's options whose ``requires`` (if any) currently holds.
+
+        The single filter both ``active_event_options`` (for the classifier) and the Web
+        layer's ``SceneOption`` list read, so a gated option cannot be offered to one and
+        hidden from the other — docs/15 §7 M7's whole point is that an option a player has
+        not earned must not appear as a button that does nothing.
         """
         definition = self.active_event()
         if definition is None:
             return []
-        return [{"id": o.option_id, "text": o.text} for o in definition.options]
+        world = self._manager.snapshot()
+        return [o for o in definition.options if self._option_available(o, world)]
+
+    def _option_available(self, option: EventOption, world) -> bool:
+        """Whether ``option.requires`` (if any) currently holds.
+
+        A malformed condition reads as unmet, matching every other gate in this module:
+        the loader already rejects an unresolvable path at startup.
+        """
+        if option.requires is None:
+            return True
+        try:
+            return evaluate(option.requires, world)
+        except (UnknownPathError, TypeError, ValueError):
+            return False
 
     def active_event(self) -> EventDefinition | None:
         """The event definition currently in progress, if any.
@@ -233,6 +275,18 @@ class NarrativeEngine:
         active = self._manager.snapshot().story_beats.active_event
         return self._script.get(active.event_id) if active else None
 
+    def reached_ending(self) -> Ending | None:
+        """The terminal ending the case has landed on, or ``None`` while still open.
+
+        Looks up ``story_beats.ended_at`` against the pack's own list rather than
+        against a cached copy, for the same reason ``active_event`` reads the script by
+        id: the world says *which* ending, the pack says what it *is*.
+        """
+        ended_at = self._manager.snapshot().story_beats.ended_at
+        if ended_at is None:
+            return None
+        return next((e for e in self._endings if e.ending_id == ended_at), None)
+
     # --- player actions (docs/13 §12) ---------------------------------------
 
     def move_player(self, *, player_id: str, destination: str) -> PlayerActionResult:
@@ -242,7 +296,10 @@ class NarrativeEngine:
         in ``player_actions`` and goes through the Validator like everything else — the
         Engine is not a second write path (docs/04).
         """
-        return move_player(self._manager, player_id=player_id, destination=destination)
+        result = move_player(self._manager, player_id=player_id, destination=destination)
+        if result.approved:
+            self._check_endings()
+        return result
 
     def end_conversation(self) -> PlayerActionResult:
         """Close the active event without landing an outcome (docs/13 §12).
@@ -251,7 +308,34 @@ class NarrativeEngine:
         applied: a player who could collect an outcome's numbers by leaving would have a
         free move.
         """
-        return end_conversation(self._manager)
+        result = end_conversation(self._manager)
+        self._check_endings()
+        return result
+
+    def conclude_case(self) -> PlayerActionResult:
+        """Open the conclusion event on the player's own initiative (docs/13 §12, docs/15 §4 M7).
+
+        Reads which event is "the conclusion" from ``directives.conclusion_event`` rather
+        than a hardcoded id, for the reason ``progress_quest`` is named the same way: that
+        binding is the pack's business. A pack that has not written one yet refuses rather
+        than guessing, which is the same "no content, no behaviour" stance ``check_triggers``
+        takes when a pack ships no script at all.
+        """
+        event_id = self._directives.conclusion_event
+        if event_id is None:
+            return PlayerActionResult(
+                approved=False, reason="this pack declares no conclusion event"
+            )
+        definition = self._script.get(event_id)
+        if definition is None:
+            return PlayerActionResult(
+                approved=False, reason=f"conclusion event {event_id!r} is not in the script"
+            )
+        result = conclude_case(
+            self._manager, event_id=event_id, max_exchanges=definition.max_exchanges
+        )
+        self._check_endings()
+        return result
 
     # --- the wrap-up (docs/13 §4.2) -----------------------------------------
 
@@ -287,8 +371,15 @@ class NarrativeEngine:
         Separate from ``wrap_up`` so that reading the interlude and dismissing it are
         distinct: a caller that computed the review as a side effect of advancing the
         clock could never show it.
+
+        Checked for endings unconditionally, approved or not: this is the one place
+        ``time_day`` moves (docs/13 §4.2), and ``never_found_out`` (docs/14 §4.3) is
+        gated on it alone — a check that ran only on approval would miss the day the
+        deadline was actually crossed if the call somehow failed to advance it.
         """
-        return advance_past_wrap_up(self._manager)
+        result = advance_past_wrap_up(self._manager)
+        self._check_endings()
+        return result
 
     # --- pending event ------------------------------------------------------
 
@@ -428,6 +519,7 @@ class NarrativeEngine:
             failed_tag=resolution.failed_tag,
         )
         results.extend(self._sync_progress_stage())
+        results.extend(self._check_endings())
 
         if outcome.stage_advance:
             quest = progress_quest(self._manager.snapshot(), self._directives)
@@ -642,6 +734,7 @@ class NarrativeEngine:
         # player one clue closer, and the stage should say so while this turn is still
         # the current one.
         results.extend(self._sync_progress_stage())
+        results.extend(self._check_endings())
 
         results.append(self._submit(ActionType.ADVANCE_TURN, payload={"operator": operator.value}))
         return results, landed
@@ -671,6 +764,42 @@ class NarrativeEngine:
         if quest is None or quest.stage >= earned_stage(world, self._directives):
             return []
         return [self._submit(ActionType.ADVANCE_QUEST, target_id=quest.quest_id)]
+
+    def _check_endings(self) -> list[ActionValidationResult]:
+        """Record a terminal ending or a newly-reached milestone, if either is now true.
+
+        Called from every place the world might have just crossed a declared threshold
+        (a tick, a resolved event response, a move, closing out a day) rather than only
+        from ``tick``: ``never_found_out`` (docs/14 §4.3) needs no event at all —
+        ``time_day`` alone crosses it at a wrap-up — so a check wired only into event
+        resolution would never see that ending happen.
+
+        Milestones are checked even after a terminal ending is recorded (``ended_at``
+        does not short-circuit this), because a terminal ending closing the case must
+        not silently swallow a milestone flag that would otherwise never be set — a
+        later reader asking "did she ever clam up" deserves an answer independent of
+        how the case ended.
+        """
+        if not self._endings:
+            return []
+        world = self._manager.snapshot()
+        results: list[ActionValidationResult] = []
+
+        if world.story_beats.ended_at is None:
+            ending_id = check_terminal_ending(self._endings, world)
+            if ending_id is not None:
+                results.append(
+                    self._submit(ActionType.ADVANCE_STORY_BEAT, payload={"end_case": ending_id})
+                )
+
+        for milestone_id in newly_reached_milestones(self._endings, world):
+            results.append(
+                self._submit(
+                    ActionType.ADVANCE_STORY_BEAT,
+                    payload={"raise_flags": [milestone_flag(milestone_id)]},
+                )
+            )
+        return results
 
     def _effect_proposals(
         self, candidate: EventCandidate, event: NarrativeEvent | None

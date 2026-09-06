@@ -40,6 +40,7 @@ from ..schemas.events import (
 )
 from ..schemas.world_state import ActionProposal, ActionValidationResult
 from ..world.actions import ActionType
+from ..world.conditions import UnknownPathError, evaluate
 from ..world.manager import WorldStateManager
 
 #: Actor id outcome effects are submitted under.
@@ -101,6 +102,12 @@ def resolve_option(
     rng = rng or random.Random()
     option = event.option(option_id)
 
+    if option is not None and not _requirement_met(option.requires, world):
+        # Not offered right now, so a classification or a stale click landing on it is
+        # the same "this matched nothing available" case an unrecognised id is
+        # (docs/15 §7 M7): the default outcome, not a bypass of the gate.
+        option = None
+
     if option is None:
         return OptionResolution(
             outcome_id=event.default_outcome, band=CheckBand.CERTAIN_FAILURE, checked=False
@@ -157,6 +164,21 @@ def resolve_out_of_patience(event: EventDefinition) -> OptionResolution:
     return OptionResolution(
         outcome_id=event.default_outcome, band=CheckBand.CERTAIN_FAILURE, checked=False
     )
+
+
+def _requirement_met(requires, world) -> bool:
+    """Whether an option's ``requires`` gate is satisfied. ``None`` always is.
+
+    A malformed condition reads as unmet, matching every other gate in this codebase
+    (``_trigger_holds``, ``_is_unlockable``): the loader already rejects an unresolvable
+    path at startup, so a broken clause in play should hide the option, not crash the turn.
+    """
+    if requires is None:
+        return True
+    try:
+        return evaluate(requires, world)
+    except (UnknownPathError, TypeError, ValueError):
+        return False
 
 
 def _current_value(world, npc_id: str, player_id: str, dimension: str) -> float:

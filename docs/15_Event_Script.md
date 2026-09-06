@@ -492,7 +492,7 @@ M3 需要 trust 40，起点 10。
 | 关系值判定的**门槛与随机带** | §3 | 属于事件定义的字段，不是世界状态 |
 | 低置信度记忆的**语气标注** | M4 | `EpisodicMemory.confidence`（[13 §7](./13_Narrative_Events.md#7-需要新增的可读状态) 已列） |
 | 玩家侧**选项定义** | 全篇 | 标签、文本、判定参数、结果映射——事件 schema 的一部分 |
-| 结论选项的**前置条件** | M7 | "三条铺垫全部揭露"要能写成 `Condition`（`all` 模式三个子句，现有求值器支持） |
+| 结论选项的**前置条件** | M7 | "三条铺垫全部揭露"要能写成 `Condition`（`all` 模式三个子句，现有求值器支持）。**已解决**：`EventOption.requires: Condition \| None`，`resolve_option`/`active_event_options`/`SceneView.options` 三处一致按它过滤 |
 
 ## 8. 落地顺序建议
 

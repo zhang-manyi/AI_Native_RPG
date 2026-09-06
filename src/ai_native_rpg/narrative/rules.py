@@ -34,7 +34,7 @@ row" would not, ``clue_2_identity`` would.
 
 from __future__ import annotations
 
-from ..scenario import NarrativeDirectives
+from ..scenario import Ending, NarrativeDirectives
 from ..schemas.events import EventDefinition, EventScript
 from ..schemas.narrative import EventCandidate
 from ..schemas.world_state import Visibility, WorldState
@@ -205,3 +205,76 @@ def check_triggers(
         )
         for event in triggerable_events(world, script)
     ]
+
+
+#: Flag prefix a milestone ending is recorded under (docs/14 §4.3).
+#:
+#: Not ``story_beats.ended_at``: that field means "the case is over", and a milestone
+#: like ``marta_clams_up`` explicitly is not — it closes one social line while the
+#: tavern and forest channels stay open. Recording it as a flag instead uses the
+#: mechanism already built for "named state an outcome raised" rather than inventing a
+#: second one, and keeps a milestone readable by a later ``Condition`` the same way
+#: ``probed_once`` is.
+MILESTONE_FLAG_PREFIX = "milestone:"
+
+
+def milestone_flag(ending_id: str) -> str:
+    return f"{MILESTONE_FLAG_PREFIX}{ending_id}"
+
+
+def _checkable_endings(endings: list[Ending]) -> list[Ending]:
+    """Endings the game may actually reach right now.
+
+    Excludes ``pending`` ones for the same reason the loader's own reachability check
+    does (docs/13 §11): a pending ending's events are not written yet, so its condition
+    happening to read true would be a false alarm from an unrelated state, not the road
+    it was meant to describe.
+    """
+    return [e for e in endings if not e.pending]
+
+
+def check_terminal_ending(endings: list[Ending], world: WorldState) -> str | None:
+    """The first terminal ending whose condition now holds, or ``None``.
+
+    Called every tick regardless of what beat ran, because docs/14 §4.3's
+    ``never_found_out`` needs no event at all — ``time_day`` alone can cross it, and a
+    check wired only into event resolution would never see that happen. Order is
+    script order (``endings`` as declared), so a pack that lists several conditions
+    that could go true in the same tick picks the outcome deterministically rather than
+    by dict iteration order.
+
+    A malformed condition is treated as unmet, matching ``_trigger_holds``: the loader
+    already rejects an unresolvable path at startup, so by the time a turn is running a
+    broken clause should cost silence, not the turn.
+    """
+    for ending in _checkable_endings(endings):
+        if not ending.terminal:
+            continue
+        try:
+            if evaluate(ending.condition, world):
+                return ending.ending_id
+        except (UnknownPathError, TypeError, ValueError):
+            continue
+    return None
+
+
+def newly_reached_milestones(endings: list[Ending], world: WorldState) -> list[str]:
+    """Non-terminal endings whose condition now holds but whose flag is not yet set.
+
+    Only the *new* ones: a milestone flag is set once and never cleared (docs/14 §4.3
+    calls closing Marta's line a one-way cost, not a state that can un-happen), so a
+    milestone already recorded must not be handed back here to be raised again.
+    """
+    flags = world.story_beats.flags
+    reached: list[str] = []
+    for ending in _checkable_endings(endings):
+        if ending.terminal:
+            continue
+        if milestone_flag(ending.ending_id) in flags:
+            continue
+        try:
+            if evaluate(ending.condition, world):
+                reached.append(ending.ending_id)
+        except (UnknownPathError, TypeError, ValueError):
+            continue
+    return reached

@@ -346,6 +346,15 @@ class EventOption(BaseModel):
         description="outcome_id when the check fails. Required with a check, since "
         "failing would otherwise land nowhere and stall the event.",
     )
+    requires: Condition | None = Field(
+        default=None,
+        description="gate on top of the tag's check (docs/15 §7 M7): an option can be both "
+        "unlockable and correct at once. None means always offered. Unlike `check`, this "
+        "is a hard Condition — no band, no roll — because it answers 'does this choice "
+        "exist at all', not 'does it succeed'. M7's 告诉洛伦她还活着 is the authored case: "
+        "it exists only once F1/F2/F3 are all revealed, and a player who has not earned "
+        "that must not see a button that does nothing.",
+    )
 
     @model_validator(mode="after")
     def _check_must_match_the_tag(self) -> Self:

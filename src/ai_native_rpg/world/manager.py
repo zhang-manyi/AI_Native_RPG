@@ -219,6 +219,14 @@ class WorldStateManager:
             key = str(proposal.payload["spend_one_shot"])
             beats.spend_one_shot(key)
             changes[f"story_beats.spent_one_shots.{key}"] = True
+        # Sticky: only the first terminal ending reached is recorded. A second
+        # ``end_case`` in the same or a later payload must not overwrite which one the
+        # player actually got there first (docs/14 §4.3's endings are not equally
+        # ordered — a check written to fire on the same tick as another must not win by
+        # running later).
+        if "end_case" in proposal.payload and beats.ended_at is None:
+            beats.ended_at = str(proposal.payload["end_case"])
+            changes["story_beats.ended_at"] = beats.ended_at
         changes.update(self._apply_event_lifecycle(proposal))
         return changes
 

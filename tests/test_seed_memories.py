@@ -24,12 +24,13 @@ from ai_native_rpg.scenario import ScenarioError, load_personas, load_seed_memor
 SCENARIO = "village_disappearance"
 NPC_A = "npc_a"
 NPC_B = "npc_b"
+NPC_C = "npc_c"
 
 
 class TestLoadSeedMemories:
     def test_loads_memories_for_the_reference_scenario(self):
         seeds = load_seed_memories(SCENARIO)
-        assert set(seeds) == {NPC_A, NPC_B}
+        assert set(seeds) == {NPC_A, NPC_B, NPC_C}
 
     def test_martha_remembers_what_she_saw(self):
         episodic = load_seed_memories(SCENARIO)[NPC_A].episodic
@@ -193,4 +194,4 @@ class TestValidation:
     def test_personas_still_load_from_a_pack_with_memories(self):
         """The two loaders read the same file and must not interfere."""
         personas = load_personas(SCENARIO)
-        assert set(personas) == {NPC_A, NPC_B}
+        assert set(personas) == {NPC_A, NPC_B, NPC_C}
