@@ -10,9 +10,6 @@
  * Last-Event-ID, which the server replays (docs/12 §4.1).
  */
 
-import { backdrop } from "/static/backdrops.js";
-import { sprite } from "/static/sprites.js";
-
 const el = (id) => document.getElementById(id);
 
 const ui = {
@@ -20,16 +17,34 @@ const ui = {
   title: el("title"),
   meta: el("backend-meta"),
   toggle: el("panel-toggle"),
-  backdrop: el("backdrop"),
-  placeName: el("place-name"),
+  when: el("when"),
+  placeLabel: el("place-label"),
   placeDesc: el("place-desc"),
   cast: el("cast"),
   notes: el("notes"),
+  ways: el("ways"),
+  waysList: el("ways-list"),
+  conclude: el("conclude"),
   history: el("history"),
+  dialogue: el("dialogue"),
+  dialogueName: el("dialogue-name"),
+  dialogueText: el("dialogue-text"),
+  advance: el("advance"),
+  logToggle: el("log-toggle"),
   status: el("status"),
+  options: el("options"),
   composer: el("composer"),
   say: el("say"),
   send: el("send"),
+  scene: el("scene"),
+  wrapup: el("wrapup"),
+  wrapDay: el("wrap-day"),
+  wrapKnown: el("wrap-known"),
+  wrapOpenBlock: el("wrap-open-block"),
+  wrapOpen: el("wrap-open"),
+  wrapCards: el("wrap-cards"),
+  wrapReads: el("wrap-reads"),
+  wrapClose: el("wrap-close"),
   intro: el("intro"),
   introTitle: el("intro-title"),
   introPremise: el("intro-premise"),
@@ -45,10 +60,35 @@ const state = {
   devMode: false,
   scene: null,
   panel: null,
-  speaking: null, // { npcId, text } — the bubble currently on screen
-  waiting: null, // 'dialogue' | 'tick' | null
+  // The dialogue box holds one line at a time: { kind, who, text }. `kind` is 'player' or
+  // 'npc' and decides only how the name is styled — both voices get the same box, so
+  // neither reads as an aside.
+  line: null,
+  // Scripted lines still to be said, in order. The player advances through them and the
+  // last one submits the turn, so a whole opening speech costs one turn rather than one
+  // each (docs/15 §1: it exists to move the scene without spending a decision).
+  queue: [],
+  // True while a queued line is waiting on the player to advance it.
+  awaitingAdvance: false,
+  // Set when a scripted line put itself on screen before submitting, so `turn_accepted`
+  // knows not to show it a second time.
+  pendingEcho: false,
+  // The scripted speech already queued or spoken, keyed by its own text. Two `scene`
+  // snapshots arrive per turn, so without this the same opening speech would be re-offered
+  // the moment the tick landed. Keyed on content rather than on an event id because the
+  // lines are all the front end needs to know it has seen them.
+  spokenFor: null,
+  waiting: null, // 'dialogue' | 'tick' | 'move' | null
+  busy: false, // mirrors the composer lock, so a redraw re-applies it
   panelOpen: false,
+  logOpen: false,
   resumed: false, // continuing a save: suppresses the turn-0 intro screen
+  wrapUpActive: false, // the day's review screen has replaced the scene
+  // The active event's options, held back from the tray until any scripted line ahead
+  // of them has actually been read. The server sends both in the same `scene` snapshot
+  // — an option is not conditioned on the line before it there — so without this the
+  // tray would render before the player had read what he is being asked to respond to.
+  pendingOptions: [],
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -61,6 +101,37 @@ const esc = (s) =>
 
 const num = (v, digits = 0) => (typeof v === "number" ? v.toFixed(digits) : "—");
 
+/* Slot wording. A front-end asset like `sprite_key`, not pack content: the server sends
+ * the bare enum value and the page decides what to call it. Declared up here because
+ * both the scene page and the panel read it, and a `const` further down would be in its
+ * temporal dead zone when the first `scene` event arrives. */
+const SLOT_LABELS = {
+  morning: "上午",
+  afternoon: "下午",
+  evening: "夜里",
+  wrap_up: "收束",
+};
+
+const slotLabel = (slot) => SLOT_LABELS[slot] || slot || "";
+
+/* Card names for the wrap-up's imagery keys. Front-end wording again: the server sends
+ * keys ('the_moon') precisely so it never has to hold prose. An unknown key falls through
+ * to itself rather than being dropped. */
+const CARD_NAMES = {
+  the_moon: "月亮",
+  the_star: "星星",
+  the_tower: "塔",
+  the_hermit: "隐者",
+};
+
+/* The reading's coarse label, as atmosphere. No number: `darkness` is a ratio and turning
+ * it back into "还剩 N 条" is exactly what docs/12 §13.3 forbids. */
+const READS_AS = {
+  mostly_dark: "大部分还在暗处。",
+  half_lit: "有些事清楚了，有些还没有。",
+  nearly_clear: "差不多都摊开了。",
+};
+
 function setStatus(text, kind = "") {
   ui.status.className = `status ${kind}`.trim();
   ui.status.innerHTML = kind === "working" ? `<span class="spinner"></span>${esc(text)}` : esc(text);
@@ -68,46 +139,93 @@ function setStatus(text, kind = "") {
 
 /** Lock the composer while a turn is in flight (docs/12 §5.3: visible, not hidden). */
 function setBusy(busy) {
+  state.busy = busy;
   ui.say.disabled = busy;
   ui.send.disabled = busy;
   ui.say.setAttribute("aria-busy", busy ? "true" : "false");
-  if (!busy) ui.say.focus();
+  // Travel and options are turns too, so one lock covers all three: otherwise a second
+  // option could be clicked while the first turn's tick is still writing (docs/12 §13.7).
+  for (const button of ui.waysList.querySelectorAll("button")) button.disabled = busy;
+  for (const button of ui.options.querySelectorAll("button")) button.disabled = busy;
+  renderComposerVisibility();
+  // Only when the composer is actually on screen: focusing a hidden input is a silent
+  // no-op in every browser, but it would also steal focus back the moment a scripted
+  // line's advance re-hides it, if this were ever called in that order.
+  if (!busy && !ui.composer.hidden) ui.say.focus();
 }
 
 // --- boot ------------------------------------------------------------------
 
-/** The newest save for this pack, or null. Offering a choice needs something to offer. */
-async function latestSave() {
+/** Packs that can actually be started right now. */
+async function playableScenarios() {
+  try {
+    const res = await fetch("/api/scenarios");
+    if (!res.ok) return [];
+    const { scenarios } = await res.json();
+    return scenarios || [];
+  } catch {
+    return [];
+  }
+}
+
+/** The newest resumable save whose pack still exists, or null.
+ *
+ * The pack filter is load-bearing, not tidiness: `saves/` accumulates runs from packs that
+ * have since been renamed or removed (a throwaway fixture pack, a scenario under a temp
+ * directory). Offering one of those produced a 400 on session creation, which stopped the
+ * game from starting at all — so a save whose pack is gone is not a candidate.
+ */
+async function latestSave(scenarios) {
   try {
     const res = await fetch("/api/saves");
     if (!res.ok) return null;
     const { saves } = await res.json();
     // Already newest-first from the server; a save with no turns is not worth resuming.
-    return (saves || []).find((s) => s.turn > 0) || null;
+    return (
+      (saves || []).find((s) => s.turn > 0 && scenarios.includes(s.scenario)) || null
+    );
   } catch {
     // A missing or broken save list must never stop a new game from starting.
     return null;
   }
 }
 
-async function boot() {
-  const save = await latestSave();
-  const resumeFrom =
-    save &&
-    window.confirm(
-      `继续上次的进度？\n\n${save.scenario} · 第 ${save.turn} 轮 · ${save.lines} 句对话\n` +
-        `保存于 ${save.saved_at}\n\n取消则重新开始。`,
-    )
-      ? save.save_id
-      : null;
-
-  const created = await fetch("/api/session", {
+async function createSession(body) {
+  return fetch("/api/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(resumeFrom ? { resume_from: resumeFrom } : {}),
+    body: JSON.stringify(body),
   });
+}
+
+async function boot() {
+  const scenarios = await playableScenarios();
+  const save = await latestSave(scenarios);
+  const wants =
+    save &&
+    window.confirm(
+      `发现上次的存档：${save.scenario} · 第 ${save.turn} 轮 · ${save.lines} 句对话\n` +
+        `保存于 ${save.saved_at}\n\n` +
+        `【确定】＝继续这局，接着上次的进度往下玩\n` +
+        `【取消】＝开始新的调查，忽略这个存档`,
+    );
+
+  // The save's own pack, not the server's default: a save only resumes into the scenario
+  // it was played in, and omitting it left that agreement to luck.
+  let created = wants
+    ? await createSession({ scenario: save.scenario, resume_from: save.save_id })
+    : await createSession({});
+
+  if (!created.ok && wants) {
+    // A save that will not load must not cost the player a new game. It can be refused for
+    // reasons the front end cannot see (an edited pack, a world written by an older
+    // schema), so the fallback is to start fresh and say so.
+    setStatus("上次的存档读不出来，已经重新开始。", "error");
+    created = await createSession({});
+  }
   if (!created.ok) {
-    setStatus(`建立会话失败：${created.status}`, "error");
+    const detail = await created.json().catch(() => null);
+    setStatus(`建立会话失败：${created.status} ${detail?.detail || ""}`.trim(), "error");
     return;
   }
   const info = await created.json();
@@ -129,6 +247,7 @@ function connect() {
   source.addEventListener("hello", (e) => onHello(JSON.parse(e.data)));
   source.addEventListener("turn_accepted", (e) => onTurnAccepted(JSON.parse(e.data)));
   source.addEventListener("dialogue", (e) => onDialogue(JSON.parse(e.data)));
+  source.addEventListener("move", (e) => onMove(JSON.parse(e.data)));
   source.addEventListener("narrative_tick", (e) => onTick(JSON.parse(e.data)));
   source.addEventListener("scene", (e) => onScene(JSON.parse(e.data)));
   source.addEventListener("panel", (e) => onPanel(JSON.parse(e.data)));
@@ -173,21 +292,55 @@ function onHello(data) {
 }
 
 function onTurnAccepted(data) {
-  // The echo comes from the server, so the transcript is never optimistic.
-  appendLine("player", "你", data.text);
+  // The echo comes from the server, so neither the screen nor the log is optimistic. The
+  // exception is a scripted line, which the player advanced onto the screen himself a
+  // moment ago — re-showing it would duplicate the line in the log.
+  if (state.pendingEcho) {
+    state.pendingEcho = false;
+  } else {
+    say("player", "你", data.text);
+    appendLine("player", "你", data.text);
+  }
   state.waiting = "dialogue";
   setStatus("正在思考……", "working");
   renderCast();
+  renderDialogue();
 }
 
 function onDialogue(data) {
-  state.speaking = { npcId: data.npc_id, text: data.dialogue };
+  // The reply takes the box over: one line on screen, the rest in the log.
+  say("npc", data.name, data.dialogue);
   state.waiting = "tick";
   appendLine("npc", data.name, data.dialogue);
   renderCast();
   // The tick's seconds are shown, not hidden: this is the wait the whole design
   // moved off the player's critical path, and naming it is more honest than a freeze.
   setStatus(`台词 ${num(data.latency_ms)}ms · 叙事引擎正在推进……`, "working");
+}
+
+function onMove(data) {
+  if (!data.approved) {
+    // The Validator's own sentence, shown as written. Explaining it here would mean
+    // knowing the rule (docs/12 §13.2).
+    state.waiting = null;
+    setStatus(`过不去：${data.reason || "这条路走不通"}`, "error");
+    setBusy(false);
+    return;
+  }
+
+  // Travel goes in the log like a line does: the transcript is what happened, and "I
+  // walked to the square" is part of that. Marked player-side, never as an NPC bubble.
+  appendLine("player", "你", `（前往${data.name || data.destination}）`);
+  // Arriving somewhere ends the previous exchange: whoever was talking is behind us, and
+  // nothing is being said in the new place yet. Clearing `spokenFor` too, so the event
+  // waiting at the new location can offer its own scripted lines.
+  clearDialogue();
+  state.spokenFor = null;
+  state.waiting = "tick";
+  const first = data.first_visit ? " · 第一次来" : "";
+  setStatus(`到了${data.name || data.destination}${first} · 叙事引擎正在推进……`, "working");
+  if (data.out_of_days) setStatus("天数已经用尽了。", "error");
+  renderCast();
 }
 
 function onTick(data) {
@@ -212,7 +365,9 @@ function onPanel(panel) {
 
 function onFailed(data) {
   if (data.stage === "dialogue") {
-    // The turn is lost; invite another attempt.
+    // The turn is lost; invite another attempt. The player's line comes down with it —
+    // leaving it on screen would look like it is still waiting for an answer.
+    clearDialogue();
     state.waiting = null;
     setStatus(`这一回合失败了：${data.error_type} — ${data.message}`, "error");
     setBusy(false);
@@ -229,16 +384,12 @@ function onFailed(data) {
 
 function renderScene() {
   const s = state.scene;
-  ui.placeName.textContent = s.location?.name || "";
+  // "第 2 天 · 下午" (docs/12 §13.1). Day and slot only: the 12-slot budget belongs to
+  // the panel, since it is the kind of number a player would optimise against.
+  ui.when.textContent = `第 ${s.time_day} 天 · ${slotLabel(s.time_slot)}`;
+  ui.placeLabel.textContent = s.location?.name || "";
   ui.placeDesc.textContent = s.location?.description || "";
   ui.panelTurn.textContent = `第 ${s.turn} 轮 · 第 ${s.time_day} 天`;
-
-  // Backdrop is keyed on the pack's declared place *kind*; absent means neutral.
-  const art = backdrop(s.location?.backdrop);
-  if (ui.backdrop.dataset.kind !== (s.location?.backdrop || "")) {
-    ui.backdrop.dataset.kind = s.location?.backdrop || "";
-    ui.backdrop.innerHTML = art;
-  }
 
   const facts = s.visible_facts || [];
   ui.notes.hidden = facts.length === 0;
@@ -249,28 +400,280 @@ function renderScene() {
     facts.map((f) => `<span class="note">${esc(f.value)}</span>`).join("") +
     `</div>`;
 
+  renderWays(s.destinations || []);
+  ui.conclude.hidden = Boolean(s.event_in_progress);
+  queueScriptedLines(s.scripted_lines || []);
+  // Held rather than rendered immediately: the pack sends both in one snapshot, so an
+  // option is not itself conditioned on the scripted line ahead of it having been read.
+  // `renderDialogue` below always ends by calling `renderComposerVisibility`, which is
+  // what actually decides whether to show them — including once the queue drains.
+  state.pendingOptions = s.options || [];
   renderCast();
   renderHistory(s.transcript_tail || []);
+  renderDialogue();
+
+  // The slot in the scene snapshot is the only signal needed; keeping a separate "are we
+  // wrapping up" flag would be a second source of truth for one boolean.
+  setWrapUp(s.time_slot === "wrap_up");
+}
+
+/** Show or withhold the options tray, per the same "is it the player's move" test the
+ * composer uses (docs/15 §1.1: they are equivalent inputs, so one rule governs both).
+ * Called after anything that could change that answer — a fresh scene, or a scripted
+ * line finishing — so the tray reliably appears the moment the last scripted line is
+ * actually said, not the moment the server happened to mention it.
+ */
+function updateOptionsTray() {
+  const idle = !state.busy && !state.awaitingAdvance && !state.wrapUpActive;
+  renderOptions(idle ? state.pendingOptions : []);
+}
+
+/** Offer the event's scripted lines for the player to say, one at a time.
+ *
+ * They are the player's own words (docs/15 §1), so they have to be *said* rather than
+ * displayed: an event whose only content is a scripted line — F1 is one — otherwise put the
+ * player's line on screen with nothing to click and no reply ever coming.
+ *
+ * Guarded by content because two `scene` snapshots arrive per turn; without that the speech
+ * would be re-offered the moment the tick landed.
+ */
+function queueScriptedLines(lines) {
+  const key = lines.join(" ");
+  if (!lines.length || state.spokenFor === key) return;
+  // Not while the player is mid-turn: the line would jump the queue in front of a reply
+  // that is already on its way.
+  if (state.busy) return;
+
+  state.spokenFor = key;
+  // The queue holds every line, the first one included, and `advance` is what actually says
+  // each. Keeping the first queued is what makes a *single* scripted line work: it is read
+  // in the box first, and the advance that follows is the act of saying it.
+  state.queue = [...lines];
+  showNextQueued();
+}
+
+/** Put the next queued line in the box without sending it. */
+function showNextQueued() {
+  const next = state.queue[0];
+  if (next === undefined) return;
+  say("player", "你", next, { awaitAdvance: true });
+}
+
+function clearDialogue() {
+  state.line = null;
+  state.queue = [];
+  state.awaitingAdvance = false;
+  renderDialogue();
+}
+
+/* Visible labels for the option tags (docs/15 §2). Wording, so it lives here. */
+const TAG_LABELS = {
+  goodwill: "示好",
+  press: "逼问",
+  probe: "试探",
+  observe: "观察",
+};
+
+/** Scripted lines and tagged options (docs/12 §13.7).
+ *
+ * Three rules, all of them the document's:
+ * - a scripted line is the *player* speaking, so it renders player-side;
+ * - with no options the area does not exist — its appearance is the signal;
+ * - no consequence is shown. The payload carries none, so there is none to show.
+ */
+function renderOptions(options) {
+  ui.options.hidden = options.length === 0;
+  if (options.length === 0) {
+    ui.options.innerHTML = "";
+    return;
+  }
+
+  const buttons = options
+    .map(
+      (o) =>
+        `<button type="button" class="option" data-option="${esc(o.option_id)}"
+                 ${state.busy ? "disabled" : ""}>
+           <span class="tag-label">[${esc(TAG_LABELS[o.tag] || o.tag)}]</span>
+           <span class="option-text">${esc(o.text)}</span>
+         </button>`,
+    )
+    .join("");
+
+  ui.options.innerHTML = buttons ? `<div class="option-list">${buttons}</div>` : "";
+}
+
+/** Swap between the scene and the wrap-up screen (docs/12 §13.3).
+ *
+ * A swap, not an overlay: the day is over, so there is nobody to talk to and no composer
+ * to leave sitting there.
+ */
+async function setWrapUp(active) {
+  ui.wrapup.hidden = !active;
+  ui.scene.hidden = active;
+  state.wrapUpActive = active;
+  renderComposerVisibility();
+  // There is nobody to say it to, so the options go with the composer. `renderOptions`
+  // owns this element otherwise; hiding here only ever adds to what it decided.
+  if (active) {
+    ui.options.hidden = true;
+    // The day's talking is over: nothing from the last exchange should survive into the
+    // wrap-up, or it would reappear on screen when the next morning redraws.
+    clearDialogue();
+  }
+
+  if (!active) return;
+  // Fetched rather than pushed: it is a read of current state, and the scene event that
+  // put us here already told us it exists.
+  try {
+    const res = await fetch(`/api/session/${state.sessionId}/wrap_up`);
+    const view = res.ok ? await res.json() : null;
+    if (view) renderWrapUp(view);
+  } catch {
+    setStatus("拿不到今天的整理。", "error");
+  }
+}
+
+function renderWrapUp(view) {
+  ui.wrapDay.textContent = `第 ${view.day} 天 · 夜里`;
+
+  ui.wrapKnown.innerHTML = (view.known || [])
+    .map((f) => `<span class="note">${esc(f.value)}</span>`)
+    .join("");
+
+  // No open questions is a state worth rendering as absence, not as an empty heading.
+  const open = view.unanswered || [];
+  ui.wrapOpenBlock.hidden = open.length === 0;
+  // Verbatim (docs/12 §13.3): no "该去哪查" appended, no rephrasing into a lead.
+  ui.wrapOpen.innerHTML = open.map((q) => `<li>${esc(q)}</li>`).join("");
+
+  const reading = view.reading || {};
+  ui.wrapCards.innerHTML = (reading.imagery || [])
+    .map((card) => `<span class="tarot">${esc(CARD_NAMES[card] || card)}</span>`)
+    .join("");
+  // The coarse label only. The ratio is deliberately never turned back into "还剩 N 条"
+  // — that is the number a player would optimise against (docs/12 §13.3).
+  ui.wrapReads.textContent = READS_AS[reading.reads_as] || "";
+}
+
+/** Where the player may go. The list is the server's; this only draws it.
+ *
+ * No filtering and no "you can't get there from here" logic: adjacency is a Validator
+ * rule, and a copy of it here would be a second rule free to drift (docs/12 §13.2).
+ */
+function renderWays(destinations) {
+  ui.ways.hidden = destinations.length === 0;
+  ui.waysList.innerHTML = destinations
+    .map(
+      (d) =>
+        `<button type="button" class="way${d.visited ? " visited" : ""}"
+                 data-destination="${esc(d.location_id)}" ${state.busy ? "disabled" : ""}>
+           ${esc(d.name)}${d.visited ? "" : `<span class="fresh" aria-hidden="true">·</span>`}
+           ${d.visited ? "" : `<span class="sr-only">（没去过）</span>`}
+         </button>`,
+    )
+    .join("");
+}
+
+/** Put a line in the dialogue box. One box for every speaker, player included.
+ *
+ * The name carries who is talking, so the player's lines are exactly as prominent as the
+ * NPC's — the previous per-speaker bubble left his line looking like a footnote, because
+ * the player has no sprite to anchor a bubble to.
+ */
+function say(kind, who, text, { awaitAdvance = false } = {}) {
+  state.line = { kind, who, text };
+  state.awaitingAdvance = awaitAdvance;
+  renderDialogue();
+}
+
+function renderDialogue() {
+  const line = state.line;
+  const thinking = state.waiting === "dialogue" && !line;
+
+  ui.dialogue.hidden = !line && !thinking;
+  if (!line && !thinking) {
+    renderComposerVisibility();
+    return;
+  }
+
+  if (thinking) {
+    // Someone is composing a reply. Shown in the box rather than over the sprite so the
+    // wait happens where the words will appear (docs/12 §5.3: visible, not hidden).
+    ui.dialogueName.textContent = state.scene?.npcs?.[0]?.name || "";
+    ui.dialogueName.className = "dialogue-name npc";
+    ui.dialogueText.innerHTML = `<span class="thinking">在想<span class="dots"><i></i><i></i><i></i></span></span>`;
+    ui.advance.hidden = true;
+    ui.dialogue.classList.toggle("advanceable", false);
+    renderComposerVisibility();
+    return;
+  }
+
+  ui.dialogueName.textContent = line.who;
+  ui.dialogueName.className = `dialogue-name ${line.kind}`;
+  ui.dialogueText.textContent = line.text;
+  ui.advance.hidden = !state.awaitingAdvance;
+  ui.dialogue.classList.toggle("advanceable", state.awaitingAdvance);
+  renderComposerVisibility();
+}
+
+/** Show the composer, and the options tray beside it, only when it is actually the
+ * player's move: NPC and scripted lines are read on their own, and the typing box (or a
+ * tagged option that answers a line not yet read) would otherwise sit on screen ahead of
+ * content that is not there yet, competing with the scene for attention. One function
+ * for both — docs/15 §1.1 makes them equivalent inputs, so they must appear and vanish
+ * together rather than on two rules that can drift apart.
+ *
+ * "The player's move" is: not mid-turn (`busy`), not reading a queued scripted line
+ * that still needs advancing (`awaitingAdvance`), and not at the wrap-up (no one to
+ * talk to there — `setWrapUp` already owns hiding it for that case, but the check is
+ * repeated here so a stray call from `renderDialogue` cannot re-show it underneath).
+ */
+function renderComposerVisibility() {
+  const idle = !state.busy && !state.awaitingAdvance && !state.wrapUpActive;
+  ui.composer.hidden = !idle;
+  updateOptionsTray();
+}
+
+/** Say the next queued scripted line, or submit the turn if that was the last one.
+ *
+ * The final line is what sends the turn (docs/15 §1.1's shared path — the same
+ * ``POST /turn`` a typed sentence or a clicked option takes), so the NPC answers a scripted
+ * line like any other. Without this the player was shown his own words with nothing to do
+ * and no reply coming.
+ */
+async function advance() {
+  if (!state.awaitingAdvance || state.busy) return;
+
+  // The line on screen is the head of the queue; advancing is what says it.
+  const spoken = state.queue.shift();
+  if (spoken === undefined) return;
+
+  appendLine("player", "你", spoken);
+
+  if (state.queue.length > 0) {
+    showNextQueued();
+    return;
+  }
+
+  // That was the last line. The whole speech counts as one turn — two opening lines should
+  // not cost two — and it goes out by the same path a typed sentence or a clicked option
+  // takes (docs/15 §1.1), so the NPC answers it like anything else.
+  state.awaitingAdvance = false;
+  renderDialogue();
+  await submitTurn(spoken, null, { echo: false });
 }
 
 function renderCast() {
   const npcs = state.scene?.npcs || [];
   ui.cast.innerHTML = npcs
     .map((npc) => {
-      const isSpeaking = state.speaking?.npcId === npc.npc_id;
-      const isThinking = state.waiting === "dialogue";
-      let bubble = "";
-      if (isThinking) {
-        bubble = `<div class="bubble thinking">在想<span class="dots"><i></i><i></i><i></i></span></div>`;
-      } else if (isSpeaking) {
-        bubble = `<div class="bubble">${esc(state.speaking.text)}</div>`;
-      }
+      const isSpeaking = state.line?.kind === "npc" && state.line.who === npc.name;
       // The note is public, ungated pack content (NPCWorldState.public_note) — never
       // an excerpt of persona.background, which runs on into what the player must earn.
+      // Text-only for now (docs/12 §8's manual pass is what would restore sprite/art):
+      // the mechanics under review here do not need a drawn figure to make their point.
       return `
         <div class="actor ${isSpeaking ? "speaking" : ""}">
-          ${bubble}
-          ${sprite(npc.sprite_key, npc.name)}
           <span class="nameplate">${esc(npc.name)}</span>
           ${npc.note ? `<span class="who-note">${esc(npc.note)}</span>` : ""}
         </div>`;
@@ -278,24 +681,51 @@ function renderCast() {
     .join("");
 }
 
+/** The full record, behind the toggle. Every line goes in, the player's own included.
+ *
+ * Kept up to date whether or not it is open: it is a record, so it must be complete the
+ * moment someone asks to see it rather than filled in from that point on.
+ */
 function renderHistory(lines) {
-  // Everything before the current line: the bubble carries the newest one.
-  ui.history.innerHTML = lines
-    .map((l) => {
-      const who = l.speaker === "player" ? "你" : l.name || l.speaker;
-      const kind = l.speaker === "player" ? "player" : "npc";
-      return `<div class="line ${kind}"><span class="who">${esc(who)}</span><span class="said">${esc(l.text)}</span></div>`;
-    })
-    .join("");
-  ui.history.scrollTop = ui.history.scrollHeight;
+  ui.history.innerHTML = lines.map((l) => logLine(l.speaker, l.name, l.text)).join("");
+  scrollLogToEnd();
+}
+
+/** One row of the log. The player's lines are marked, not merely coloured.
+ *
+ * The marker is a glyph plus the name, because colour alone would not survive a
+ * colour-blind reader or a greyscale screen — the same reason the ledger writes "⚠️ 超期"
+ * instead of turning a row red.
+ */
+function logLine(speaker, name, text) {
+  const isPlayer = speaker === "player";
+  const who = isPlayer ? "你" : name || speaker;
+  const mark = isPlayer ? "▸" : "—";
+  return `<div class="line ${isPlayer ? "player" : "npc"}">
+    <span class="who"><span class="mark" aria-hidden="true">${mark}</span>${esc(who)}</span>
+    <span class="said">${esc(text)}</span>
+  </div>`;
 }
 
 function appendLine(kind, who, text) {
   const div = document.createElement("div");
-  div.className = `line ${kind}`;
-  div.innerHTML = `<span class="who">${esc(who)}</span><span class="said">${esc(text)}</span>`;
-  ui.history.appendChild(div);
+  div.innerHTML = logLine(kind === "player" ? "player" : "npc", who, text);
+  ui.history.appendChild(div.firstElementChild);
+  scrollLogToEnd();
+}
+
+function scrollLogToEnd() {
+  // Only meaningful while open; a hidden element has no scroll height to speak of, so the
+  // toggle re-runs this when it opens.
   ui.history.scrollTop = ui.history.scrollHeight;
+}
+
+function setLogOpen(open) {
+  state.logOpen = open;
+  ui.history.hidden = !open;
+  ui.logToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  ui.logToggle.classList.toggle("open", open);
+  if (open) scrollLogToEnd();
 }
 
 // --- panel rendering ------------------------------------------------------
@@ -325,6 +755,7 @@ function renderPanel() {
   if (!p) return;
   ui.panelBody.innerHTML = [
     renderBeats(p),
+    renderBudget(p),
     renderLedger(p),
     renderUnlock(p),
     renderRejected(p),
@@ -354,6 +785,29 @@ function renderBeats(p) {
         : ""
     }`;
   return block("叙事进度", null, body);
+}
+
+/** The slot budget (docs/12 §13.1): how many chances are left, not the story's shape. */
+function renderBudget(p) {
+  const b = p.slot_budget;
+  if (!b) return "";
+
+  // Server-computed. Recomputing spent/total here would be a second copy of the one
+  // piece of arithmetic docs/12 §13.1 warns is easy to get wrong.
+  const pct = b.total ? Math.round((b.spent_total / b.total) * 100) : 0;
+  const body = `
+    <div class="stats">
+      <div class="stat"><div class="k">天</div><div class="v">${b.day} / ${b.day_limit}</div></div>
+      <div class="stat"><div class="k">时段</div><div class="v">${esc(slotLabel(b.slot))}</div></div>
+      <div class="stat">
+        <div class="k">已用</div><div class="v">${b.spent_total} / ${b.total}</div>
+        <div class="meter"><i style="width:${pct}%"></i></div>
+      </div>
+      <div class="stat"><div class="k">剩余</div><div class="v">${b.remaining}</div></div>
+    </div>
+    ${b.wrapping_up ? `<div class="why">收束段不占时段，所以「已用 ${b.spent_total}」在这里是对的。</div>` : ""}
+    ${b.out_of_days ? `<div class="why">⚠️ 天数已用尽</div>` : ""}`;
+  return block("时段预算", `${b.remaining} 剩`, body, { alert: b.out_of_days });
 }
 
 function renderLedger(p) {
@@ -565,18 +1019,21 @@ function renderCost(p) {
 
 // --- interactions ---------------------------------------------------------
 
-ui.composer.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const text = ui.say.value.trim();
-  if (!text) return;
-
-  ui.say.value = "";
+/** Submit a turn. The one path for both typing and clicking (docs/12 §13.7).
+ *
+ * Deliberately not two functions: two submit paths would let the two forms be judged
+ * differently, and docs/15 §1.1 exists so that typing is never the worse deal.
+ */
+async function submitTurn(text, optionId = null, { echo = true } = {}) {
   setBusy(true);
+  // A scripted line is already on screen and in the log, having been advanced there by the
+  // player; `turn_accepted` must not add it twice.
+  state.pendingEcho = !echo;
 
   const res = await fetch(`/api/session/${state.sessionId}/turn`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(optionId ? { text, option_id: optionId } : { text }),
   });
 
   if (res.status === 409) {
@@ -587,7 +1044,102 @@ ui.composer.addEventListener("submit", async (e) => {
     setStatus(`发送失败：${res.status}`, "error");
     setBusy(false);
   }
+}
+
+ui.composer.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = ui.say.value.trim();
+  if (!text) return;
+
+  ui.say.value = "";
+  await submitTurn(text);
 });
+
+/* Delegated: the option buttons are replaced on every `scene` snapshot. */
+ui.options.addEventListener("click", async (e) => {
+  const button = e.target.closest("button[data-option]");
+  if (!button || state.busy) return;
+
+  // The option's own text is what the player said, so it goes in as the utterance —
+  // exactly what typing that sentence would have sent.
+  const text = button.querySelector(".option-text")?.textContent?.trim() || "";
+  await submitTurn(text, button.dataset.option);
+});
+
+ui.wrapClose.addEventListener("click", async () => {
+  ui.wrapClose.disabled = true;
+  const res = await fetch(`/api/session/${state.sessionId}/wrap_up/close`, { method: "POST" });
+  if (!res.ok) {
+    setStatus(`天还没亮：${res.status}`, "error");
+    ui.wrapClose.disabled = false;
+    return;
+  }
+  // The scene event that follows turns the page back to the morning; re-enable for the
+  // next evening.
+  ui.wrapClose.disabled = false;
+});
+
+/* Delegated, because the buttons are replaced on every `scene` snapshot. */
+ui.waysList.addEventListener("click", async (e) => {
+  const button = e.target.closest("button[data-destination]");
+  if (!button || state.busy) return;
+
+  const destination = button.dataset.destination;
+  setBusy(true);
+  state.waiting = "move";
+  setStatus("正在赶路……", "working");
+
+  const res = await fetch(`/api/session/${state.sessionId}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ destination }),
+  });
+
+  if (res.status === 409) {
+    setStatus("上一回合还没结束，稍等一下。", "error");
+    return; // stays disabled; the tick releases it
+  }
+  if (!res.ok) {
+    setStatus(`出发失败：${res.status}`, "error");
+    setBusy(false);
+  }
+});
+
+ui.conclude.addEventListener("click", async () => {
+  if (state.busy) return;
+  setBusy(true);
+  state.waiting = "move";
+  setStatus("准备说出结论……", "working");
+
+  const res = await fetch(`/api/session/${state.sessionId}/conclude`, { method: "POST" });
+
+  if (res.status === 409) {
+    setStatus("上一回合还没结束，稍等一下。", "error");
+    return; // stays disabled; the scene refresh releases it
+  }
+  if (!res.ok) {
+    setStatus(`未能开始：${res.status}`, "error");
+    setBusy(false);
+  }
+});
+
+/* Advancing the dialogue: click the box, or press space/enter. The box is the target
+ * because it is where the words are — hunting for a separate button would be worse. */
+ui.dialogue.addEventListener("click", () => advance());
+
+document.addEventListener("keydown", (e) => {
+  if (e.key !== " " && e.key !== "Enter") return;
+  // Never while typing: space belongs to the sentence being written, and Enter submits it.
+  // Same for the wrap-up's own button, which has its own Enter behaviour.
+  const active = document.activeElement;
+  if (active === ui.say || active === ui.wrapClose) return;
+  if (!state.awaitingAdvance) return;
+
+  e.preventDefault(); // space would otherwise scroll the scene
+  advance();
+});
+
+ui.logToggle.addEventListener("click", () => setLogOpen(!state.logOpen));
 
 ui.toggle.addEventListener("click", () => setPanelOpen(!state.panelOpen));
 
