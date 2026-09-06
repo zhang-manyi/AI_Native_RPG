@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from ..narrative.engine import NarrativeTick
 from ..schemas.agent_trace import AgentTrace
-from ..schemas.narrative import NarrativeOperator
+from ..schemas.narrative import SLOTS_PER_DAY, NarrativeOperator
 from ..schemas.world_state import Visibility, WorldState
 from ..world.conditions import UnknownPathError, clause_holds_for, resolve_path
 
@@ -156,6 +156,32 @@ class BeatsView(BaseModel):
     planted_total: int = 0
 
 
+class SlotBudget(BaseModel):
+    """How much of the case's clock is left (docs/12 §13.1).
+
+    A different *kind* of panel content from everything else here: the other blocks
+    measure the shape of the story, this one measures how many chances the player has
+    left. Worth its own block for the same reason the ledger is — a budget you have to
+    work out by hand is a budget nobody checks while tuning.
+
+    ``total`` is ``SLOTS_PER_DAY × day_limit`` and never a literal: ``day_limit`` is a
+    *field*, so a pack may declare a shorter case, and a hardcoded 12 would keep
+    agreeing with docs/15 §6 right up until one did.
+    """
+
+    day: int
+    day_limit: int
+    slot: str = Field(description="the current TimeSlot's value, wrap-up included")
+    slots_spent_today: int
+    spent_total: int
+    total: int
+    remaining: int
+    wrapping_up: bool = Field(
+        default=False, description="at the day's free interlude, which spends nothing"
+    )
+    out_of_days: bool = False
+
+
 class PanelView(BaseModel):
     """Everything the developer panel shows, in one snapshot.
 
@@ -165,6 +191,7 @@ class PanelView(BaseModel):
     """
 
     beats: BeatsView
+    slot_budget: SlotBudget | None = None
     ledger: list[LedgerRow] = Field(default_factory=list)
     unlock_board: list[UnlockRow] = Field(default_factory=list)
     rejected_proposals: list[RejectedProposal] = Field(default_factory=list)
@@ -223,6 +250,38 @@ def build_beats(world: WorldState) -> BeatsView:
         recent_operators=list(beats.recent_operators),
         spent_one_shots=list(beats.spent_one_shots),
         planted_total=beats.planted_total,
+    )
+
+
+def build_slot_budget(world: WorldState) -> SlotBudget:
+    """How many slots the case has left (docs/12 §13.1).
+
+    Spent is counted as *closed-out days plus today's slots*, never derived from the
+    position in the day. The wrap-up is the fourth entry in ``TimeSlot`` but costs
+    nothing (docs/13 §4.2), so reading the position would overcount by one every
+    evening — "已用 4 / 12" at a moment when three slots have been spent, which is the
+    trap docs/12 §13.1 names explicitly.
+
+    ``out_of_days`` defers to ``StoryBeats.is_out_of_days`` rather than comparing here:
+    "the case is over" is a judgement, and this module exists so judgements have one
+    copy.
+    """
+    beats = world.story_beats
+    total = SLOTS_PER_DAY * beats.day_limit
+    spent = SLOTS_PER_DAY * max(0, world.time_day - 1) + beats.slots_spent_today
+
+    return SlotBudget(
+        day=world.time_day,
+        day_limit=beats.day_limit,
+        slot=beats.time_slot.value,
+        slots_spent_today=beats.slots_spent_today,
+        spent_total=spent,
+        total=total,
+        # Floored: past the limit the day counter keeps climbing, and a negative
+        # "slots left" beside ``out_of_days`` reads as a bug rather than as an ending.
+        remaining=max(0, total - spent),
+        wrapping_up=not beats.time_slot.is_spendable,
+        out_of_days=beats.is_out_of_days(current_day=world.time_day),
     )
 
 

@@ -36,7 +36,12 @@ from ai_native_rpg.agent.harness import PromptLibrary
 from ai_native_rpg.config import Settings, build_llm_client
 from ai_native_rpg.narrative.engine import NarrativeEngine, NarrativeTick
 from ai_native_rpg.observability import NarrativeTickStore, TraceStore
-from ai_native_rpg.observability.panels import build_beats, build_ledger, build_unlock_board
+from ai_native_rpg.observability.panels import (
+    build_beats,
+    build_ledger,
+    build_slot_budget,
+    build_unlock_board,
+)
 from ai_native_rpg.scenario import (
     list_scenarios,
     load_intro,
@@ -230,10 +235,33 @@ def print_narrative_tick(tick: NarrativeTick, tick_path: Path) -> None:
     print(f"  叙事Tick  {tick_path}\n")
 
 
+#: Terminal labels for the day's slots. Presentation, like every other label here.
+SLOT_LABELS = {
+    "morning": "上午",
+    "afternoon": "下午",
+    "evening": "夜里",
+    "wrap_up": "收束",
+}
+
+
 def print_beats(world: WorldState) -> None:
     """Chapter, tension and the operator timeline (docs/07 §2.3 block 4)."""
     view = build_beats(world)
     print(f"  第 {view.chapter} 章 · 回合 {view.turn} · 张力 {view.tension:.2f}")
+
+    # The slot budget: how many chances are left, as opposed to what shape the story is
+    # in (docs/12 §13.1). Same pure function the Web panel calls.
+    budget = build_slot_budget(world)
+    slot = SLOT_LABELS.get(budget.slot, budget.slot)
+    line = f"  时段预算  第 {budget.day} 天 · {slot} · 已用 {budget.spent_total}/{budget.total}"
+    if budget.wrapping_up:
+        # Stated because the arithmetic looks off otherwise: three spent, and yet the
+        # day has not turned over.
+        line += "（收束段不占时段）"
+    if budget.out_of_days:
+        line += "  ⚠️ 天数已用尽"
+    print(line)
+
     if view.recent_operators:
         print(f"  最近算子  {' → '.join(view.recent_operators)}")
     else:

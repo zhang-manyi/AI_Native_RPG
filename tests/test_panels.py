@@ -13,6 +13,7 @@ from ai_native_rpg.narrative.engine import ENGINE_ACTOR, NarrativeTick
 from ai_native_rpg.observability.panels import (
     build_beats,
     build_ledger,
+    build_slot_budget,
     build_unlock_board,
     memory_hits,
     operator_entry,
@@ -23,10 +24,12 @@ from ai_native_rpg.observability.panels import (
 from ai_native_rpg.schemas.agent_trace import AgentTrace, TraceStep
 from ai_native_rpg.schemas.common import Condition, ConditionClause, ConditionOp
 from ai_native_rpg.schemas.narrative import (
+    SLOTS_PER_DAY,
     EventCandidate,
     Foreshadowing,
     NarrativeEvent,
     NarrativeOperator,
+    TimeSlot,
 )
 from ai_native_rpg.schemas.world_state import ActionValidationResult, Fact, Visibility
 
@@ -222,6 +225,99 @@ def test_beats_carries_progress_and_spent_one_shots(world):
     # A one-shot that has fired must stay visible: 'has the reversal happened yet'
     # is otherwise unanswerable from the panel.
     assert view.spent_one_shots == ["reverse:npc_a_threatened"]
+
+
+# --- slot budget (docs/12 §13.1) -------------------------------------------
+#
+# A new *kind* of panel content: every other block measures the shape of the story,
+# this one measures how many chances the player has left. Test-first because the
+# arithmetic has two ways to be quietly wrong — a hardcoded 12, and counting the
+# wrap-up as a fourth slot.
+
+
+def test_budget_total_is_days_times_slots_not_a_literal(world):
+    """docs/12 §13.1: ``SLOTS_PER_DAY × day_limit`` are the sources, never a literal."""
+    world.story_beats.day_limit = 4
+
+    budget = build_slot_budget(world)
+
+    assert budget.total == SLOTS_PER_DAY * 4 == 12
+    assert budget.day_limit == 4
+
+
+def test_budget_follows_a_pack_that_shortens_the_case(world):
+    """``day_limit`` is a field, so a pack can declare a shorter case (docs/12 §13.1).
+
+    The literal-12 version of this function passes the test above and fails here,
+    which is why both exist.
+    """
+    world.story_beats.day_limit = 2
+
+    assert build_slot_budget(world).total == SLOTS_PER_DAY * 2 == 6
+
+
+def test_budget_counts_days_already_closed_out(world):
+    """Spent = whole days behind us + today's slots. Day 1 is the first day, not a gap."""
+    world.time_day = 3
+    world.story_beats.slots_spent_today = 1
+
+    budget = build_slot_budget(world)
+
+    assert budget.spent_total == SLOTS_PER_DAY * 2 + 1 == 7
+    assert budget.remaining == budget.total - budget.spent_total == 5
+
+
+def test_the_wrap_up_is_not_a_fourth_slot(world):
+    """docs/12 §13.1's named trap: at the wrap-up "已用 3 / 12" is correct.
+
+    The interlude costs nothing (docs/13 §4.2), so deriving spent from the *position*
+    in the day — wrap_up being the fourth entry — would overcount by one every day and
+    tell the player they are a quarter further through the case than they are.
+    """
+    world.time_day = 1
+    world.story_beats.slots_spent_today = SLOTS_PER_DAY
+    world.story_beats.time_slot = TimeSlot.WRAP_UP
+
+    budget = build_slot_budget(world)
+
+    assert budget.wrapping_up is True
+    assert budget.spent_total == 3
+    assert budget.remaining == 9
+
+
+def test_budget_reports_the_current_slot_and_day(world):
+    world.time_day = 2
+    world.story_beats.time_slot = TimeSlot.AFTERNOON
+
+    budget = build_slot_budget(world)
+
+    assert (budget.day, budget.slot) == (2, "afternoon")
+    assert budget.wrapping_up is False
+
+
+def test_budget_never_reports_negative_remaining(world):
+    """Past the limit the day counter keeps going; the budget floors at zero.
+
+    ``is_out_of_days`` is the real signal, and a "-2 slots left" beside it would read
+    as a bug rather than as an ending.
+    """
+    world.story_beats.day_limit = 2
+    world.time_day = 4
+
+    budget = build_slot_budget(world)
+
+    assert budget.remaining == 0
+    assert budget.out_of_days is True
+
+
+def test_out_of_days_reuses_the_beats_own_judgement(world):
+    """One copy of "the case is over": ``StoryBeats.is_out_of_days`` (docs/12 §13.1)."""
+    world.story_beats.day_limit = 4
+
+    world.time_day = 4
+    assert build_slot_budget(world).out_of_days is False
+    world.time_day = 5
+    assert build_slot_budget(world).out_of_days is True
 
 
 # --- rejected proposals ----------------------------------------------------
