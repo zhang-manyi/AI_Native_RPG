@@ -76,6 +76,8 @@
 | `POST` | `/api/session` | 建会话。body: `{scenario, npc_id?, resume_from?}`（都可省，默认第一个包 / 包里第一个 NPC / 从头开始）。返回 `session_id`、`resumed_from`、`turn` |
 | `GET` | `/api/session/{sid}/events` | SSE 流。`?last_event_id=` 或标准 `Last-Event-ID` 头补发 |
 | `POST` | `/api/session/{sid}/turn` | body: `{text}`。返回 `202 {turn_id}`。台词走事件流 |
+| `POST` | `/api/session/{sid}/move` | body: `{destination}`。返回 `202 {turn_id}`。落地与否走 `move` 事件 |
+| `POST` | `/api/session/{sid}/conclude` | 打开剧本的 `conclusion_event`（[13 §12](./13_Narrative_Events.md#12-玩家动作)）。无 body。返回 `202 {turn_id}`；拒绝（已有 `active_event`、剧本未声明）走 `move` 事件，不是 4xx |
 | `GET` | `/api/session/{sid}/scene` | 场景快照，等价于 `scene` 事件的载荷。给刷新页面和无 JS 排查用 |
 | `GET` | `/api/scenarios` | 可选剧本列表（`list_scenarios()`），启动页用 |
 | `GET` | `/api/saves` | 可续玩的存档，新的在前。只列剧本、NPC、进度，没有受控内容 |

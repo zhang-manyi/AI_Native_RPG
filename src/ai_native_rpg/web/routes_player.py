@@ -25,6 +25,7 @@ from .events import KEEPALIVE_SECONDS, EventType, HelloPayload, keepalive_frame
 from .registry import SessionRegistry
 from .scene import SceneView
 from .session import SessionError, list_saves
+from .wrap_up_view import WrapUpView
 
 router = APIRouter(prefix="/api", tags=["player"])
 
@@ -54,6 +55,22 @@ class CreateSessionResponse(BaseModel):
 
 class TurnRequest(BaseModel):
     text: str
+    option_id: str | None = Field(
+        default=None,
+        description="set when the player clicked a tagged option rather than typing. Same "
+        "endpoint either way (docs/12 §13.7): two submit paths would let clicking and "
+        "typing be judged differently, and docs/15 §1.1 exists so typing is not the worse "
+        "deal. An id the active event does not offer is dropped downstream, which lands the "
+        "authored default rather than inventing an outcome.",
+    )
+
+
+class MoveRequest(BaseModel):
+    destination: str = Field(
+        description="location id to walk to. Legality is the Validator's answer, given on "
+        "the ``move`` event — this endpoint does not pre-screen it, because a check here "
+        "would be a second copy of the adjacency rule (docs/12 §13.2)."
+    )
 
 
 class TurnResponse(BaseModel):
@@ -129,10 +146,75 @@ def post_turn(session_id: str, body: TurnRequest, request: Request) -> TurnRespo
     """Admit one utterance. The line arrives on the event stream, not here."""
     session = _session(request, session_id)
     try:
-        turn_id = session.submit_turn(body.text)
+        turn_id = session.submit_turn(body.text, option_id=body.option_id)
     except SessionError as exc:
         # 409 for "already talking": the front end also disables the input, but the
         # server stays the authority on whether a turn is in flight (docs/12 §5.3).
+        status = 409 if "in flight" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return TurnResponse(turn_id=turn_id)
+
+
+@router.get("/session/{session_id}/wrap_up", response_model=WrapUpView | None)
+def get_wrap_up(session_id: str, request: Request) -> WrapUpView | None:
+    """The day's review and reading, or ``null`` outside the wrap-up.
+
+    ``null`` rather than a 404: the session exists and the question is legitimate, the
+    answer is simply "not right now". Once a day is what makes it a ritual instead of a
+    screen (docs/13 §4.2), and that cadence belongs to the engine — this endpoint reports
+    it rather than deciding it.
+    """
+    return _session(request, session_id).wrap_up()
+
+
+@router.post("/session/{session_id}/wrap_up/close", response_model=TurnResponse, status_code=202)
+def post_close_out_day(session_id: str, request: Request) -> TurnResponse:
+    """Dismiss the wrap-up and start the next morning.
+
+    Separate from reading it, so that seeing the interlude and leaving it are two acts: a
+    call that advanced the clock as a side effect of computing the review could never show
+    the review.
+    """
+    session = _session(request, session_id)
+    try:
+        turn_id = session.submit_close_out_day()
+    except SessionError as exc:
+        status = 409 if "in flight" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return TurnResponse(turn_id=turn_id)
+
+
+@router.post("/session/{session_id}/move", response_model=TurnResponse, status_code=202)
+def post_move(session_id: str, body: MoveRequest, request: Request) -> TurnResponse:
+    """Admit a move. The outcome arrives as a ``move`` event, refusals included.
+
+    Same shape as ``/turn`` because it is the same kind of thing: a player action that
+    writes world state, so it queues on the session's single thread and answers ``202``.
+    A move that the Validator refuses is **not** a 4xx here — it was admitted, it ran, and
+    it has an answer the player should read ("那边过不去"). Only admission failures answer
+    synchronously (docs/12 §3.2).
+    """
+    session = _session(request, session_id)
+    try:
+        turn_id = session.submit_move(body.destination)
+    except SessionError as exc:
+        status = 409 if "in flight" in str(exc) else 400
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    return TurnResponse(turn_id=turn_id)
+
+
+@router.post("/session/{session_id}/conclude", response_model=TurnResponse, status_code=202)
+def post_conclude_case(session_id: str, request: Request) -> TurnResponse:
+    """Open the conclusion event on the player's own initiative (docs/15 §4 M7).
+
+    Same shape as ``/move``: a refusal (another conversation already running, or the pack
+    declaring no conclusion event) is not a 4xx — it was admitted and answered on the
+    stream — only "a turn is already in flight" is (docs/12 §3.2).
+    """
+    session = _session(request, session_id)
+    try:
+        turn_id = session.submit_conclude_case()
+    except SessionError as exc:
         status = 409 if "in flight" in str(exc) else 400
         raise HTTPException(status_code=status, detail=str(exc)) from exc
     return TurnResponse(turn_id=turn_id)

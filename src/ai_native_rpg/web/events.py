@@ -32,6 +32,7 @@ class EventType(str, Enum):
     HELLO = "hello"
     TURN_ACCEPTED = "turn_accepted"
     DIALOGUE = "dialogue"
+    MOVE = "move"
     NARRATIVE_TICK = "narrative_tick"
     PANEL = "panel"
     SCENE = "scene"
@@ -46,6 +47,7 @@ PLAYER_EVENTS = frozenset(
         EventType.HELLO,
         EventType.TURN_ACCEPTED,
         EventType.DIALOGUE,
+        EventType.MOVE,
         EventType.SCENE,
         EventType.TURN_FAILED,
     }
@@ -81,6 +83,13 @@ class DialoguePayload(BaseModel):
         default=False,
         description="whether this turn was handed content the Engine generated last turn",
     )
+    option_id: str | None = Field(
+        default=None,
+        description="which option this turn resolved as — clicked, or assigned to free text "
+        "by the classifier. Player-side because it is a restatement of what the player just "
+        "did; the check, its threshold and the outcome are not included (docs/15 §2's "
+        "refusal to print ``[示好 65%]``).",
+    )
 
 
 class TurnAcceptedPayload(BaseModel):
@@ -89,6 +98,37 @@ class TurnAcceptedPayload(BaseModel):
     turn_id: str
     text: str
     turn: int
+
+
+class MovePayload(BaseModel):
+    """The player went somewhere — a turn that produces no line (docs/12 §13.2).
+
+    A player event, not a developer one: everything here is either the player's own act
+    or the clock, both of which he is entitled to see.
+
+    ``reason`` is the Validator's refusal, passed through verbatim. It is already written
+    for a reader ("'forest_edge' is not reachable from 'tavern'", docs/02 §4.1), and
+    reproducing that judgement in the interface would be a second copy of an adjacency
+    rule the Validator owns.
+
+    ``slot_spent`` is separate from ``approved`` because a rejected move costs nothing: a
+    bad destination must not be able to burn an evening.
+    """
+
+    turn_id: str
+    approved: bool
+    destination: str
+    name: str = Field(default="", description="the pack's display name for the destination")
+    reason: str | None = Field(default=None, description="the Validator's words, unedited")
+    slot_spent: bool = False
+    slot: str | None = None
+    day: int | None = None
+    first_visit: bool = Field(
+        default=False,
+        description="first arrival, as recorded by ``story_beats.visited_locations``",
+    )
+    out_of_days: bool = False
+    latency_ms: float = 0.0
 
 
 class NarrativeTickPayload(BaseModel):

@@ -71,6 +71,8 @@ def test_session_runs_a_turn_on_a_bare_pack(minimal_pack, tmp_path):
         assert session.npc_id == "warden"
         assert session.npc_name == "Warden Hale"
 
+        before = session.panel().beats.turn
+
         session.submit_turn("What happened to the light?")
         session.join(timeout=30)
 
@@ -78,7 +80,9 @@ def test_session_runs_a_turn_on_a_bare_pack(minimal_pack, tmp_path):
         # Empty is a state, not a failure.
         assert panel.ledger == []
         assert panel.unlock_board == []
-        assert panel.beats.turn == 1
+        # +1, not the literal value: the session already ran an opening tick before this
+        # (docs/12 §4.2), so `turn` starts above 0 even on a bare pack.
+        assert panel.beats.turn == before + 1
     finally:
         session.close()
 

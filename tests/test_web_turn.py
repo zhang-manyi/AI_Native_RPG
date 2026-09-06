@@ -15,8 +15,10 @@ Everything runs on ``MockLLMClient`` — ``conftest``'s autouse fixture pins
 
 from __future__ import annotations
 
+import json
 import threading
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -103,6 +105,8 @@ def test_second_turn_is_refused_while_one_is_in_flight(session):
     The tick writes world state, so admitting the next turn alongside it is exactly
     the race the single-thread executor exists to prevent (docs/12 §5.3).
     """
+    before = session.manager.snapshot().story_beats.turn
+
     session.submit_turn("第一句")
 
     with pytest.raises(SessionError, match="in flight"):
@@ -112,7 +116,9 @@ def test_second_turn_is_refused_while_one_is_in_flight(session):
     # Once drained, the session accepts work again.
     session.submit_turn("第三句")
     session.join(timeout=30)
-    assert session.manager.snapshot().story_beats.turn == 2
+    # +2, not the literal count: the fixture's session has already run its opening tick
+    # (docs/12 §4.2's "M1's line is in the first hello" fix), so `turn` starts above 0.
+    assert session.manager.snapshot().story_beats.turn == before + 2
 
 
 def test_busy_stays_true_until_the_tick_completes(session, monkeypatch):
@@ -153,6 +159,7 @@ def test_concurrent_submissions_serialise(session):
     Whatever is admitted runs one at a time, so the turn counter equals the number of
     accepted turns — never a lost or doubled increment.
     """
+    before = session.manager.snapshot().story_beats.turn
     accepted = []
     errors = []
 
@@ -171,8 +178,9 @@ def test_concurrent_submissions_serialise(session):
 
     assert len(accepted) >= 1
     assert len(accepted) + len(errors) == 6
-    # The decisive assertion: exactly one advance_turn per accepted turn.
-    assert session.manager.snapshot().story_beats.turn == len(accepted)
+    # The decisive assertion: exactly one advance_turn per accepted turn, on top of
+    # whatever the session's opening tick already contributed before this ran.
+    assert session.manager.snapshot().story_beats.turn == before + len(accepted)
 
 
 def test_empty_input_is_rejected(session):
@@ -403,6 +411,89 @@ def test_a_save_from_another_scenario_is_refused(tmp_path):
             save_dir=tmp_path / "saves",
             resume=mismatched,
         )
+
+
+def test_a_save_whose_pack_is_gone_does_not_block_a_new_game(monkeypatch, tmp_path):
+    """A stale save must not stop the server from starting a fresh session.
+
+    Regression, found by running the thing: ``saves/`` accumulates runs from packs that no
+    longer exist — a throwaway fixture pack, a scenario that lived under a temp directory.
+    The page offered the newest save it found, resumed it without naming its pack, and
+    ``POST /api/session`` answered 400. The game would not start at all.
+
+    The server's half of the fix is that the save list stays honest and the refusal names
+    the pack; the front end's half is to filter by ``/api/scenarios`` and fall back to a new
+    game. This pins the server half: a new session is always available.
+    """
+    from fastapi.testclient import TestClient
+
+    from ai_native_rpg.web import session as session_module
+    from ai_native_rpg.web.app import create_app
+
+    saves = tmp_path / "saves"
+    monkeypatch.setattr(session_module, "SAVE_DIR", saves)
+
+    # A save that names a pack which is not installed.
+    ghost = saves / "ghost_run"
+    ghost.mkdir(parents=True)
+    (ghost / "session.json").write_text(
+        json.dumps(
+            {
+                "session_id": "ghost_run",
+                "scenario": "lighthouse",
+                "npc_id": "warden",
+                "turn": 3,
+                "saved_at": "2099-01-01T00:00:00+00:00",
+                "transcript": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with TestClient(create_app(dev_mode=True)) as client:
+        # It is listed — the list reports what is on disk, which is what lets a client
+        # decide — but it names a pack that ``/api/scenarios`` does not offer.
+        listed = client.get("/api/saves").json()["saves"]
+        assert listed[0]["save_id"] == "ghost_run"
+        assert "lighthouse" not in client.get("/api/scenarios").json()["scenarios"]
+
+        # Resuming it fails, and says why.
+        refused = client.post(
+            "/api/session", json={"scenario": "lighthouse", "resume_from": "ghost_run"}
+        )
+        assert refused.status_code == 400
+
+        # And a plain new session still works, which is the fallback the page takes.
+        # `turn` is 1, not 0: a fresh session runs its opening tick before this response
+        # is built, so M1's line is already staged (docs/12 §4.2).
+        fresh = client.post("/api/session", json={"scenario": SCENARIO})
+        assert fresh.status_code == 200
+        assert fresh.json()["turn"] == 1
+
+
+def test_a_session_saves_under_the_configured_root_only(tmp_path, monkeypatch):
+    """No test may write a playthrough into the repo's own ``saves/``.
+
+    ``conftest`` redirects ``SAVE_DIR`` for the whole suite because the default is what
+    gets used when a test forgets, and a leaked save is not merely untidy: the front end
+    offers to resume the newest save it finds, so one from a vanished fixture pack broke
+    session creation outright.
+    """
+    from ai_native_rpg.web import session as session_module
+
+    root = tmp_path / "elsewhere"
+    monkeypatch.setattr(session_module, "SAVE_DIR", root)
+
+    # Constructed *without* save_dir, i.e. the forgetful case.
+    s = Session(session_id="default_root", scenario=SCENARIO, trace_dir=tmp_path / "traces")
+    try:
+        s.submit_turn("你好")
+        s.join(timeout=30)
+    finally:
+        s.close()
+
+    assert (root / "default_root" / "session.json").is_file()
+    assert not (Path("saves") / "default_root").exists()
 
 
 def test_a_missing_save_is_a_clear_error(tmp_path):
