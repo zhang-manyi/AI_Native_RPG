@@ -10,7 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from .common import Condition, utc_now
-from .narrative import StoryBeats
+from .narrative import StoryBeats, TimeSlot
 
 
 class Visibility(str, Enum):
@@ -153,11 +153,30 @@ class VisibleState(BaseModel):
 
     player_id: str
     time_day: int
+    time_slot: TimeSlot = Field(
+        default=TimeSlot.MORNING,
+        description="which slot of the day it is. Not hidden information — the cost of an "
+        "action is only a cost if the player can see the clock (docs/13 §4.1), and a "
+        "detective knows whether it is morning or dark out.",
+    )
     visible_facts: dict[str, Any] = Field(
         default_factory=dict, description="fact_id -> value (or partial_value)"
     )
     known_npc_locations: dict[str, str] = Field(default_factory=dict)
     current_location: str | None = None
+    reachable_locations: list[str] = Field(
+        default_factory=list,
+        description="where the player may go from here, i.e. the current location's "
+        "``connected_to``. Projected rather than left to the caller so that adjacency has "
+        "one copy: a front end deriving it would be a second rule free to drift from the "
+        "Validator's (docs/12 §13.2).",
+    )
+    visited_locations: list[str] = Field(
+        default_factory=list,
+        description="places the player has already been, from ``story_beats.visited_locations``. "
+        "Where he has walked is his own memory, so it is his to see — and it is the only "
+        "record of it, never copied.",
+    )
     quest_stages: dict[str, int] = Field(default_factory=dict)
 
 

@@ -7,6 +7,7 @@ prompt tuning downstream can undo it.
 
 from __future__ import annotations
 
+from ai_native_rpg.schemas.narrative import TimeSlot
 from ai_native_rpg.schemas.world_state import Visibility
 from ai_native_rpg.world.player_view import player_view
 
@@ -102,3 +103,55 @@ class TestViewBasics:
         view = player_view(world, "ghost_player")
         assert view.current_location is None
         assert view.known_npc_locations == {}
+        assert view.reachable_locations == []
+
+
+class TestTheClock:
+    """The slot is player-visible: a cost the player cannot see is not a cost."""
+
+    def test_current_slot_is_projected(self, world):
+        world.story_beats.time_slot = TimeSlot.EVENING
+
+        assert player_view(world, PLAYER).time_slot is TimeSlot.EVENING
+
+    def test_the_wrap_up_is_visible_as_itself(self, world):
+        """The interlude is a position in the day, so it projects like any other slot."""
+        world.story_beats.time_slot = TimeSlot.WRAP_UP
+
+        assert player_view(world, PLAYER).time_slot is TimeSlot.WRAP_UP
+
+
+class TestWhereHeCanGo:
+    """Adjacency is projected, so the interface never derives it (docs/12 §13.2)."""
+
+    def test_reachable_locations_come_from_the_current_place(self, world):
+        view = player_view(world, PLAYER)
+
+        # The player is in the tavern, which connects only back to the square.
+        assert view.reachable_locations == ["village_square"]
+
+    def test_reachable_locations_follow_the_player(self, world):
+        world.player_locations[PLAYER] = "village_square"
+
+        view = player_view(world, PLAYER)
+
+        assert sorted(view.reachable_locations) == ["forest_edge", "tavern"]
+
+    def test_a_location_that_is_not_in_the_world_is_dropped(self, world):
+        """Fails closed like every other branch: an offer that cannot be honoured is worse
+        than a missing one, since the Validator would reject it after charging nothing."""
+        world.locations["tavern"].connected_to = ["village_square", "atlantis"]
+
+        assert player_view(world, PLAYER).reachable_locations == ["village_square"]
+
+    def test_visited_locations_are_the_beats_own_record(self, world):
+        """One record of where he has been (docs/12 §13.2): never a second copy."""
+        world.story_beats.visited_locations = ["tavern", "village_square"]
+
+        assert player_view(world, PLAYER).visited_locations == ["tavern", "village_square"]
+
+    def test_the_current_place_is_never_offered_as_a_destination(self, world):
+        """Moving to where you already stand passes the Validator and would burn a slot."""
+        world.locations["tavern"].connected_to = ["village_square", "tavern"]
+
+        assert "tavern" not in player_view(world, PLAYER).reachable_locations

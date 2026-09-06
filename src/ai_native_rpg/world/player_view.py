@@ -58,8 +58,35 @@ def player_view(state: WorldState, player_id: str) -> VisibleState:
     return VisibleState(
         player_id=player_id,
         time_day=state.time_day,
+        # The clock is not asymmetric information: docs/13 §4.1 makes the slot the unit
+        # of cost, and a cost the player cannot see does not shape his choices.
+        time_slot=state.story_beats.time_slot,
         visible_facts=visible_facts,
         known_npc_locations=known_npc_locations,
         current_location=player_location,
+        reachable_locations=_reachable_from(state, player_location),
+        # His own footsteps, and the only record of them (docs/12 §13.2): an interface
+        # showing "没去过" reads this rather than keeping a second list.
+        visited_locations=list(state.story_beats.visited_locations),
         quest_stages={q_id: q.stage for q_id, q in state.quests.items()},
     )
+
+
+def _reachable_from(state: WorldState, origin: str | None) -> list[str]:
+    """Where the player may go next, in the pack's authored order.
+
+    Kept here rather than in the interface so adjacency has exactly one reader-facing
+    copy: docs/12 §13.2 forbids the Web layer re-deriving it, and the reason is that a
+    second copy of a rule the Validator also owns is free to drift from it.
+
+    Two exclusions, both matching what the Validator would say: a destination the world
+    does not contain (``no such location``) and the place the player already stands in.
+    The latter *passes* ``_move_must_be_adjacent`` — moving nowhere is legal — so
+    offering it would let the player spend a slot to stay put.
+    """
+    if origin is None:
+        return []
+    current = state.locations.get(origin)
+    if current is None:
+        return []
+    return [loc for loc in current.connected_to if loc in state.locations and loc != origin]
