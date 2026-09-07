@@ -29,6 +29,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import logging
 import queue
 import threading
 import time
@@ -85,6 +86,8 @@ from .events import (
 )
 from .scene import SceneOption, SceneView, build_pack_display, build_scene
 from .wrap_up_view import WrapUpView, build_wrap_up
+
+logger = logging.getLogger(__name__)
 
 TRACE_DIR = Path("traces")
 NARRATIVE_TRACE_DIR = TRACE_DIR / "narrative"
@@ -409,11 +412,28 @@ class Session:
         # be touching `self.manager` concurrently — the single-writer contract
         # (docs/04) is intact, and this read of its own result populates the panel's
         # timeline the same way a played turn would.
+        #
+        # Runs synchronously on the request thread, unlike every other tick — there is
+        # no turn to answer with a `turn_failed` event yet, since the player has not
+        # submitted one. So a real backend's LLMAPIError (a slow or unreachable
+        # endpoint, not a mock) must not escape and turn session creation itself into a
+        # 500: the opening tick is an optimisation (M1's line arriving a turn early),
+        # and losing it costs nothing but that — the player's first submit_turn runs
+        # its own tick and reaches the same event then, exactly as it did before this
+        # existed.
         if resume is None:
-            opening_tick = self.engine.tick(player_id=self.player_id)
-            self.narrative_traces.save(opening_tick)
-            self._timeline.append(operator_entry(opening_tick))
-            self._rejected.extend(rejected_from_tick(opening_tick))
+            try:
+                opening_tick = self.engine.tick(player_id=self.player_id)
+            except Exception:
+                logger.warning(
+                    "opening tick failed for session %s; the first submit_turn will retry it",
+                    session_id,
+                    exc_info=True,
+                )
+            else:
+                self.narrative_traces.save(opening_tick)
+                self._timeline.append(operator_entry(opening_tick))
+                self._rejected.extend(rejected_from_tick(opening_tick))
 
         # --- the executor -----------------------------------------------------
         self._jobs: queue.Queue[Callable[[], None] | None] = queue.Queue()

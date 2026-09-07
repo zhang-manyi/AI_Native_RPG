@@ -191,6 +191,37 @@ def test_empty_input_is_rejected(session):
 # --- failure handling ------------------------------------------------------
 
 
+def test_a_failing_opening_tick_does_not_block_session_creation(monkeypatch, tmp_path):
+    """Regression: a real backend's opening tick used to escape ``Session.__init__``.
+
+    Found by running against a real model: the opening tick (docs/12 §4.2's "M1's line
+    is in the first hello") runs synchronously in the constructor, with no turn yet to
+    report a ``turn_failed`` event against. An ``LLMAPIError`` from a slow or
+    unreachable endpoint used to propagate straight out of ``Session()``, turning
+    ``POST /api/session`` into a 500 instead of a session the player's first turn can
+    retry the same tick from.
+    """
+    from ai_native_rpg.narrative.engine import NarrativeEngine
+
+    def boom(self, **kwargs):
+        raise RuntimeError("upstream request failed after 3 attempts: timed out")
+
+    monkeypatch.setattr(NarrativeEngine, "tick", boom)
+
+    s = Session(
+        session_id="test_session_boom",
+        scenario=SCENARIO,
+        trace_dir=tmp_path,
+        save_dir=tmp_path / "saves",
+    )
+    try:
+        # No opening tick landed, so no operator row for it either — but the session
+        # itself exists, and a played turn's own tick can still try again.
+        assert s.panel().operator_timeline == []
+    finally:
+        s.close()
+
+
 def test_tick_failure_keeps_the_line(session, monkeypatch):
     """A failed tick costs the *next* turn its setup; this turn's line still stands."""
 
