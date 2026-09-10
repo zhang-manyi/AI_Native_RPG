@@ -80,7 +80,7 @@ class TestTheOpeningEvent:
         assert tick.selected.operator is NarrativeOperator.REVEAL
         assert tick.event is not None
 
-    def test_the_events_own_constraints_reach_the_prompt(self):
+    def test_authored_opening_needs_no_generation(self):
         world = load_scenario(PACK)
         manager = WorldStateManager(world)
         llm = MockLLMClient([_content(), _content()])
@@ -93,10 +93,9 @@ class TestTheOpeningEvent:
 
         tick = engine.tick(player_id=PLAYER)
 
-        prompt = "\n".join(m.content for m in llm.calls[0].messages)
         assert tick.selected is not None
-        for constraint in tick.selected.constraints:
-            assert constraint in prompt
+        assert llm.calls == []
+        assert engine.presented_lines == engine.script.get("M1_knock").presentation
 
 
 class TestGoodwillPath:
@@ -208,8 +207,8 @@ class TestObserveDoesNotAdvance:
 
 
 class TestPatience:
-    def test_the_event_lands_its_default_outcome_when_patience_runs_out(self):
-        """docs/13 §3.1: deterministic ending, and the NPC never decides it."""
+    def test_unmatched_chat_does_not_spend_the_authored_decision(self):
+        """Optional conversation cannot silently choose or exhaust a decision."""
         engine, manager = _engine(responses=6)
         engine.tick(player_id=PLAYER)
 
@@ -218,8 +217,8 @@ class TestPatience:
         ]
 
         assert records[-1] is not None
-        assert records[-1].outcome_id == "no_deal"
-        assert records[-1].finished
+        assert records[-1].outcome_id is None
+        assert not records[-1].finished
         # "没谈成" leaves trust untouched (docs/15 §4 M1)
         assert manager.get_trust(NPC_A, PLAYER) == 10.0
 
@@ -245,68 +244,27 @@ class TestPatience:
 
 
 class TestTheChainContinuesIntoM2AndF1:
-    def _reach_trust_twenty(self, engine, manager) -> None:
-        """Play M1's goodwill option until trust clears 20 (docs/15 §6.1's first rows)."""
-        for _ in range(4):
-            if manager.get_trust(NPC_A, PLAYER) >= 20:
-                return
-            engine.tick(player_id=PLAYER)
-            if manager.snapshot().story_beats.active_event is None:
-                # M1 is not repeatable, so top the value up directly once it is done.
-                break
-            engine.resolve_player_response(
-                player_id=PLAYER, option_id="goodwill", rng=random.Random(0)
-            )
-
-    def test_m2_and_f1_become_available_once_trust_reaches_twenty(self):
-        """docs/15 §6.1: F1 rides along with M2, both gated at ``trust >= 20``."""
-        from ai_native_rpg.narrative.rules import triggerable_events
-
-        engine, manager = _engine(responses=12)
+    def _reach_m2(self, engine):
         engine.tick(player_id=PLAYER)
-        engine.resolve_player_response(player_id=PLAYER, option_id="goodwill", rng=random.Random(0))
-        manager.snapshot()
-        # M1 gave +3; lift the rest of the way rather than re-running a non-repeatable
-        # event, since the slot clock that makes retries meaningful is the next batch.
-        world = manager.snapshot()
-        world.relationships[NPC_A][PLAYER].trust = 20.0
-        available = {e.event_id for e in triggerable_events(world, load_event_script(PACK))}
-
-        assert {"M2_window", "F1_things_missing"} <= available
-
-    def test_f1_plants_a_ledger_entry_pointing_at_the_authored_target(self):
-        """docs/13 §9: the debt now points at the clue chain instead of wherever a
-        model guessed. This is the core motive for the refactor, hence F1 in batch one.
-        """
-        engine, manager = _engine(responses=12)
-        world = manager.snapshot()
-        world.relationships[NPC_A][PLAYER].trust = 20.0
-        manager = WorldStateManager(world)
-        engine = NarrativeEngine(
-            manager=manager,
-            llm=MockLLMClient([_content() for _ in range(6)]),
-            directives=load_narrative_directives(PACK),
-            script=load_event_script(PACK),
-        )
-        # M1 first (higher intensity), so complete it before F1 can be selected.
+        engine.resolve_player_response(player_id=PLAYER, option_id="goodwill")
         engine.tick(player_id=PLAYER)
-        engine.resolve_player_response(player_id=PLAYER, option_id="goodwill", rng=random.Random(0))
+        engine.resolve_player_response(player_id=PLAYER, option_id="help_latch")
+        engine.tick(player_id=PLAYER)
 
-        planted = False
-        for _ in range(4):
-            tick = engine.tick(player_id=PLAYER)
-            if tick.selected is not None and tick.selected.event_id == "F1_things_missing":
-                planted = True
-                break
-            engine.resolve_player_response(
-                player_id=PLAYER, option_id="goodwill", rng=random.Random(0)
-            )
+    def test_helping_opens_m2_without_artificial_trust_changes(self):
+        engine, manager = _engine()
+        self._reach_m2(engine)
+        assert manager.get_trust(NPC_A, PLAYER) == 28
+        assert engine.active_event().event_id == "M2_window"
 
-        assert planted, "F1 was never selected"
-        ledger = manager.snapshot().story_beats.open_foreshadowings
-        assert ledger
-        entry = next(iter(ledger.values()))
-        # The payoff condition is the target fact's own condition, so "time to pay off"
-        # and "the player may know it" cannot drift apart.
-        target = manager.snapshot().facts["ella_whereabouts"]
-        assert entry.payoff_condition == target.reveal_condition
+    def test_f1_automatically_lands_and_registers_its_authored_payoff(self):
+        engine, manager = _engine()
+        self._reach_m2(engine)
+        engine.resolve_player_response(player_id=PLAYER, option_id="goodwill")
+        engine.tick(player_id=PLAYER)
+        world = manager.snapshot()
+        assert "F1_things_missing" in world.story_beats.completed_events
+        assert world.facts["ella_things_missing"].visibility is Visibility.REVEALED
+        entry = world.story_beats.open_foreshadowings["hint:F1_things_missing"]
+        assert entry.payoff_condition == world.facts["ella_whereabouts"].reveal_condition
+        assert engine.active_event().event_id == "M3_witness"

@@ -41,6 +41,10 @@
           <!-- aria-live: the NPC's line arrives asynchronously, so a screen reader
                has to be told about it rather than discovering it on a later focus. -->
           <div class="cast" id="cast" aria-live="polite" aria-atomic="false"></div>
+          <section id="ending" class="ending" aria-live="polite" hidden>
+            <h2 id="ending-title"></h2>
+            <p id="ending-text"></p>
+          </section>
 
           <div class="notes" id="notes" hidden>
             <span class="label">已知</span>
@@ -144,6 +148,7 @@
         </section>
 
         <p class="status" id="status" role="status" aria-live="polite"></p>
+        <div class="feedback-toast" id="feedback-toast" role="status" aria-live="polite" hidden></div>
 
         <!-- Tagged options (docs/12 §13.7, docs/15 §1). Shares one visibility rule with
              the composer below it — both are the player's voice, and docs/15 §1.1 makes

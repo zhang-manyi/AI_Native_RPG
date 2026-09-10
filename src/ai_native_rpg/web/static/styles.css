@@ -236,6 +236,16 @@ body {
 }
 
 /* Characters stand on a floor line, bubbles rise above them. */
+.ending {
+  margin: 1.5rem 0;
+  padding: 1.5rem;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  line-height: 1.8;
+}
+
+.dialogue-name.narrator { opacity: 0.65; }
+
 .cast {
   position: relative;
   z-index: 1;
@@ -248,6 +258,12 @@ body {
   /* The bubble used to grow upward out of the actor and needed headroom for it. The words
    * live in the box at the bottom now, so the sprites get that space back. */
   padding: var(--space-4) 0 var(--space-3);
+}
+
+.cast-empty {
+  margin: auto;
+  color: var(--text-muted);
+  font-style: italic;
 }
 
 .actor {
@@ -556,6 +572,20 @@ body {
   border: 1px solid var(--edge);
   border-radius: var(--radius-sm);
   background: rgba(28, 35, 51, 0.55);
+}
+
+.feedback-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+  padding: .55rem 1rem;
+  border-radius: 999px;
+  background: rgba(35, 28, 20, .92);
+  color: #f7df9b;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 20;
 }
 
 /* The coarse label, and nothing quantitative beside it. */

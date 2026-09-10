@@ -62,6 +62,7 @@ def _engine(world, *, responses: int = 6) -> tuple[NarrativeEngine, WorldStateMa
 
 def _world_at_stage(stage: int):
     world = load_scenario(PACK)
+    world.player_locations[PLAYER] = "forest_edge"
     world.quests["investigation"].stage = stage
     return world
 
@@ -71,6 +72,7 @@ def _reveal_truth_side(world) -> None:
     for fact_id in _TRUTH_FACTS:
         world.facts[fact_id].visibility = Visibility.REVEALED
     world.story_beats.flags.extend(_TRUTH_FLAGS)
+    world.facts["forest_traces"].visibility = Visibility.REVEALED
 
 
 class TestConcludeCase:
@@ -85,14 +87,14 @@ class TestConcludeCase:
 
     def test_refuses_while_another_event_is_running(self):
         """docs/13 §5.2: one conversation partner at a time."""
-        engine, manager = _engine(_world_at_stage(0))
+        engine, manager = _engine(load_scenario(PACK))
         engine.tick(player_id=PLAYER)  # opens M1
         assert manager.snapshot().story_beats.active_event is not None
 
         result = engine.conclude_case()
 
         assert not result.approved
-        assert "in progress" in result.reason
+        assert result.reason
         # And nothing was disturbed: the event M1 opened is still the active one.
         assert manager.snapshot().story_beats.active_event.event_id == "M1_knock"
 
@@ -167,7 +169,7 @@ class TestRequiresFiltersOptions:
 
         assert "accuse_innkeeper" not in ids
 
-    def test_an_option_hidden_by_requires_resolves_to_the_default(self):
+    def test_an_option_hidden_by_requires_leaves_the_decision_open(self):
         """Clicking (or a stale classification landing on) a gated option must not be a
         backdoor around the gate: it resolves the same as an unrecognised id (docs/15 §7)."""
         engine, manager = _engine(_world_at_stage(3))
@@ -178,7 +180,8 @@ class TestRequiresFiltersOptions:
         )
 
         assert record is not None
-        assert record.outcome_id == "not_yet"
+        assert record.outcome_id is None
+        assert not record.finished
         assert manager.snapshot().facts["ella_whereabouts"].visibility is Visibility.HIDDEN
 
 

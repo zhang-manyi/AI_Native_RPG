@@ -130,6 +130,18 @@ class SceneView(BaseModel):
     location: LocationDisplay | None = None
     destinations: list[Destination] = Field(default_factory=list)
     npcs: list[NpcDisplay] = Field(default_factory=list)
+    current_npc_id: str | None = Field(
+        default=None,
+        description="who a typed or clicked line would go to right now, chosen from "
+        "``npcs`` by location alone (docs/12 §13.2's co-location rule) rather than by "
+        "array order — the front end must not infer this from ``npcs[0]``, since a "
+        "future scene with more than one co-located NPC would make that guess wrong.",
+    )
+    passages: list[SceneLine] = Field(default_factory=list)
+    passage_id: str = ""
+    ending: dict[str, str] | None = None
+    can_conclude: bool = False
+    ready: bool = True
     visible_facts: list[dict[str, Any]] = Field(default_factory=list)
     quest_stages: dict[str, int] = Field(default_factory=dict)
     scripted_lines: list[str] = Field(
@@ -208,6 +220,10 @@ def build_scene(
     place for it to be wrong.
     """
     npcs = [display.npcs[npc_id] for npc_id in view.known_npc_locations if npc_id in display.npcs]
+    # First co-located NPC, in the pack's authored order. Every scene in the shipped
+    # pack has at most one, so this is unambiguous today; a future pack with two
+    # NPCs sharing a location would need a real selector here rather than this pick.
+    current_npc_id = next(iter(view.known_npc_locations), None)
 
     lines = []
     for entry in transcript or []:
@@ -236,6 +252,7 @@ def build_scene(
         location=location,
         destinations=destinations,
         npcs=npcs,
+        current_npc_id=current_npc_id,
         # A list of {id, value} rather than a mapping: the page renders these in
         # order, and the pack's authoring order is the readable one.
         visible_facts=[{"id": k, "value": v} for k, v in view.visible_facts.items()],
@@ -251,5 +268,7 @@ def build_scene(
 
 
 def _name_of(display: PackDisplay, npc_id: str) -> str:
+    if npc_id == "narrator":
+        return "旁白"
     npc = display.npcs.get(npc_id)
     return npc.name if npc is not None else npc_id

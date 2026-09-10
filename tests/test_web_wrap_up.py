@@ -24,7 +24,6 @@ pytest.importorskip("fastapi", reason="needs the 'web' extra")
 
 from pathlib import Path
 
-from ai_native_rpg.scenario import load_scenario
 from ai_native_rpg.schemas.narrative import SLOTS_PER_DAY, TimeSlot
 from ai_native_rpg.schemas.world_state import Visibility
 from ai_native_rpg.web.session import Session
@@ -156,13 +155,14 @@ def test_unanswered_questions_are_passed_through_unedited(session):
 # --- no leaks --------------------------------------------------------------
 
 
-def _hidden_values(scenario: str) -> list[str]:
+def _hidden_values(session) -> list[str]:
     """Every value the player has not earned, as it would appear serialised."""
-    world = load_scenario(scenario)
+    world = session.manager.snapshot()
+    visible = session.manager.player_view(session.player_id).visible_facts
     values = [
         str(fact.value)
-        for fact in world.facts.values()
-        if fact.visibility is not Visibility.REVEALED
+        for fact_id, fact in world.facts.items()
+        if fact.visibility is not Visibility.REVEALED and fact_id not in visible
     ]
     return [v for v in values if v.strip()]
 
@@ -176,7 +176,7 @@ def test_no_hidden_fact_value_reaches_the_wrap_up_payload(session):
     _reach_the_wrap_up(session)
 
     body = json.dumps(session.wrap_up().model_dump(), ensure_ascii=False, default=str)
-    for value in _hidden_values(SCENARIO):
+    for value in _hidden_values(session):
         assert value not in body
 
 
@@ -311,7 +311,7 @@ def test_the_endpoint_serves_the_screen_at_the_wrap_up(monkeypatch, tmp_path):
         assert set(body["reading"]) == {"darkness", "tension", "imagery", "reads_as"}
 
         # And no hidden value came along for the ride.
-        for value in _hidden_values(SCENARIO):
+        for value in _hidden_values(session):
             assert value not in json.dumps(body, ensure_ascii=False)
 
 

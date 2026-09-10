@@ -301,6 +301,34 @@ def test_the_scene_follows_the_player_after_a_move(session):
     ]
 
 
+def test_dialogue_routes_to_the_npc_at_the_current_location(session):
+    """Each move selects a fresh NPC runtime instead of reusing the opening one."""
+    session.submit_turn("浣犲ソ")
+    session.join(timeout=30)
+    dialogue = _events(session, EventType.DIALOGUE)
+    assert dialogue[-1]["npc_id"] == "npc_a"
+
+    session.submit_move(NEXT_DOOR)
+    session.join(timeout=30)
+    session.submit_move(TOO_FAR)
+    session.join(timeout=30)
+    session.submit_turn("浣犲ソ")
+    session.join(timeout=30)
+    assert _events(session, EventType.DIALOGUE)[-1]["npc_id"] == "npc_b"
+
+
+def test_dialogue_fails_cleanly_when_the_current_location_has_no_npc(session):
+    session.submit_move(NEXT_DOOR)
+    session.join(timeout=30)
+
+    session.submit_turn("鏈変汉鍚楋紵")
+    session.join(timeout=30)
+
+    assert _events(session, EventType.DIALOGUE) == []
+    failed = _events(session, EventType.TURN_FAILED)
+    assert failed[-1]["error_type"] == "NoConversationNPC"
+
+
 def test_first_visit_is_read_from_the_beats_not_tracked_separately(session):
     """docs/12 §13.2: ``visited_locations`` carries this, and nothing keeps a copy."""
     # The player starts at Marta's door, so that counts as visited from turn one.

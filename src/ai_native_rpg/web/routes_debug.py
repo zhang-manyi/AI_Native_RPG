@@ -46,20 +46,29 @@ def get_world(session_id: str, request: Request) -> dict:
 
 
 @router.get("/session/{session_id}/memory")
-def get_memory(session_id: str, request: Request, top_k: int = 50) -> dict:
+def get_memory(
+    session_id: str, request: Request, top_k: int = 50, npc_id: str | None = None
+) -> dict:
     """One NPC's private memory (Memory Explorer, docs/07 §2.2).
 
-    Memory is per-NPC and private — each NPC has its own store, and this session
-    holds exactly one. The owner is named in the response so the page cannot present
-    it as a global store.
+    Memory is per-NPC and private. The selected owner is named in the response so the
+    page cannot present one character's memories as a global store.
     """
     session = _session(request, session_id)
-    result = session.memory.retrieve("", top_k=top_k)
+    selected = npc_id or session._resolve_current_npc_id()
+    if selected is None or selected not in session._npcs:
+        raise HTTPException(status_code=404, detail="no NPC available for this scene")
+    memory = session._npcs[selected].memory
+    result = memory.retrieve("", top_k=top_k)
     return {
-        "npc_id": session.npc_id,
-        "name": session.npc_name,
-        "episodic_count": session.memory.episodic_count,
-        "semantic_count": session.memory.semantic_count,
+        "npc_id": selected,
+        "name": (
+            session.display.npcs.get(selected).name
+            if session.display.npcs.get(selected)
+            else selected
+        ),
+        "episodic_count": memory.episodic_count,
+        "semantic_count": memory.semantic_count,
         "episodic": [
             {"id": m.memory_id, "text": m.event_description, "importance": m.importance}
             for m in result.episodic

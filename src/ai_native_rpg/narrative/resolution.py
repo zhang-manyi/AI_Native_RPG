@@ -270,9 +270,6 @@ def apply_outcome(
                 )
             )
 
-    for fact_id in outcome.reveals_facts:
-        results.append(_submit(manager, ActionType.REVEAL_FACT, target_id=fact_id))
-
     beat_payload: dict[str, object] = {}
     if outcome.tension_change:
         current = manager.snapshot().story_beats.tension
@@ -281,6 +278,10 @@ def apply_outcome(
         beat_payload["raise_flags"] = list(outcome.sets_flags)
     if beat_payload:
         results.append(_submit(manager, ActionType.ADVANCE_STORY_BEAT, payload=beat_payload))
+
+    # A decision may unlock its evidence. Apply its flags before checking each reveal.
+    for fact_id in outcome.reveals_facts:
+        results.append(_submit(manager, ActionType.REVEAL_FACT, target_id=fact_id))
 
     return results
 

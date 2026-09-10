@@ -28,7 +28,7 @@ what is unlocked and docs/04 §3.3 forbids any actor from routing around
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -233,6 +233,7 @@ class EventOutcome(BaseModel):
     """
 
     outcome_id: str
+    npc_reply: str = Field(default="", description="fixed reply and fallback after this outcome")
     summary: str = Field(
         default="", description="short label for the debug panel, e.g. '她隔门应答'"
     )
@@ -377,6 +378,13 @@ class EventOption(BaseModel):
         return {self.on_success} | ({self.on_failure} if self.on_failure else set())
 
 
+class AuthoredLine(BaseModel):
+    """A performed line, never implicitly submitted as player input."""
+
+    speaker: str = "narrator"
+    text: str = Field(min_length=1)
+
+
 class EventDefinition(BaseModel):
     """One authored event: antecedent, consequent, branches (docs/13 §2).
 
@@ -392,6 +400,10 @@ class EventDefinition(BaseModel):
     """
 
     event_id: str
+    delivery: Literal["dialogue", "choice", "narration"] = "dialogue"
+    presentation: list[AuthoredLine] = Field(default_factory=list)
+    locations: list[str] = Field(default_factory=list)
+    manual_only: bool = False
     operator: NarrativeOperator = Field(
         description="how this event is voiced. Demoted from scheduling unit to "
         "presentation (docs/13 §2), which is all it was ever able to describe."
@@ -454,6 +466,12 @@ class EventDefinition(BaseModel):
 
     @model_validator(mode="after")
     def _references_must_resolve(self) -> Self:
+        if self.delivery == "narration" and (
+            len(self.outcomes) != 1 or self.options or self.repeatable
+        ):
+            raise ValueError("narration must have one outcome, no options, and run once")
+        if self.delivery == "choice" and not self.options:
+            raise ValueError("choice delivery requires options")
         if self.default_outcome not in self.outcomes:
             raise ValueError(
                 f"event {self.event_id!r} names default_outcome {self.default_outcome!r}, "

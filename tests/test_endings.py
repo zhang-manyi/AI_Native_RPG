@@ -78,7 +78,8 @@ class TestNeverFoundOut:
             _spend_one_day(engine)
             engine.close_out_day()
 
-        assert manager.snapshot().time_day == 6
+        # Once the deadline ends the case, further travel must not advance the clock.
+        assert manager.snapshot().time_day == 5
         assert manager.snapshot().story_beats.ended_at == "never_found_out"
 
     def test_the_case_stays_open_while_days_remain(self):
@@ -89,7 +90,7 @@ class TestNeverFoundOut:
         assert manager.snapshot().time_day == 1
         assert manager.snapshot().story_beats.ended_at is None
 
-    def test_a_plain_move_after_the_ending_still_works_and_does_not_disturb_it(self):
+    def test_travel_after_the_ending_is_refused_and_does_not_disturb_it(self):
         """``_check_endings`` runs after every ``move_player`` too (docs/14 §4.3's note
         that this ending needs no event), not only from ``close_out_day`` — this pins
         that a move made once the deadline is already past neither breaks nor re-derives
@@ -102,7 +103,7 @@ class TestNeverFoundOut:
 
         result = engine.move_player(player_id=PLAYER, destination=_SQUARE)
 
-        assert result.approved
+        assert not result.approved
         assert manager.snapshot().story_beats.ended_at == "never_found_out"
 
 

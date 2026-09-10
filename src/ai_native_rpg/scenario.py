@@ -130,6 +130,8 @@ class Ending(BaseModel):
 
     ending_id: str
     summary: str = Field(default="", description="one line for the panel, e.g. '查明真相'")
+    player_title: str = "调查结束"
+    player_text: str = "这次调查已经结束。"
     terminal: bool = Field(
         default=True,
         description="whether reaching this state ends the case.\n\n"
@@ -321,6 +323,12 @@ def load_event_script(name_or_path: str | Path) -> EventScript:
     # silently never happens.
     world = _build_world(raw)
     for event in script.events.values():
+        for location in event.locations:
+            if location not in world.locations:
+                raise ScenarioError(f"event {event.event_id!r}: unknown location {location!r}")
+        for line in event.presentation:
+            if line.speaker not in {"player", "narrator", *world.npcs}:
+                raise ScenarioError(f"event {event.event_id!r}: unknown speaker {line.speaker!r}")
         for clause in event.trigger.clauses:
             try:
                 resolve_path(world, clause.path)

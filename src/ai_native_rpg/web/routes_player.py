@@ -34,18 +34,23 @@ class CreateSessionRequest(BaseModel):
     scenario: str | None = Field(
         default=None, description="pack under scenarios/; defaults to the first available"
     )
-    npc_id: str | None = Field(default=None, description="defaults to the pack's first NPC")
+    npc_id: str | None = Field(
+        default=None,
+        description="initial focus hint; dialogue still follows the player's location",
+    )
     resume_from: str | None = Field(
         default=None,
-        description="save id to continue from (see GET /api/saves). The scenario and NPC "
-        "must match the save; omitted starts the pack from its opening state.",
+        description="save id to continue from (see GET /api/saves). The scenario must "
+        "match the save; omitted starts the pack from its opening state.",
     )
 
 
 class CreateSessionResponse(BaseModel):
     session_id: str
     scenario: str
-    npc_id: str
+    npc_id: str | None = Field(
+        default=None, description="NPC co-located with the player when the session opens"
+    )
     dev_mode: bool
     resumed_from: str | None = Field(
         default=None, description="the save this session continues, if any"

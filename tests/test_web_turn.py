@@ -343,7 +343,7 @@ def test_a_turn_writes_a_resumable_save(session, tmp_path):
     directory = tmp_path / "saves" / "test_session"
     assert (directory / "world.json").is_file()
     assert (directory / "session.json").is_file()
-    assert (directory / f"memory_{session.npc_id}.json").is_file()
+    assert all((directory / f"memory_{npc_id}.json").is_file() for npc_id in session._npcs)
 
 
 def test_resuming_continues_the_world_rather_than_restarting_it(tmp_path):
@@ -383,7 +383,7 @@ def test_resuming_continues_the_world_rather_than_restarting_it(tmp_path):
         # the NPC still remembers the conversation, which WorldState does not hold
         assert second.memory.episodic_count == memories_before
         # and the player reopens on the transcript they left
-        assert len(second.transcript) == 2
+        assert second.transcript == first.transcript
     finally:
         second.close()
 
@@ -415,6 +415,40 @@ def test_a_resumed_session_keeps_playing_from_there(tmp_path):
         assert second.scene().turn > turn_before
     finally:
         second.close()
+
+
+def test_resuming_a_legacy_single_memory_save_seeds_the_other_npcs(tmp_path):
+    first = Session(
+        session_id="legacy_run",
+        scenario=SCENARIO,
+        trace_dir=tmp_path,
+        save_dir=tmp_path / "saves",
+    )
+    try:
+        first.submit_turn("浣犲ソ")
+        first.join(timeout=30)
+        counts = {npc_id: runtime.memory.episodic_count for npc_id, runtime in first._npcs.items()}
+    finally:
+        first.close()
+
+    directory = tmp_path / "saves" / "legacy_run"
+    for npc_id in counts:
+        if npc_id != "npc_a":
+            (directory / f"memory_{npc_id}.json").unlink()
+
+    resumed = Session(
+        session_id="legacy_resume",
+        scenario=SCENARIO,
+        trace_dir=tmp_path,
+        save_dir=tmp_path / "saves",
+        resume=load_save("legacy_run", root=tmp_path / "saves"),
+    )
+    try:
+        assert resumed._npcs["npc_a"].memory.episodic_count == counts["npc_a"]
+        for npc_id in counts.keys() - {"npc_a"}:
+            assert resumed._npcs[npc_id].memory.episodic_count == counts[npc_id]
+    finally:
+        resumed.close()
 
 
 def test_a_save_from_another_scenario_is_refused(tmp_path):

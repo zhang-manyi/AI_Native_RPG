@@ -68,6 +68,15 @@ def test_debug_routes_exist_in_dev_mode():
         assert client.get(f"/debug/session/{sid}/world").status_code == 200
 
 
+def test_debug_memory_can_select_an_npc_runtime():
+    with TestClient(create_app(dev_mode=True)) as client:
+        sid = client.post("/api/session", json={"scenario": SCENARIO}).json()["session_id"]
+        response = client.get(f"/debug/session/{sid}/memory", params={"npc_id": "npc_b"})
+
+        assert response.status_code == 200
+        assert response.json()["npc_id"] == "npc_b"
+
+
 def test_openapi_does_not_advertise_debug_without_dev_mode():
     """Schema discovery is a surface too; the docs endpoint is off as well."""
     with TestClient(create_app(dev_mode=False)) as client:

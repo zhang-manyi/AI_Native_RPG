@@ -39,7 +39,8 @@ class TestReferenceScenario:
         world = load_scenario(SCENARIO)
         cond = world.facts["clue_1_witness"].reveal_condition
         assert cond is not None
-        assert cond.clauses[0].path == "relationships.npc_a.player_1.trust"
+        assert cond.clauses[0].path == "story_beats.flags"
+        assert cond.clauses[0].value == "witness_told"
 
     def test_player_start_location_is_loaded(self):
         world = load_scenario(SCENARIO)

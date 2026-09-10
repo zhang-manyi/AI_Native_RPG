@@ -32,6 +32,7 @@ const ui = {
   advance: el("advance"),
   logToggle: el("log-toggle"),
   status: el("status"),
+  feedbackToast: el("feedback-toast"),
   options: el("options"),
   composer: el("composer"),
   say: el("say"),
@@ -53,12 +54,16 @@ const ui = {
   panel: el("panel"),
   panelBody: el("panel-body"),
   panelTurn: el("panel-turn"),
+  ending: el("ending"),
+  endingTitle: el("ending-title"),
+  endingText: el("ending-text"),
 };
 
 const state = {
   sessionId: null,
   devMode: false,
   scene: null,
+  currentNpcId: null,
   panel: null,
   // The dialogue box holds one line at a time: { kind, who, text }. `kind` is 'player' or
   // 'npc' and decides only how the name is styled — both voices get the same box, so
@@ -89,6 +94,8 @@ const state = {
   // — an option is not conditioned on the line before it there — so without this the
   // tray would render before the player had read what he is being asked to respond to.
   pendingOptions: [],
+  passageId: null,
+  authoredQueue: false,
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -309,13 +316,28 @@ function onTurnAccepted(data) {
 
 function onDialogue(data) {
   // The reply takes the box over: one line on screen, the rest in the log.
+  state.currentNpcId = data.npc_id;
   say("npc", data.name, data.dialogue);
   state.waiting = "tick";
   appendLine("npc", data.name, data.dialogue);
+  showRelationshipFeedback(data.relationship_changes || {});
   renderCast();
   // The tick's seconds are shown, not hidden: this is the wait the whole design
   // moved off the player's critical path, and naming it is more honest than a freeze.
   setStatus(`台词 ${num(data.latency_ms)}ms · 叙事引擎正在推进……`, "working");
+}
+
+let feedbackTimer = null;
+function showRelationshipFeedback(changes) {
+  const labels = { trust: "信任", fear: "警惕", respect: "尊重" };
+  const parts = Object.entries(changes)
+    .filter(([, value]) => Number(value))
+    .map(([key, value]) => `${labels[key] || key}${Number(value) > 0 ? "+" : ""}${Number(value)}`);
+  if (!parts.length || !ui.feedbackToast) return;
+  ui.feedbackToast.textContent = parts.join("　");
+  ui.feedbackToast.hidden = false;
+  clearTimeout(feedbackTimer);
+  feedbackTimer = setTimeout(() => { ui.feedbackToast.hidden = true; }, 3500);
 }
 
 function onMove(data) {
@@ -335,6 +357,7 @@ function onMove(data) {
   // nothing is being said in the new place yet. Clearing `spokenFor` too, so the event
   // waiting at the new location can offer its own scripted lines.
   clearDialogue();
+  state.currentNpcId = null;
   state.spokenFor = null;
   state.waiting = "tick";
   const first = data.first_visit ? " · 第一次来" : "";
@@ -349,13 +372,22 @@ function onTick(data) {
   const op = entry.operator || "relieve";
   const ms = num(entry.latency_ms);
   setStatus(op === "relieve" ? `本轮无算子触发 · ${ms}ms` : `算子 ${op} · ${ms}ms`);
-  setBusy(false);
 }
 
 function onScene(scene) {
   if (!scene) return;
   state.scene = scene;
+  state.currentNpcId = scene.current_npc_id ?? null;
+  if (scene.ready !== undefined) {
+    state.waiting = scene.ready ? null : state.waiting;
+    setBusy(!scene.ready);
+  }
   renderScene();
+  if (scene.ready) {
+    setStatus(scene.ending ? "调查结束。你仍可以查看对话记录。" :
+      scene.event_in_progress ? "阅读对白后，选择一个行动，也可以自由输入。" :
+      "可以前往其他地点继续调查。有人在场时，也可以留下自由交谈。");
+  }
 }
 
 function onPanel(panel) {
@@ -401,8 +433,12 @@ function renderScene() {
     `</div>`;
 
   renderWays(s.destinations || []);
-  ui.conclude.hidden = Boolean(s.event_in_progress);
-  queueScriptedLines(s.scripted_lines || []);
+  ui.conclude.hidden = !s.can_conclude;
+  ui.ending.hidden = !s.ending;
+  ui.endingTitle.textContent = s.ending?.title || "";
+  ui.endingText.textContent = s.ending?.text || "";
+  if (s.passages?.length) queuePassages(s);
+  else queueScriptedLines(s.scripted_lines || []);
   // Held rather than rendered immediately: the pack sends both in one snapshot, so an
   // option is not itself conditioned on the scripted line ahead of it having been read.
   // `renderDialogue` below always ends by calling `renderComposerVisibility`, which is
@@ -414,7 +450,7 @@ function renderScene() {
 
   // The slot in the scene snapshot is the only signal needed; keeping a separate "are we
   // wrapping up" flag would be a second source of truth for one boolean.
-  setWrapUp(s.time_slot === "wrap_up");
+  setWrapUp(s.time_slot === "wrap_up" && !s.ending);
 }
 
 /** Show or withhold the options tray, per the same "is it the player's move" test the
@@ -424,7 +460,11 @@ function renderScene() {
  * actually said, not the moment the server happened to mention it.
  */
 function updateOptionsTray() {
-  const idle = !state.busy && !state.awaitingAdvance && !state.wrapUpActive;
+  const idle =
+    !state.busy &&
+    !state.awaitingAdvance &&
+    !state.wrapUpActive &&
+    !state.scene?.ending;
   renderOptions(idle ? state.pendingOptions : []);
 }
 
@@ -437,6 +477,14 @@ function updateOptionsTray() {
  * Guarded by content because two `scene` snapshots arrive per turn; without that the speech
  * would be re-offered the moment the tick landed.
  */
+function queuePassages(scene) {
+  if (state.busy || state.passageId === scene.passage_id) return;
+  state.passageId = scene.passage_id;
+  state.authoredQueue = true;
+  state.queue = [...scene.passages];
+  showNextQueued();
+}
+
 function queueScriptedLines(lines) {
   const key = lines.join(" ");
   if (!lines.length || state.spokenFor === key) return;
@@ -449,6 +497,7 @@ function queueScriptedLines(lines) {
   // each. Keeping the first queued is what makes a *single* scripted line work: it is read
   // in the box first, and the advance that follows is the act of saying it.
   state.queue = [...lines];
+  state.authoredQueue = false;
   showNextQueued();
 }
 
@@ -456,6 +505,14 @@ function queueScriptedLines(lines) {
 function showNextQueued() {
   const next = state.queue[0];
   if (next === undefined) return;
+  if (state.authoredQueue) {
+    const kind = next.speaker === "player" ? "player" :
+      next.speaker === "narrator" ? "narrator" : "npc";
+    if (kind === "npc") state.currentNpcId = next.speaker;
+    say(kind, next.name, next.text, { awaitAdvance: true });
+    renderCast();
+    return;
+  }
   say("player", "你", next, { awaitAdvance: true });
 }
 
@@ -552,7 +609,7 @@ function renderWrapUp(view) {
     .join("");
   // The coarse label only. The ratio is deliberately never turned back into "还剩 N 条"
   // — that is the number a player would optimise against (docs/12 §13.3).
-  ui.wrapReads.textContent = READS_AS[reading.reads_as] || "";
+  ui.wrapReads.textContent = `你回到家中，心里仍笼着疑惑，随手抽出两张塔罗牌。${READS_AS[reading.reads_as] || "牌面沉默，只留下模糊的暗示。"}`;
 }
 
 /** Where the player may go. The list is the server's; this only draws it.
@@ -561,6 +618,7 @@ function renderWrapUp(view) {
  * rule, and a copy of it here would be a second rule free to drift (docs/12 §13.2).
  */
 function renderWays(destinations) {
+  if (state.scene?.ending) destinations = [];
   ui.ways.hidden = destinations.length === 0;
   ui.waysList.innerHTML = destinations
     .map(
@@ -599,7 +657,8 @@ function renderDialogue() {
   if (thinking) {
     // Someone is composing a reply. Shown in the box rather than over the sprite so the
     // wait happens where the words will appear (docs/12 §5.3: visible, not hidden).
-    ui.dialogueName.textContent = state.scene?.npcs?.[0]?.name || "";
+    const npc = state.scene?.npcs?.find((entry) => entry.npc_id === state.currentNpcId);
+    ui.dialogueName.textContent = npc?.name || "";
     ui.dialogueName.className = "dialogue-name npc";
     ui.dialogueText.innerHTML = `<span class="thinking">在想<span class="dots"><i></i><i></i><i></i></span></span>`;
     ui.advance.hidden = true;
@@ -629,7 +688,13 @@ function renderDialogue() {
  * repeated here so a stray call from `renderDialogue` cannot re-show it underneath).
  */
 function renderComposerVisibility() {
-  const idle = !state.busy && !state.awaitingAdvance && !state.wrapUpActive;
+  const idle =
+    !state.busy &&
+    !state.awaitingAdvance &&
+    !state.wrapUpActive &&
+    !state.scene?.ending &&
+    state.currentNpcId !== null &&
+    (state.scene?.npcs || []).length > 0;
   ui.composer.hidden = !idle;
   updateOptionsTray();
 }
@@ -648,6 +713,17 @@ async function advance() {
   const spoken = state.queue.shift();
   if (spoken === undefined) return;
 
+  if (state.authoredQueue) {
+    if (state.queue.length) showNextQueued();
+    else {
+      state.awaitingAdvance = false;
+      state.currentNpcId = state.scene?.current_npc_id ?? null;
+      renderDialogue();
+      renderCast();
+    }
+    return;
+  }
+
   appendLine("player", "你", spoken);
 
   if (state.queue.length > 0) {
@@ -665,9 +741,14 @@ async function advance() {
 
 function renderCast() {
   const npcs = state.scene?.npcs || [];
+  if (npcs.length === 0) {
+    ui.cast.innerHTML = `<p class="cast-empty">这里没有人。</p>`;
+    return;
+  }
   ui.cast.innerHTML = npcs
     .map((npc) => {
-      const isSpeaking = state.line?.kind === "npc" && state.line.who === npc.name;
+      const isSpeaking =
+        state.line?.kind === "npc" && npc.npc_id === state.currentNpcId;
       // The note is public, ungated pack content (NPCWorldState.public_note) — never
       // an excerpt of persona.background, which runs on into what the player must earn.
       // Text-only for now (docs/12 §8's manual pass is what would restore sprite/art):

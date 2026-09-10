@@ -126,7 +126,19 @@ def _trigger_holds(world: WorldState, event: EventDefinition) -> bool:
         return False
 
 
-def triggerable_events(world: WorldState, script: EventScript | None) -> list[EventDefinition]:
+def event_is_present(world: WorldState, event: EventDefinition, player_id: str) -> bool:
+    here = world.player_locations.get(player_id)
+    if event.locations and here not in event.locations:
+        return False
+    if event.npc_id:
+        npc = world.npcs.get(event.npc_id)
+        return npc is not None and npc.alive and npc.location == here
+    return True
+
+
+def triggerable_events(
+    world: WorldState, script: EventScript | None, *, player_id: str | None = None
+) -> list[EventDefinition]:
     """Every event the script and the world jointly permit, in script order.
 
     Order is fixed rather than sorted, because the Controller breaks ranking ties with
@@ -140,6 +152,10 @@ def triggerable_events(world: WorldState, script: EventScript | None) -> list[Ev
 
     permitted: list[EventDefinition] = []
     for event in script.events.values():
+        if event.manual_only or world.story_beats.ended_at:
+            continue
+        if not event_is_present(world, event, player_id or next(iter(world.player_locations), "")):
+            continue
         # Closed means never again (docs/15 §3.3); completed usually means "not right
         # now" — an event the player could re-enter every single turn is the filler
         # loop this layer replaced. Re-runnable events say so explicitly, and the slot

@@ -38,7 +38,7 @@ from ..agent.harness import PromptLibrary
 from ..llm.base import LLMClient, Message
 from ..scenario import Ending, NarrativeDirectives
 from ..schemas.common import Condition
-from ..schemas.events import CheckBand, EventDefinition, EventOption, EventScript
+from ..schemas.events import AuthoredLine, CheckBand, EventDefinition, EventOption, EventScript
 from ..schemas.narrative import (
     EventCandidate,
     NarrativeEvent,
@@ -63,9 +63,11 @@ from .rules import (
     check_terminal_ending,
     check_triggers,
     earned_stage,
+    event_is_present,
     milestone_flag,
     newly_reached_milestones,
     progress_quest,
+    triggerable_events,
 )
 from .wrap_up import ClueReview, TarotReading, review_clues, tarot_reading
 
@@ -169,6 +171,8 @@ class NarrativeTick(BaseModel):
     """
 
     tick_id: str
+    authored_events: list[str] = Field(default_factory=list)
+    resolutions: list[EventResolutionRecord] = Field(default_factory=list)
     turn: int
     player_id: str
 
@@ -219,6 +223,8 @@ class NarrativeEngine:
         # ending that would apply to every story regardless of what it actually declares.
         self._endings = endings or []
         self._pending_event: dict[str, Any] | None = None
+        self.presented_lines: list[AuthoredLine] = []
+        self._resolutions: list[EventResolutionRecord] = []
 
     @property
     def script(self) -> EventScript:
@@ -250,7 +256,20 @@ class NarrativeEngine:
         if definition is None:
             return []
         world = self._manager.snapshot()
-        return [o for o in definition.options if self._option_available(o, world)]
+        return [
+            o
+            for o in definition.options
+            if self._option_available(o, world)
+            and not (
+                definition.delivery == "choice"
+                and not definition.outcome_for(o.on_success).advances_conversation
+                and definition.outcome_for(o.on_success).reveals_facts
+                and all(
+                    world.facts[f].visibility.value == "revealed"
+                    for f in definition.outcome_for(o.on_success).reveals_facts
+                )
+            )
+        ]
 
     def _option_available(self, option: EventOption, world) -> bool:
         """Whether ``option.requires`` (if any) currently holds.
@@ -296,8 +315,13 @@ class NarrativeEngine:
         in ``player_actions`` and goes through the Validator like everything else — the
         Engine is not a second write path (docs/04).
         """
+        if self.reached_ending():
+            return PlayerActionResult(approved=False, reason="调查已结束。")
         result = move_player(self._manager, player_id=player_id, destination=destination)
         if result.approved:
+            if self.active_event() is not None:
+                self.end_conversation()
+            self._pending_event = None
             self._check_endings()
         return result
 
@@ -312,6 +336,16 @@ class NarrativeEngine:
         self._check_endings()
         return result
 
+    def can_conclude(self, player_id: str) -> bool:
+        definition = self._script.get(self._directives.conclusion_event or "")
+        return bool(
+            definition
+            and not self.active_event()
+            and not self.reached_ending()
+            and not self.is_wrapping_up()
+            and event_is_present(self._manager.snapshot(), definition, player_id)
+        )
+
     def conclude_case(self) -> PlayerActionResult:
         """Open the conclusion event on the player's own initiative (docs/13 §12, docs/15 §4 M7).
 
@@ -322,6 +356,8 @@ class NarrativeEngine:
         takes when a pack ships no script at all.
         """
         event_id = self._directives.conclusion_event
+        if self.reached_ending() or self.is_wrapping_up():
+            return PlayerActionResult(approved=False, reason="现在不能作出结论。")
         if event_id is None:
             return PlayerActionResult(
                 approved=False, reason="this pack declares no conclusion event"
@@ -331,6 +367,10 @@ class NarrativeEngine:
             return PlayerActionResult(
                 approved=False, reason=f"conclusion event {event_id!r} is not in the script"
             )
+        world = self._manager.snapshot()
+        player_id = next(iter(world.player_locations), "")
+        if not event_is_present(world, definition, player_id):
+            return PlayerActionResult(approved=False, reason="请到结论事件所在的地点再作判断。")
         result = conclude_case(
             self._manager, event_id=event_id, max_exchanges=definition.max_exchanges
         )
@@ -401,6 +441,9 @@ class NarrativeEngine:
 
     def tick(self, *, player_id: str, profile: PlayerProfile | None = None) -> NarrativeTick:
         """Decide and apply this turn's beat. Returns the record of what happened."""
+        self.presented_lines = []
+        if any(e.delivery != "dialogue" for e in self._script.events.values()):
+            return self._tick_authored(player_id)
         started = time.perf_counter()
         world = self._manager.snapshot()
         turn = world.story_beats.turn
@@ -443,6 +486,77 @@ class NarrativeEngine:
             token_usage=token_usage,
         )
 
+    def refresh_authored(self, player_id: str) -> NarrativeTick | None:
+        """Present an arrival after an interlude without charging another turn."""
+        self.presented_lines = []
+        if any(e.delivery != "dialogue" for e in self._script.events.values()):
+            active = self.active_event()
+            if active and not event_is_present(self._manager.snapshot(), active, player_id):
+                self.end_conversation()
+            return self._tick_authored(player_id, advance_turn=False)
+        return None
+
+    def _tick_authored(self, player_id: str, *, advance_turn: bool = True) -> NarrativeTick:
+        """Drain automatic beats, then stop at one decision. No generator or filler turns.
+
+        Script order controls authored transitions. Operator cooldowns still serve legacy
+        generated beats; applying them here would force players to chat to unlock a menu.
+        """
+        started = time.perf_counter()
+        world = self._manager.snapshot()
+        results = []
+        authored_events = []
+        selected = None
+        event = None
+        for _ in range(len(self._script.events)):
+            world = self._manager.snapshot()
+            if world.story_beats.ended_at or self.is_wrapping_up() or self.active_event():
+                break
+            available = triggerable_events(world, self._script, player_id=player_id)
+            if not available:
+                break
+            definition = available[0]
+            selected = EventCandidate(
+                operator=definition.operator,
+                event_type=definition.event_id,
+                event_id=definition.event_id,
+                intensity=definition.intensity,
+                preference_tag=definition.preference_tag,
+                trigger_reason="authored transition: conditions and location satisfied",
+            )
+            event = NarrativeEvent(
+                event_id=uuid.uuid4().hex,
+                operator=definition.operator,
+                event_type=definition.event_id,
+                generated_content={"summary": " / ".join(p.text for p in definition.presentation)},
+            )
+            proposals = self._effect_proposals(selected, event)
+            results.extend(proposals)
+            if self.active_event() is None:
+                break
+            self.presented_lines.extend(definition.presentation)
+            authored_events.append(definition.event_id)
+            if definition.delivery != "narration":
+                break
+            resolution = self.resolve_player_response(player_id=player_id, option_id=None)
+            if resolution:
+                results.extend(resolution.proposals)
+        results.extend(self._check_endings())
+        if advance_turn:
+            results.append(self._submit(ActionType.ADVANCE_TURN, payload={"operator": "relieve"}))
+        resolutions, self._resolutions = self._resolutions, []
+        return NarrativeTick(
+            tick_id=uuid.uuid4().hex,
+            authored_events=authored_events,
+            resolutions=resolutions,
+            turn=world.story_beats.turn,
+            player_id=player_id,
+            selected=selected,
+            event=event,
+            proposals=results,
+            latency_ms=(time.perf_counter() - started) * 1000,
+        )
+
     # --- player response ---------------------------------------------------
 
     def resolve_player_response(
@@ -481,6 +595,13 @@ class NarrativeEngine:
             self._submit(ActionType.ADVANCE_STORY_BEAT, payload={"finish_event": True})
             return None
 
+        if not event_is_present(world, definition, player_id):
+            raise ValueError("当前地点不能执行这个事件")
+        if definition.delivery == "choice" and option_id not in {
+            o.option_id for o in self.visible_event_options()
+        }:
+            return EventResolutionRecord(event_id=definition.event_id, exchanges=active.exchanges)
+
         self._submit(ActionType.ADVANCE_STORY_BEAT, payload={"record_exchange": True})
         world = self._manager.snapshot()
 
@@ -497,7 +618,7 @@ class NarrativeEngine:
             world.story_beats.active_event is not None
             and world.story_beats.active_event.is_out_of_patience
         )
-        if resolution is None and not out_of_patience:
+        if resolution is None and not out_of_patience and definition.delivery != "narration":
             return EventResolutionRecord(
                 event_id=definition.event_id,
                 outcome_id=None,
@@ -518,13 +639,13 @@ class NarrativeEngine:
             player_id=player_id,
             failed_tag=resolution.failed_tag,
         )
-        results.extend(self._sync_progress_stage())
-        results.extend(self._check_endings())
-
+        if definition.delivery == "dialogue":
+            results.extend(self._sync_progress_stage())
         if outcome.stage_advance:
             quest = progress_quest(self._manager.snapshot(), self._directives)
             if quest is not None:
                 results.append(self._submit(ActionType.ADVANCE_QUEST, target_id=quest.quest_id))
+        results.extend(self._check_endings())
 
         # An outcome that gives the player something without moving the scene on leaves
         # the event open — [观察] in M3 is the authored case (docs/15 §4).
@@ -540,7 +661,7 @@ class NarrativeEngine:
             results.append(self._submit(ActionType.ADVANCE_STORY_BEAT, payload=payload))
 
         beats = self._manager.snapshot().story_beats
-        return EventResolutionRecord(
+        record = EventResolutionRecord(
             event_id=definition.event_id,
             outcome_id=outcome.outcome_id,
             option_id=resolution.option_id,
@@ -552,6 +673,9 @@ class NarrativeEngine:
             closed=beats.is_closed(definition.event_id),
             proposals=results,
         )
+        if definition.delivery != "dialogue":
+            self._resolutions.append(record)
+        return record
 
     # --- generation --------------------------------------------------------
 

@@ -25,9 +25,8 @@ import pytest
 pytest.importorskip("fastapi", reason="needs the 'web' extra")
 
 from ai_native_rpg.scenario import load_event_script
-from ai_native_rpg.web.events import EventType
 from ai_native_rpg.web.scene import SceneOption
-from ai_native_rpg.web.session import Session
+from ai_native_rpg.web.session import Session, SessionError
 
 SCENARIO = "village_disappearance"
 
@@ -104,18 +103,13 @@ def test_scripted_lines_come_from_the_pack(session):
     assert session.scene().scripted_lines == list(definition.scripted_lines)
 
 
-def test_a_scripted_line_is_the_players_own_words(session):
-    """docs/12 §13.7: player-side content, never an NPC bubble.
-
-    Checked structurally: the lines live on the scene as plain strings with no speaker
-    attached, so there is nothing for a renderer to mistake for an NPC's line.
-    """
+def test_authored_passages_carry_their_actual_speakers(session):
+    """Fixed NPC replies and narration never become player submissions."""
     _open_the_event(session)
     scene = session.scene()
 
-    assert all(isinstance(line, str) for line in scene.scripted_lines)
-    # And they are not in the NPC's transcript either.
-    assert [entry for entry in scene.transcript_tail if entry.speaker != "player"] == []
+    assert scene.scripted_lines == []
+    assert [line.speaker for line in scene.passages] == ["narrator", "player", "npc_a"]
 
 
 # --- form two: the tagged option -------------------------------------------
@@ -169,8 +163,12 @@ def test_clicking_an_option_resolves_the_event(session):
     beats = session.manager.snapshot().story_beats
     # The exchange was recorded, which only the resolution path does.
     assert OPENING in beats.completed_events or beats.active_event is not None
-    (dialogue,) = [e.data for e in session._history if e.type is EventType.DIALOGUE]
-    assert dialogue["option_id"] == "goodwill"
+    assert session.manager.get_trust("npc_a", session.player_id) == 13
+    assert session.scene().passages[0].speaker == "npc_a"
+    assert (
+        session.scene().passages[0].text
+        == session.engine.script.get(OPENING).outcomes["she_opens"].npc_reply
+    )
 
 
 def test_a_checked_option_can_move_the_relationship(session):
@@ -239,24 +237,17 @@ def test_typing_and_clicking_use_the_same_endpoint(monkeypatch, tmp_path):
         live.join(timeout=30)
 
 
-def test_an_option_nobody_offered_is_dropped_not_honoured(session):
-    """An unrecognised id lands the authored default rather than inventing an outcome."""
+def test_an_option_nobody_offered_is_refused_without_side_effects(session):
+    """A stale or forged id cannot consume an authored decision."""
     _open_the_event(session)
 
-    session.submit_turn("随便说点什么", option_id="charm_her_completely")
-    session.join(timeout=30)
-
-    # The turn ran to completion rather than raising, and no outcome by that name was
-    # invented: every landed outcome belongs to the pack.
-    beats = session.manager.snapshot().story_beats
-    authored = set(session.engine.script.get(OPENING).outcomes)
-    assert beats.completed_events == [] or OPENING in beats.completed_events
-    assert "charm_her_completely" not in authored
-    (dialogue,) = [e.data for e in session._history if e.type is EventType.DIALOGUE]
-    assert dialogue["option_id"] == "charm_her_completely"
+    before = session.manager.snapshot()
+    with pytest.raises(SessionError):
+        session.submit_turn("随便说点什么", option_id="charm_her_completely")
+    assert session.manager.snapshot() == before
 
 
-def test_an_option_sent_before_any_event_is_simply_conversation(session):
+def test_an_option_sent_without_an_event_is_refused(session):
     """With nothing in progress, ``resolve_player_response`` returns None and the turn stands.
 
     The turn's *own* tick may then open an event — that is the normal sequence — so what
@@ -270,14 +261,9 @@ def test_an_option_sent_before_any_event_is_simply_conversation(session):
     session.engine.end_conversation()
     assert session.manager.snapshot().story_beats.active_event is None
 
-    session.submit_turn("你好", option_id="goodwill")
-    session.join(timeout=30)
-
-    # The line arrived, and no outcome was applied to an event that did not exist: the
-    # event the tick opened is still at zero exchanges.
-    assert [e for e in session._history if e.type is EventType.DIALOGUE]
-    active = session.manager.snapshot().story_beats.active_event
-    assert active is None or active.exchanges == 0
+    with pytest.raises(SessionError):
+        session.submit_turn("你好", option_id="goodwill")
+    assert session.manager.snapshot().story_beats.active_event is None
 
 
 # --- the waiting rule -------------------------------------------------------

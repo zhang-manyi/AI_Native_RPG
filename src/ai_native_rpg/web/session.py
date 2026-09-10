@@ -51,6 +51,7 @@ from ..observability import NarrativeTickStore, TraceStore
 from ..observability.panels import (
     PanelView,
     RejectedProposal,
+    TurnCost,
     build_beats,
     build_ledger,
     build_slot_budget,
@@ -71,6 +72,7 @@ from ..scenario import (
     load_seed_memories,
     pack_prompts_dir,
 )
+from ..schemas.agent_trace import AgentTrace, TraceStep
 from ..schemas.common import utc_now
 from ..schemas.world_state import WorldState
 from ..world import WorldStateManager
@@ -84,7 +86,7 @@ from .events import (
     TurnAcceptedPayload,
     TurnFailedPayload,
 )
-from .scene import SceneOption, SceneView, build_pack_display, build_scene
+from .scene import SceneLine, SceneOption, SceneView, build_pack_display, build_scene
 from .wrap_up_view import WrapUpView, build_wrap_up
 
 logger = logging.getLogger(__name__)
@@ -162,8 +164,20 @@ class SaveGame:
     npc_id: str
     turn: int
     world: WorldState | None
-    memory_path: Path | None
+    memory_paths: dict[str, Path]
     transcript: list[dict[str, str]]
+
+    @property
+    def memory_path(self) -> Path | None:
+        """Legacy compatibility: the focused NPC's file, when present."""
+        return self.memory_paths.get(self.npc_id)
+
+
+@dataclass
+class _NPCRuntime:
+    memory: MemoryStore
+    harness: Harness
+    tool_names: list[str]
 
 
 def list_saves(root: Path | None = None) -> list[dict[str, Any]]:
@@ -214,15 +228,31 @@ def load_save(save_id: str, root: Path | None = None) -> SaveGame:
         except (OSError, ValidationError) as exc:
             raise SessionError(f"save {save_id!r} has an unreadable world: {exc}") from exc
 
-    npc_id = str(meta.get("npc_id", ""))
-    memory_path = directory / f"memory_{npc_id}.json"
+    npc_id = str(meta.get("npc_id") or "")
+    memory_paths: dict[str, Path] = {}
+    # New saves contain one file per persona. Read the scenario's cast so a missing
+    # file simply means "use seed memory" during assembly.
+    try:
+        persona_ids = load_personas(str(meta.get("scenario", ""))).keys()
+    except Exception:
+        persona_ids = ()
+    for candidate in persona_ids:
+        path = directory / f"memory_{candidate}.json"
+        if path.is_file():
+            memory_paths[candidate] = path
+    # Legacy saves had one file named for the focused NPC; retain it even when the
+    # metadata/scenario cannot be loaded yet.
+    if npc_id and npc_id not in memory_paths:
+        legacy = directory / f"memory_{npc_id}.json"
+        if legacy.is_file():
+            memory_paths[npc_id] = legacy
     return SaveGame(
         save_id=save_id,
         scenario=str(meta.get("scenario", "")),
         npc_id=npc_id,
         turn=int(meta.get("turn", 0) or 0),
         world=world,
-        memory_path=memory_path if memory_path.is_file() else None,
+        memory_paths=memory_paths,
         transcript=[dict(line) for line in meta.get("transcript") or []],
     )
 
@@ -264,7 +294,7 @@ def _rejected_from_action(
 
 
 class Session:
-    """A scenario, an NPC, and the single thread allowed to touch them."""
+    """A scenario, its NPC runtimes, and the single thread allowed to touch them."""
 
     def __init__(
         self,
@@ -301,11 +331,8 @@ class Session:
                     f"save {resume.save_id!r} belongs to scenario {resume.scenario!r}, "
                     f"not {scenario!r}"
                 )
-            npc_id = npc_id or resume.npc_id
-            if resume.npc_id != npc_id:
-                raise SessionError(
-                    f"save {resume.save_id!r} was played with npc {resume.npc_id!r}, not {npc_id!r}"
-                )
+            if npc_id is None:
+                npc_id = resume.npc_id or next(iter(personas), None)
             # Replaces the pack's opening world rather than being applied over it: see
             # SaveGame on why this has to happen before the manager is built.
             if resume.world is not None:
@@ -319,42 +346,44 @@ class Session:
             raise SessionError(
                 f"unknown npc {npc_id!r} in scenario {scenario!r}; available: {', '.join(personas)}"
             )
-        self.npc_id = resolved_npc
-        npc_state = personas[self.npc_id]
+        self._default_npc_id = resolved_npc
 
         self.manager = WorldStateManager(world)
         # Public display data, lifted once. The render path never sees WorldState.
         self.display = build_pack_display(locations=world.locations, npcs=world.npcs)
         # The embedder is shared across sessions by the caller: it is read-only and
         # costs hundreds of MB to load, so one instance serves everyone.
-        self.memory = MemoryStore(self.npc_id, embedder=embedder or HashingEmbedder())
-        if resume is not None and resume.memory_path is not None:
-            # The save already contains the seeds plus everything play added, so
-            # loading it *instead of* seeding avoids a second copy of every seed.
-            self.memory.load(resume.memory_path)
-        else:
-            seeds[self.npc_id].load_into(self.memory)
-
         overlay = pack_prompts_dir(scenario)
         self.prompt_source = f"{scenario} 覆盖 + 全局回退" if overlay.is_dir() else "全局默认"
         prompts = PromptLibrary(overlay=overlay if overlay.is_dir() else None)
-
-        tools = build_npc_tools(
-            npc_id=self.npc_id,
-            manager=self.manager,
-            memory=self.memory,
-            player_id=self.player_id,
-        )
-        self.tool_names = list(tools.names)
         llm = build_llm_client(self._settings, responses=list(MOCK_SCRIPT) * 40)
-        self.harness = Harness(
-            npc_state=npc_state,
-            manager=self.manager,
-            llm=llm,
-            memory=self.memory,
-            prompts=prompts,
-            tools=tools,
-        )
+        self._npcs: dict[str, _NPCRuntime] = {}
+        shared_embedder = embedder or HashingEmbedder()
+        for persona_id, npc_state in personas.items():
+            memory = MemoryStore(persona_id, embedder=shared_embedder)
+            memory_path = resume.memory_paths.get(persona_id) if resume is not None else None
+            if memory_path is not None and memory_path.is_file():
+                memory.load(memory_path)
+            else:
+                seeds[persona_id].load_into(memory)
+            tools = build_npc_tools(
+                npc_id=persona_id,
+                manager=self.manager,
+                memory=memory,
+                player_id=self.player_id,
+            )
+            self._npcs[persona_id] = _NPCRuntime(
+                memory=memory,
+                harness=Harness(
+                    npc_state=npc_state,
+                    manager=self.manager,
+                    llm=llm,
+                    memory=memory,
+                    prompts=prompts,
+                    tools=tools,
+                ),
+                tool_names=list(tools.names),
+            )
         self.engine = NarrativeEngine(
             manager=self.manager,
             llm=llm,
@@ -396,6 +425,7 @@ class Session:
         self.transcript: list[dict[str, str]] = (
             [dict(line) for line in resume.transcript] if resume is not None else []
         )
+        self._passages: list[dict[str, str]] = []
 
         # A fresh game gets one tick before anyone has said anything, so the opening
         # event's scripted lines (docs/15 §1's "我受人所托……") are already in the very
@@ -434,6 +464,17 @@ class Session:
                 self.narrative_traces.save(opening_tick)
                 self._timeline.append(operator_entry(opening_tick))
                 self._rejected.extend(rejected_from_tick(opening_tick))
+                self._collect_presentation()
+
+        if resume is not None:
+            # Old saves may hold a conversation from a different location. Refresh
+            # authored arrivals without advancing the clock or replaying their effects.
+            refreshed = self.engine.refresh_authored(self.player_id)
+            if refreshed:
+                self.narrative_traces.save(refreshed)
+                self._collect_presentation()
+            if not self._passages and self.transcript:
+                self._passages = [dict(self.transcript[-1])]
 
         # --- the executor -----------------------------------------------------
         self._jobs: queue.Queue[Callable[[], None] | None] = queue.Queue()
@@ -450,6 +491,34 @@ class Session:
 
         self._sample_relationship()
 
+    def _resolve_current_npc_id(self) -> str | None:
+        """Return the co-located NPC that should receive the next line."""
+        return next(iter(self.manager.player_view(self.player_id).known_npc_locations), None)
+
+    @property
+    def npc_id(self) -> str | None:
+        """The NPC co-located with the player, if this scene has one."""
+        return self._resolve_current_npc_id()
+
+    @property
+    def memory(self) -> MemoryStore:
+        runtime = self._npcs.get(self._resolve_current_npc_id())
+        if runtime is None:
+            raise SessionError("no NPC runtime is available")
+        return runtime.memory
+
+    @property
+    def harness(self) -> Harness:
+        runtime = self._npcs.get(self._resolve_current_npc_id())
+        if runtime is None:
+            raise SessionError("no NPC runtime is available")
+        return runtime.harness
+
+    @property
+    def tool_names(self) -> list[str]:
+        runtime = self._npcs.get(self._resolve_current_npc_id())
+        return list(runtime.tool_names) if runtime is not None else []
+
     # --- backend description -------------------------------------------------
 
     @property
@@ -463,14 +532,17 @@ class Session:
             model = f"{self._settings.provider} {self._settings.model}"
         else:
             model = "MockLLMClient (离线脚本)"
+        current_npc_id = self._resolve_current_npc_id()
+        runtime = self._npcs.get(current_npc_id)
         return {
             "scenario": self.scenario,
-            "npc_id": self.npc_id,
+            "npc_id": current_npc_id or "",
+            "npc_ids": ", ".join(self._npcs),
             "player_id": self.player_id,
             "model": model,
-            "embedder": type(self.memory._embedder).__name__,
+            "embedder": (type(runtime.memory._embedder).__name__ if runtime is not None else ""),
             "prompt_source": self.prompt_source,
-            "tools": ", ".join(self.tool_names),
+            "tools": ", ".join(runtime.tool_names) if runtime is not None else "",
         }
 
     # --- reads (safe from any thread) ----------------------------------------
@@ -484,7 +556,7 @@ class Session:
         shown it as "第 N 轮" anyway.
         """
         definition = self.engine.active_event()
-        return build_scene(
+        scene = build_scene(
             view=self.manager.player_view(self.player_id),
             display=self.display,
             turn=self.manager.snapshot().story_beats.turn,
@@ -502,10 +574,30 @@ class Session:
             ],
             event_in_progress=definition is not None,
         )
+        scene.passages = [
+            SceneLine(
+                speaker=line["speaker"],
+                text=line["text"],
+                name=(
+                    self.display.npcs[line["speaker"]].name
+                    if line["speaker"] in self.display.npcs
+                    else ("你" if line["speaker"] == "player" else "旁白")
+                ),
+            )
+            for line in self._passages
+        ]
+        scene.passage_id = f"{scene.turn}:{len(self.transcript)}"
+        scene.ready = not self.busy
+        ending = self.engine.reached_ending()
+        if ending:
+            scene.ending = {"title": ending.player_title, "text": ending.player_text}
+        scene.can_conclude = self.engine.can_conclude(self.player_id)
+        return scene
 
     def panel(self) -> PanelView:
         """The developer panel. Reads ``WorldState`` directly, by design (docs/07 §2.4)."""
         world = self.manager.snapshot()
+        runtime = self._npcs.get(self._resolve_current_npc_id())
         return PanelView(
             beats=build_beats(world),
             slot_budget=build_slot_budget(world),
@@ -516,8 +608,8 @@ class Session:
             relationship_trend=self._relationship_trend[-40:],
             memory=self._last_memory,
             memory_counts={
-                "episodic": self.memory.episodic_count,
-                "semantic": self.memory.semantic_count,
+                "episodic": runtime.memory.episodic_count if runtime is not None else 0,
+                "semantic": runtime.memory.semantic_count if runtime is not None else 0,
             },
             last_turn_cost=self._last_cost,
             pending_hook=str((self.engine.pending_event or {}).get("dialogue_hook", "")),
@@ -630,6 +722,9 @@ class Session:
                 # this executor exists to prevent.
                 with self._inflight_lock:
                     self._inflight = max(0, self._inflight - 1)
+                    idle = self._inflight == 0
+                if idle:
+                    self._emit_state()
                 self._jobs.task_done()
 
     def submit_turn(self, text: str, *, option_id: str | None = None) -> str:
@@ -646,6 +741,12 @@ class Session:
         """
         if self._closed:
             raise SessionError("session is closed")
+        if self.engine.reached_ending() or self.engine.is_wrapping_up():
+            raise SessionError("当前调查已经结束或正在整理一天的线索。")
+        if option_id and option_id not in {
+            o.option_id for o in self.engine.visible_event_options()
+        }:
+            raise SessionError("这个选项已不在当前事件中。")
         text = text.strip()
         if not text:
             raise SessionError("empty input")
@@ -757,7 +858,25 @@ class Session:
     def _job_dialogue(self, turn: _Turn) -> None:
         """LLM call(s) for the line. Emits ``dialogue`` as soon as it is ready."""
         started = time.perf_counter()
-        trust_before = self.manager.get_trust(self.npc_id, self.player_id)
+        self._passages = []
+        definition = self.engine.active_event()
+        if definition and definition.delivery == "choice":
+            self._job_choice(turn)
+            return
+        npc_id = self._resolve_current_npc_id()
+        if npc_id is None or npc_id not in self._npcs:
+            self.emit(
+                EventType.TURN_FAILED,
+                TurnFailedPayload(
+                    turn_id=turn.turn_id,
+                    stage="dialogue",
+                    error_type="NoConversationNPC",
+                    message="当前场景没有可对话的 NPC。",
+                ).model_dump(),
+            )
+            return
+        runtime = self._npcs[npc_id]
+        trust_before = self.manager.get_trust(npc_id, self.player_id)
 
         # Content generated after the previous turn is woven into this one, so the
         # player never waits on the narrative call (docs/02 §4).
@@ -769,7 +888,7 @@ class Session:
         options = self.engine.active_event_options()
 
         try:
-            response, trace = self.harness.respond(
+            response, trace = runtime.harness.respond(
                 turn.text,
                 player_id=self.player_id,
                 session_id=self.session_id,
@@ -810,11 +929,11 @@ class Session:
                 ).model_dump(),
             )
 
-        trust_after = self.manager.get_trust(self.npc_id, self.player_id)
+        trust_after = self.manager.get_trust(npc_id, self.player_id)
         world = self.manager.snapshot()
 
         self.transcript.append({"speaker": "player", "text": turn.text})
-        self.transcript.append({"speaker": self.npc_id, "text": response.dialogue})
+        self.transcript.append({"speaker": npc_id, "text": response.dialogue})
 
         self._last_cost = turn_cost(trace)
         self._last_memory = memory_hits(trace)
@@ -826,8 +945,10 @@ class Session:
             DialoguePayload(
                 turn_id=turn.turn_id,
                 turn=world.story_beats.turn,
-                npc_id=self.npc_id,
-                name=self.npc_name,
+                npc_id=npc_id,
+                name=(
+                    self.display.npcs.get(npc_id).name if self.display.npcs.get(npc_id) else npc_id
+                ),
                 dialogue=response.dialogue,
                 strategy=response.plan.strategy,
                 trust_before=trust_before,
@@ -838,6 +959,160 @@ class Session:
             ).model_dump(),
         )
         self._emit_state()
+
+    def _job_choice(self, turn: _Turn) -> None:
+        """Resolve once before expression. A generation failure cannot reroll a choice."""
+        started = time.perf_counter()
+        self._last_cost = TurnCost()
+        self._last_memory = []
+        definition = self.engine.active_event()
+        if definition is None:
+            return
+        npc_id = self._resolve_current_npc_id()
+        runtime = self._npcs.get(npc_id)
+        trust_before = self.manager.get_trust(npc_id, self.player_id) if npc_id else 0
+        rel_before = self.manager.get_relationship(npc_id, self.player_id) if npc_id else None
+        options = self.engine.visible_event_options()
+        chosen = turn.option_id or next((o.option_id for o in options if o.text == turn.text), None)
+        classification = None
+        try:
+            if chosen is None and runtime and self._settings.has_real_backend:
+                chosen, classification = runtime.harness.classify_option(
+                    turn.text, self.engine.active_event_options()
+                )
+            if chosen is None:
+                if runtime is None:
+                    raise SessionError("这里可以观察现场，请选择一个调查动作。")
+                response, trace = runtime.harness.respond(
+                    turn.text, player_id=self.player_id, session_id=self.session_id
+                )
+                speaker, line = npc_id, response.dialogue
+                self._record_response_trace(trace, classification)
+            else:
+                trace = None
+                expression_failure = None
+                record = self.engine.resolve_player_response(
+                    player_id=self.player_id, option_id=chosen
+                )
+                if record is None or record.outcome_id is None:
+                    raise SessionError("这个选项已经不可用了。")
+                outcome = definition.outcome_for(record.outcome_id)
+                speaker = npc_id if outcome.npc_reply and definition.npc_id else "narrator"
+                line = outcome.npc_reply or outcome.summary
+                # The authored consequence remains available even if expression fails.
+                selected = next(o for o in options if o.option_id == chosen)
+                if runtime and selected.tag.value != "observe" and self._settings.has_real_backend:
+                    try:
+                        response, trace = runtime.harness.respond(
+                            turn.text,
+                            player_id=self.player_id,
+                            session_id=self.session_id,
+                            resolved_outcome=outcome.summary
+                            + "\n"
+                            + outcome.npc_reply
+                            + "\n"
+                            + "\n".join(definition.constraints),
+                        )
+                        speaker, line = npc_id, response.dialogue
+                    except Exception as exc:
+                        expression_failure = type(exc).__name__
+                        logger.warning(
+                            "NPC expression failed; using authored result", exc_info=True
+                        )
+                        runtime.harness.remember_exchange(turn.text, line)
+                elif runtime:
+                    runtime.harness.remember_exchange(turn.text, line)
+                if trace is None:
+                    trace = AgentTrace(
+                        trace_id=uuid.uuid4().hex,
+                        npc_id=npc_id or "narrator",
+                        player_id=self.player_id,
+                        session_id=self.session_id,
+                        final_dialogue=line,
+                        total_latency_ms=(time.perf_counter() - started) * 1000
+                        - (classification.latency_ms if classification else 0),
+                    )
+                trace.steps.insert(
+                    0,
+                    TraceStep(
+                        step_name="event_resolution",
+                        input_summary={"option_id": chosen},
+                        output_summary=record.model_dump(mode="json"),
+                    ),
+                )
+                if expression_failure:
+                    trace.steps.append(
+                        TraceStep(
+                            step_name="expression_fallback",
+                            model_used=self._settings.model,
+                            output_summary={
+                                "error_type": expression_failure,
+                                "authored_reply": True,
+                            },
+                        )
+                    )
+                self._record_response_trace(trace, classification)
+                self._sample_relationship()
+            self.transcript.append({"speaker": "player", "text": turn.text})
+            self._add_passage(speaker, line)
+            if speaker == npc_id and npc_id:
+                rel_after = self.manager.get_relationship(npc_id, self.player_id)
+                relationship_changes = {}
+                if rel_before is not None:
+                    for dimension in ("trust", "fear", "respect"):
+                        delta = getattr(rel_after, dimension) - getattr(rel_before, dimension)
+                        if abs(delta) >= 0.05:
+                            relationship_changes[dimension] = round(delta, 1)
+                self.emit(
+                    EventType.DIALOGUE,
+                    DialoguePayload(
+                        turn_id=turn.turn_id,
+                        turn=self.manager.snapshot().story_beats.turn,
+                        npc_id=npc_id,
+                        name=self.npc_name,
+                        dialogue=line,
+                        strategy="event_response",
+                        trust_before=trust_before,
+                        trust_after=self.manager.get_trust(npc_id, self.player_id),
+                        latency_ms=(time.perf_counter() - started) * 1000,
+                        used_pending_hook=False,
+                        option_id=chosen,
+                        relationship_changes=relationship_changes,
+                    ).model_dump(),
+                )
+        except Exception as exc:
+            self.emit(
+                EventType.TURN_FAILED,
+                TurnFailedPayload(
+                    turn_id=turn.turn_id,
+                    stage="dialogue",
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                ).model_dump(),
+            )
+
+    def _record_response_trace(self, trace, classification=None) -> None:
+        if classification:
+            trace.steps.insert(0, classification)
+            trace.total_latency_ms += classification.latency_ms
+        self.traces.save(trace)
+        self._last_cost = turn_cost(trace)
+        self._last_memory = memory_hits(trace)
+        self._rejected.extend(
+            rejected_from_trace(trace, turn=self.manager.snapshot().story_beats.turn)
+        )
+
+    def _add_passage(self, speaker: str, text: str) -> None:
+        line = {"speaker": speaker, "text": text}
+        self._passages.append(line)
+        self.transcript.append(line)
+
+    def _collect_presentation(self) -> None:
+        for line in self.engine.presented_lines:
+            self._add_passage(line.speaker, line.text)
+            if line.speaker in self._npcs:
+                self._npcs[line.speaker].harness.remember_exchange("场景对白", line.text)
+        self.engine.presented_lines = []
 
     def _job_move(self, turn: _Turn) -> None:
         """Walk the player somewhere. A turn with no line (docs/12 §13.2).
@@ -854,6 +1129,7 @@ class Session:
         the one record that says how long ago a beat fired.
         """
         started = time.perf_counter()
+        self._passages = []
         try:
             result = self.engine.move_player(player_id=self.player_id, destination=turn.text)
         except Exception as exc:
@@ -909,6 +1185,7 @@ class Session:
 
     def _job_conclude_case(self, turn: _Turn) -> None:
         """Open the conclusion event. No line of its own — the scene refresh carries it."""
+        self._passages = []
         try:
             result = self.engine.conclude_case()
         except Exception as exc:
@@ -944,10 +1221,16 @@ class Session:
         if not result.approved:
             self.emit(EventType.PANEL, self.panel().model_dump())
             return
+        definition = self.engine.active_event()
+        if definition:
+            for line in definition.presentation:
+                self._add_passage(line.speaker, line.text)
         self._emit_state()
+        self.save()
 
     def _job_close_out_day(self, turn: _Turn) -> None:
         """Turn the day over. No line, no tick — the interlude is not a turn."""
+        self._passages = []
         try:
             result = self.engine.close_out_day()
         except Exception as exc:
@@ -981,6 +1264,11 @@ class Session:
                 out_of_days=result.out_of_days,
             ).model_dump(),
         )
+        if result.approved:
+            tick = self.engine.refresh_authored(self.player_id)
+            if tick:
+                self.narrative_traces.save(tick)
+            self._collect_presentation()
         self._emit_state()
         # A day boundary is as much a resumable point as a turn boundary, and the world is
         # consistent here for the same reason: nothing else is mid-write on this thread.
@@ -1003,6 +1291,7 @@ class Session:
             return
 
         self.narrative_traces.save(tick)
+        self._collect_presentation()
         entry = operator_entry(tick)
         rejected = rejected_from_tick(tick)
         self._timeline.append(entry)
@@ -1030,21 +1319,24 @@ class Session:
         the same reason every other world access does — ``snapshot()`` deep-copies but
         can still copy a logically inconsistent world if a writer is mid-turn.
 
-        Three files, because they have three different owners: the world
-        (``WorldStateManager``), the NPC's private memory (``MemoryStore``, which by
-        design never enters ``WorldState``), and the conversation as the player read
-        it. Failures are swallowed and reported as a panel-visible event rather than
+        Separate files because they have different owners: the world
+        (``WorldStateManager``), each NPC's private memory (``MemoryStore``, which by
+        design never enters ``WorldState``), and the conversation as the player read it.
+        Failures are swallowed and reported as a panel-visible event rather than
         killing the turn: a save is a convenience, and losing one is not worth losing
         the interaction that just happened.
         """
         directory = self._save_dir
         try:
             self.manager.save(directory / "world.json")
-            self.memory.save(directory / f"memory_{self.npc_id}.json")
+            for npc_id, runtime in self._npcs.items():
+                runtime.memory.save(directory / f"memory_{npc_id}.json")
             meta = {
                 "session_id": self.session_id,
                 "scenario": self.scenario,
-                "npc_id": self.npc_id,
+                # Focus used when the save is resumed; this is not a session-wide
+                # identity, since each NPC owns an independent runtime and memory.
+                "npc_id": self._resolve_current_npc_id(),
                 "player_id": self.player_id,
                 "turn": self.manager.snapshot().story_beats.turn,
                 "saved_at": utc_now().isoformat(),
@@ -1078,7 +1370,10 @@ class Session:
 
     def _sample_relationship(self) -> None:
         world = self.manager.snapshot()
-        rel = self.manager.get_relationship(self.npc_id, self.player_id)
+        npc_id = self._resolve_current_npc_id()
+        if npc_id is None:
+            return
+        rel = self.manager.get_relationship(npc_id, self.player_id)
         self._relationship_trend.append(
             {
                 "turn": world.story_beats.turn,
@@ -1091,5 +1386,6 @@ class Session:
     @property
     def npc_name(self) -> str:
         """The NPC's public display name (``NPCWorldState.name``)."""
-        npc = self.display.npcs.get(self.npc_id)
-        return npc.name if npc is not None else self.npc_id
+        npc_id = self._resolve_current_npc_id()
+        npc = self.display.npcs.get(npc_id)
+        return npc.name if npc is not None else (npc_id or "")

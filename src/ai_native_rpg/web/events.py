@@ -78,6 +78,7 @@ class DialoguePayload(BaseModel):
     strategy: str = ""
     trust_before: float | None = None
     trust_after: float | None = None
+    relationship_changes: dict[str, float] = Field(default_factory=dict)
     latency_ms: float = 0.0
     used_pending_hook: bool = Field(
         default=False,
