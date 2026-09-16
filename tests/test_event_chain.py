@@ -181,25 +181,33 @@ class TestObserveDoesNotAdvance:
         """docs/15 §2: [观察] is the one option that risks nothing."""
         engine, manager = _engine()
         engine.tick(player_id=PLAYER)
+        engine.resolve_player_response(player_id=PLAYER, option_id="goodwill")
+        engine.tick(player_id=PLAYER)
+        engine.resolve_player_response(player_id=PLAYER, option_id="help_latch")
+        engine.tick(player_id=PLAYER)
         before = manager.get_relationship(NPC_A, PLAYER)
 
         record = engine.resolve_player_response(
-            player_id=PLAYER, option_id="observe_woodpile", rng=random.Random(0)
+            player_id=PLAYER, option_id="observe_hands", rng=random.Random(0)
         )
 
         assert record is not None
-        assert record.outcome_id == "noticed_the_woodpile"
+        assert record.outcome_id == "noticed_her_hands"
         after = manager.get_relationship(NPC_A, PLAYER)
         assert (after.trust, after.fear) == (before.trust, before.fear)
-        assert manager.snapshot().facts["woodpile_note"].visibility is Visibility.REVEALED
+        assert manager.snapshot().facts["marta_is_terrified"].visibility is Visibility.REVEALED
 
     def test_observing_leaves_the_event_open(self):
         """It gives the player something without moving the scene on (docs/15 §4)."""
         engine, manager = _engine()
         engine.tick(player_id=PLAYER)
+        engine.resolve_player_response(player_id=PLAYER, option_id="goodwill")
+        engine.tick(player_id=PLAYER)
+        engine.resolve_player_response(player_id=PLAYER, option_id="help_latch")
+        engine.tick(player_id=PLAYER)
 
         record = engine.resolve_player_response(
-            player_id=PLAYER, option_id="observe_woodpile", rng=random.Random(0)
+            player_id=PLAYER, option_id="observe_hands", rng=random.Random(0)
         )
 
         assert record is not None and not record.finished

@@ -58,27 +58,15 @@ def select_candidate(
 
 偏好排序这一段类似推荐系统的重排层，不需要 LLM。玩家偏好阴谋剧情，"背叛"类事件排名靠前；玩家偏好轻松探索，同样的世界状态下"背叛"事件会被降权。但节奏规则先于偏好生效：无论玩家多偏好阴谋，连续两轮 `reveal` 都不允许。`passes_pacing_rules` 的具体规则、以及为什么本场景不做完整张力曲线，见 [10_Narrative_Operators.md](./10_Narrative_Operators.md#31-节奏规则张力准入的全部内容)。
 
-### 2.3 LLM 生成具体内容
+### 2.3 LLM 只演绎已有事件
 
-规则确定"要发生背叛事件"之后，LLM 负责把它写成具体的剧情：
+当前村庄剧本包含 `choice` / `narration` 事件，走 `_tick_authored()`：按地点、条件和剧本顺序推进，自动旁白直接使用剧本内容，不调用叙事生成模型。NPC 对话仍可使用模型演绎。
 
-```
-Input: operator="foreshadow", event_type="betrayal", intensity=0.7,
-       world_state 相关片段, player_profile.narrative_preference,
-       constraints: ["不能揭露 NPC_B 的身份"]     ← 来自算子槽位
-Output: {
-  "who_betrays": "NPC_B",
-  "how": "在玩家不知情时向敌对阵营通风",
-  "dialogue_hook": "...",
-  "payoff_condition": {"path": "story_beats.chapter", "op": "gte", "value": 2}
-}
-```
+仅含 `dialogue` 事件的旧路径保留节奏准入和偏好排序，但生成式 `foreshadow` 候选已禁用。模型输出只含 `summary`、`dialogue_hook`、`participants`，不得创造新的物证、目击者、事实 ID 或回收条件。`reveal`、`escalate`、`reverse` 仅对已有内容进行表达。
 
-这一步是真正需要"创造性"的地方，交给 LLM 合理。输出结构化 JSON，写回 World State 时仍然走 Action Proposal → Validator 流程（Narrative Engine 也不能直接改世界状态）。
+预定义伏笔继续由剧本提供，`payoff_target` 指向已有事实；回收条件取目标事实自己的 `reveal_condition`。NPC 不承担编剧职责。本轮不增加独立 AI 编剧调用，今后若引入导演，应讨论对预定义事件池的调度，而不是开放模型自由创造案件事实。
 
-注意 `payoff_condition` 取代了早期草稿里的 `reveal_timing: "next_chapter"` 这种自由字符串：回收时机必须是一个**可被求值器判定**的结构化条件，否则伏笔账本无法自动检查"到回收时机了吗"，只能靠人读。这也是 `constraints` 字段存在的原因——算子已经规定了这一场不能说什么，把它显式传给模型比指望它自己不说破更可靠。
-
-## 3. 完整流程
+## 3. 旧版生成式事件流程（当前村庄使用 §2.3 的剧本路径）
 
 ```
 World State 变化
@@ -87,7 +75,7 @@ World State 变化
 Narrative Engine: check_triggers()          [规则, 确定性]
       |
       v
-候选算子列表 (可能有多个)
+候选事件列表 (可能有多个)
       |
       v
 Experience Controller: select_candidate()    [确定性]
@@ -138,5 +126,5 @@ World State Update
 - 触发规则写死若干条即可（如"信任度<30 触发背叛候选"），初期不做通用规则配置系统；规则数量增多后再考虑配置化。
 - Experience Controller 的偏好排序用简单加权求和，不引入机器学习排序模型；张力准入只做节奏规则（不能连续两轮 `reveal` 等），不做张力曲线拟合。
 - LLM 生成内容限定输出 schema（用结构化输出/JSON mode），避免自由文本导致下游解析失败。生成的 `generated_content` 是给 NPC Agent 的 Dialogue Generation 阶段消费的结构化输入，而不是直接展示给玩家的文本，见 [06_NPC_Agent_Spec.md](./06_NPC_Agent_Spec.md#3-dialogue-generation)。
-- 初期只实现 4 个算子（`foreshadow` / `reveal` / `escalate` / `reverse`），`relieve` 用"本轮不触发任何算子"隐式表达。
+- `foreshadow` 仅用于剧本预定义的伏笔；生成路径只演绎 `reveal` / `escalate` / `reverse`，无事件时为 `relieve`。
 - **Narrative Engine 没有绕过 `reveal_condition` 的权限。** 它推进 `story_beats`（章节/进度），由条件表决定这解锁了什么。理由见 [04_World_State_Manager.md](./04_World_State_Manager.md#33-叙事推进不等于披露授权)。

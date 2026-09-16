@@ -101,6 +101,13 @@ class MemoryStore:
 
     # --- persistence -------------------------------------------------------
 
+    def snapshot(self) -> dict[str, list[dict]]:
+        """All stored memories for inspection, without embedding vectors or mutable references."""
+        return {
+            "episodic": [m.model_dump(mode="json", exclude={"embedding"}) for m in self._episodic],
+            "semantic": [m.model_dump(mode="json", exclude={"embedding"}) for m in self._semantic],
+        }
+
     def save(self, path: str | Path) -> None:
         """Write this NPC's memories to JSON, atomically.
 

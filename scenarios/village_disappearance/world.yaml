@@ -61,7 +61,7 @@ locations:
     connected_to: [village_square]
   npc_a_house:
     name: 玛尔塔的家
-    description: 窗帘拉得很严，门口的柴堆比邻居家的都高。
+    description: 窗帘拉得很严，屋里隐约传来孩子的声音。
     backdrop: interior
     connected_to: [village_square]
   forest_edge:
@@ -340,7 +340,12 @@ narrative:
     - ending_id: truth_uncovered
       summary: 查明真相
       player_title: 通往镇上的路
-      player_text: 零散的线索终于连在了一起。艾拉为离村做了准备，林中的血迹没有终止她的行程。洛伦放下猎具，愿意带人沿去镇上的路继续找她。
+      player_text: >-
+        零散的线索终于连在了一起。艾拉为离村做了准备，林中的血迹没有终止她的行程。
+        洛伦放下猎具，愿意带人沿去镇上的路继续找她。村里的人重新组织了搜寻，
+        这一次，他们寻找的是一个可能还活着、主动离开的人。你在记录末尾写下新的调查方向：
+        沿通往镇上的路寻找艾拉。石头上的血仍是那晚留下的痕迹，却不再是她生命终止的证明。调查暂告一段落，
+        但去镇上的路还在，艾拉的下落也终于有了继续追查的方向。
       # The `all` mode with three clauses: the two clues plus the stage the independent
       # investigation earns. It is the one ending that needs both lines (docs/15 §5).
       path_note: 玛尔塔线 trust 40 → clue_1_witness（stage 1）→ 酒馆核对时间线（stage 2）→ 森林物证（stage 3）→ M7
@@ -354,7 +359,11 @@ narrative:
     - ending_id: accused_the_wrong_man
       summary: 指控错人
       player_title: 指认之后
-      player_text: 你的指认让调查告一段落。村民开始按这个说法行动，而艾拉的下落仍没有得到确认。对话记录和已经收集的线索留在这里。
+      player_text: >-
+        你的指认让调查告一段落。消息传回村里，原本各执一词的人开始重复同一个名字。
+        有人松了口气，有人仍站在门边，等着听到艾拉的下落。你把这次判断所依据的见闻
+        整理在一起，写上日期，合起了笔记。村民开始按这个说法行动，艾拉却还没有回来。
+        这次调查停在了你的指认上；记录里的判断，成了留给村子的答案。
       # Deliberately reachable *early*: it is what the player gets for concluding on the
       # three clues that point at Loren, none of which prove a murder (docs/14 §4.2).
       #
@@ -374,6 +383,12 @@ narrative:
 
     - ending_id: loren_moves_first
       summary: 被洛伦先动手
+      player_title: 调查失控
+      player_text: >-
+        你还没有来得及把线索整理成可靠的结论，洛伦先一步采取了行动。
+        村里的搜寻被他的威胁和混乱打断，玛尔塔也彻底闭上了门。你把已经掌握的内容
+        留在笔记里，未能核实的说法旁仍画着问号，再也等不到下一次追问的机会。
+        案子没有真正结束，只是从你的手里失去了继续追查的机会。
       # `pending` because the second clause has no writer yet: M5 gave `story_beats.tension`
       # a writer (a failed [追问] against Loren at the forest), but `npc_b_aware_of_investigation`
       # is still nothing's to reveal until M6（洛伦上门警告）lands. Declared anyway, with the
@@ -421,7 +436,11 @@ narrative:
     - ending_id: never_found_out
       summary: 没查明白
       player_title: 第五天的清晨
-      player_text: 四天过去，村里的搜寻逐渐停了。你记下了所有听闻与发现，但还无法把它们拼成一个可靠的答案。
+      player_text: >-
+        四天过去，村里的搜寻逐渐停了。第五天清晨，广场上的脚印被新的车辙覆盖，
+        没有人再等着你带回答案。你记下了所有听闻与发现，却还无法把它们拼成一个可靠的答案。
+        你把笔记和未完成的调查报告收好，至少留下了后来者可以重新核对的时间线。
+        这次调查没有找到艾拉，也没有证明她已经死去；它结束在证据不足的地方。
       # The third failure ending. docs/15 §4 M7 lists 天数用尽 as one of its triggers and
       # docs/14 §4.3 calls it the only true终局 — 闭口 merely closes one line — but it was
       # missing from this list, which is the same omission in a new place: the other four
@@ -503,10 +522,6 @@ events:
         # already trusts you, she gives a short answer instead of retreating.
         on_success: she_confirms_she_was_out
         on_failure: she_answers_through_the_door
-      - option_id: observe_woodpile
-        tag: observe
-        text: （看一眼门口的柴堆，比邻居家的都高）
-        on_success: noticed_the_woodpile
     default_outcome: no_deal
     outcomes:
       she_opens:
@@ -528,18 +543,12 @@ events:
           npc_a:
             trust: 3
             fear: 5
-      noticed_the_woodpile:
-        summary: 留在门外，但看见了柴堆
-        reveals_facts: [woodpile_note]
-        sets_flags: [woodpile_seen]
-        advances_conversation: false
       # Not a tombstone: the slot is spent, the door is not shut (docs/15 §3.3).
       no_deal:
         summary: 没谈成
 
   # --- M2: 那晚的窗缝 -----------------------------------------------------
-  # She mentions sawdust in the window crack — an observable detail, offered without
-  # an explanation of what it means.
+  # Revisit her account of the night, without inventing physical evidence.
   S1_help_marta:
     delivery: choice
     locations: [npc_a_house]
@@ -569,7 +578,7 @@ events:
     delivery: choice
     locations: [npc_a_house]
     presentation:
-      - {speaker: npc_a, text: 那晚雨停以后，我还没睡。窗缝里落了点木屑，我就起来看了一眼。}
+      - {speaker: npc_a, text: 你问的是艾拉失踪的那晚吧。雨停以后，我确实还没睡。可我不想让人知道我和你说过这些。}
     operator: reveal
     npc_id: npc_a
     intensity: 0.6
@@ -592,9 +601,9 @@ events:
         tag: goodwill
         text: 你不用一个人扛着
         on_success: she_softens
-      - option_id: press_sawdust
+      - option_id: press_that_night
         tag: press
-        text: 木屑是怎么来的
+        text: 那晚你为什么一直没睡
         check:
           npc_id: npc_a
           dimension: trust
@@ -623,7 +632,7 @@ events:
         summary: 她松一点
         scales_with_current_trust: true
       she_says_half:
-        npc_reply: 窗框旧了，一推就掉木屑。我起来关窗，听见有人往村里走。
+        npc_reply: 雨声吵得孩子睡不踏实，我一直陪着他。你别在邻居面前提起我，好吗。
         summary: 她说了一半
         relationship_changes:
           npc_a:
@@ -649,7 +658,7 @@ events:
         sets_flags: [marta_hands_seen]
         advances_conversation: false
       she_changed_the_subject:
-        npc_reply: 木头受了潮罢了。你还要问多久？
+        npc_reply: 孩子已经睡了。你还要问多久？
         summary: 她转了话题
 
   # --- F1: 艾拉的东西少了几件 ----------------------------------------------
@@ -1227,15 +1236,7 @@ facts:
   # Environment detail M1's [观察] yields. Revealed outright: looking at someone's
   # doorstep needs no permission, and gating it would make the one option that takes
   # no risk also the one that gives nothing.
-  woodpile_note:
-    value: 玛尔塔家门口的柴堆比邻居家的都高，像是准备久留在屋里
-    visibility: hidden
-    reveal_condition:
-      clauses:
-        - {path: story_beats.flags, op: contains, value: woodpile_seen}
 
-  # M2's [观察]. Also ungated, for the same reason: what a frightened person does
-  # with her hands is visible to anyone standing there.
   marta_is_terrified:
     value: 她一直用手按着门框，指节发白
     visibility: hidden
@@ -1262,7 +1263,7 @@ facts:
   # mixed into background chatter rather than said to the player directly, so unlike
   # `ella_things_missing` (which comes out of Marta's mouth, and needs her trust) there
   # is no one whose permission this waits on — anyone standing in the tavern or the
-  # square could have overheard it, the same reasoning `woodpile_note` uses.
+  # square could have overheard it, because the conversation happened in public.
   ella_asked_the_road:
     value: 艾拉前些天问过去镇上的路，还问过谁家的车最近要出村
     visibility: hidden

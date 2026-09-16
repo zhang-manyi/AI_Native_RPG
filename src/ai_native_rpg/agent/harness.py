@@ -147,6 +147,10 @@ class Harness:
         self._tools = tools
         self._max_tool_iterations = max_tool_iterations
 
+    def state_snapshot(self) -> dict[str, Any]:
+        """The persona and current agent state, for developer inspection."""
+        return self._npc.model_dump(mode="json")
+
     def respond(
         self,
         observation: str,
@@ -215,7 +219,7 @@ class Harness:
             action_proposal_id = None
         else:
             plan, dialogue, action_proposal_id = self._act_and_regenerate(
-                planning, npc_id, steps, observation, narrative_event
+                planning, npc_id, steps, observation, narrative_event, player_id=player_id
             )
 
         self._reflect(observation, dialogue, npc_id, steps)
@@ -406,13 +410,21 @@ class Harness:
         steps: list[TraceStep],
         observation: str,
         narrative_event: dict[str, Any] | None = None,
+        *,
+        player_id: str,
     ) -> tuple[AgentPlan, str, str | None]:
         assert planning.action is not None
+        target_id = planning.action.target_id
+        defaulted_target = (
+            target_id is None and planning.action.action_type == "adjust_relationship"
+        )
+        if defaulted_target:
+            target_id = player_id
         proposal = ActionProposal(
             proposal_id=uuid.uuid4().hex,
             actor_id=npc_id,  # the Harness owns identity; the model cannot spoof it
             action_type=planning.action.action_type,
-            target_id=planning.action.target_id,
+            target_id=target_id,
             payload=dict(planning.action.payload),
         )
         plan = AgentPlan(
@@ -427,6 +439,7 @@ class Harness:
                 input_summary={
                     "action_type": proposal.action_type,
                     "target_id": proposal.target_id,
+                    "defaulted_to_dialogue_player": defaulted_target,
                 },
                 output_summary={
                     "approved": result.approved,

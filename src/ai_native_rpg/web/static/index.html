@@ -89,13 +89,6 @@
               <span class="advance" id="advance" aria-hidden="true" hidden>▼</span>
             </div>
 
-            <!-- The player's own initiative to end the investigation (docs/15 §4 M7), not
-                 something any NPC offers. Small and always in this spot rather than sized
-                 like a primary action — it must not compete with the scene for attention.
-                 Hidden while a conversation is already open, since one conversation at a
-                 time is the rule (docs/13 §5.2) — a click here would otherwise abandon
-                 whatever is in progress with no outcome landed for it. -->
-            <button type="button" id="conclude" class="conclude-button" hidden>做出结论</button>
           </div>
 
           <!-- The transcript is kept but not shown: on screen the player sees only what is
@@ -121,10 +114,13 @@
         <section id="wrapup" aria-label="一天的收束" hidden>
           <header class="wrap-head">
             <p class="when" id="wrap-day"></p>
-            <h2 id="wrap-title">整理线索</h2>
+            <h2 id="wrap-title">今日调查回顾</h2>
+            <p id="wrap-introduction" role="status"></p>
           </header>
 
           <div class="wrap-body">
+            <div class="wrap-block"><h3>今天的新收获</h3><ul id="wrap-discovered"></ul></div>
+            <div class="wrap-block"><h3>今天的人际变化</h3><ul id="wrap-relationships"></ul></div>
             <div class="wrap-block">
               <h3>已经知道的</h3>
               <div class="chips" id="wrap-known"></div>
@@ -137,16 +133,16 @@
               <ul id="wrap-open"></ul>
             </div>
 
-            <div class="wrap-block reading">
-              <h3>牌面</h3>
-              <div class="cards" id="wrap-cards"></div>
-              <p class="reads-as" id="wrap-reads"></p>
-            </div>
+
           </div>
 
           <button type="button" id="wrap-close" class="wrap-next">睡下，等天亮</button>
         </section>
 
+        <div class="conclude-control">
+          <button type="button" id="conclude" class="conclude-button" disabled aria-describedby="conclude-reason">做出结论</button>
+          <span id="conclude-reason" class="why"></span>
+        </div>
         <p class="status" id="status" role="status" aria-live="polite"></p>
         <div class="feedback-toast" id="feedback-toast" role="status" aria-live="polite" hidden></div>
 

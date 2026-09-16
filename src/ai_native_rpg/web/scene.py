@@ -141,6 +141,7 @@ class SceneView(BaseModel):
     passage_id: str = ""
     ending: dict[str, str] | None = None
     can_conclude: bool = False
+    conclude_reason: str = ""
     ready: bool = True
     visible_facts: list[dict[str, Any]] = Field(default_factory=list)
     quest_stages: dict[str, int] = Field(default_factory=dict)
@@ -159,7 +160,7 @@ class SceneView(BaseModel):
     event_in_progress: bool = Field(
         default=False,
         description="whether an event currently holds the conversation. The interface reads "
-        "this to hide the 做出结论 button (docs/13 §12, docs/15 §4 M7): docs/13 §5.2's "
+        "this to disable the 做出结论 button (docs/13 §12, docs/15 §4 M7): docs/13 §5.2's "
         "one-conversation-at-a-time rule means opening the conclusion mid-event would "
         "abandon whatever is running with no outcome landed for it.",
     )

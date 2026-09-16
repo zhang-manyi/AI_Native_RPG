@@ -457,7 +457,7 @@ class TestPlantForeshadowing:
             _proposal(
                 "plant_foreshadowing",
                 target="a_quiet_detail",
-                value="门口的柴堆比邻居家的都高",
+                value="她的手紧紧按着门框",
                 payoff_condition=_trust_condition(50),
                 participants=["玛尔塔"],
             )

@@ -160,3 +160,9 @@ cp .env.example .env   # 然后填入自己的 key
 - Tool Use 的工具集固定为 3-4 个，不做动态工具发现。
 - 初期只实现 1-2 个 NPC，不做 Faction Agent / Event Agent（架构上可复用同一套 Runtime，作为后续扩展）。
 - Prompt 文件放在 `prompts/`，由 [11_Prompt_Lab.md](./11_Prompt_Lab.md) 的流程选定；Harness 只读文件，不在代码里内联 prompt 字符串。
+
+## 当前对话的关系提案
+
+NPC 自由对话可按内容申请调整信任、恐惧或尊重，不按字数或发言次数固定奖励。仅当 `adjust_relationship` 漏填 `target_id` 时，Harness 使用本次 `respond(player_id=...)` 的真实玩家 ID，并在校验记录注明补全。显式非法目标、非法维度、过大变化和其他动作缺目标仍由 Validator 拒绝。关系是有方向的 NPC → 目标，底层支持 NPC 间关系，这不意味着当前剧本已有自主多 NPC 社交模拟。
+
+已结算选项的演绎调用不再次修改关系，避免点击和自由输入匹配同一选项时重复奖励。NPC/普通旁白不得自行创造案件证物或伏笔；只能使用给定事实和已结算事件。

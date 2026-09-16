@@ -51,6 +51,38 @@ class TestNoActionTurn:
 
 
 class TestApprovedActionTurn:
+    @pytest.mark.parametrize("target, approved", [(None, True), ("missing_actor", False)])
+    def test_missing_relationship_target_uses_actual_dialogue_player(
+        self, martha, manager, target, approved
+    ):
+        world = manager.snapshot()
+        world.player_locations["detective_7"] = world.player_locations.pop(PLAYER)
+        manager = WorldStateManager(world)
+        llm = MockLLMClient(
+            [
+                PlanningOutput(
+                    reasoning="r",
+                    strategy="s",
+                    dialogue="draft",
+                    action={
+                        "action_type": "adjust_relationship",
+                        "target_id": target,
+                        "payload": {"trust": 3, "fear": 2, "respect": 1},
+                    },
+                ),
+                {"dialogue": "reply"},
+            ]
+        )
+        harness = Harness(
+            npc_state=martha, manager=manager, llm=llm, memory=MemoryStore(martha.npc_id)
+        )
+        response, trace = harness.respond("I want to help", player_id="detective_7")
+        assert response.plan.action_proposal.target_id == (target or "detective_7")
+        validation = next(s for s in trace.steps if s.step_name == "action_validation")
+        assert validation.output_summary["approved"] is approved
+        rel = manager.get_relationship(martha.npc_id, "detective_7")
+        assert (rel.trust, rel.fear, rel.respect) == ((3, 2, 1) if approved else (0, 0, 0))
+
     def test_two_calls_and_world_changes(self, martha, manager):
         # trust starts at 10; a +15 adjust_relationship is within the per-action cap.
         llm = MockLLMClient(

@@ -26,7 +26,7 @@ function client() {
   });
   const source = fs.readFileSync(path.join(__dirname, '../src/ai_native_rpg/web/static/app.js'), 'utf8');
   vm.runInContext(source.replace(/boot\(\);\s*$/, '') +
-    '\nglobalThis.testClient = { onScene, advance, onMove, state };', context);
+    '\nglobalThis.testClient = { onScene, advance, onMove, onPanel, renderWrapUp, state };', context);
   return { ...context.testClient, elements, requests };
 }
 
@@ -83,10 +83,51 @@ test('public ready snapshots unlock input without developer tick events', async 
 
 test('ending leaves the transcript accessible and closes action controls', () => {
   const c = client();
-  c.onScene(scene({ passages: [], options: [], ending: { title: '调查结束', text: '你作出了判断。' } }));
+  c.onScene(scene({ passages: [], options: [], ending: { title: '结局：调查结束', text: '你作出了判断。' } }));
   assert.equal(c.elements.get('ending').hidden, false);
-  assert.equal(c.elements.get('ending-title').textContent, '调查结束');
+  assert.equal(c.elements.get('ending-title').textContent, '结局：调查结束');
   assert.equal(c.elements.get('composer').hidden, true);
   assert.equal(c.elements.get('options').hidden, true);
   assert.equal(c.elements.get('ways').hidden, true);
+});
+
+test('conclusion remains visible with a reason and unlocks when the scene allows it', () => {
+  const c = client();
+  c.onScene(scene({ passages: [], can_conclude: false, conclude_reason: '请先结束对话' }));
+  assert.equal(c.elements.get('conclude').hidden, false);
+  assert.equal(c.elements.get('conclude').disabled, true);
+  assert.equal(c.elements.get('conclude-reason').textContent, '请先结束对话');
+  c.onScene(scene({ passages: [], can_conclude: true, conclude_reason: '' }));
+  assert.equal(c.elements.get('conclude').disabled, false);
+  c.onScene(scene({ passages: [], ready: false, can_conclude: true, conclude_reason: '' }));
+  assert.equal(c.elements.get('conclude').disabled, true);
+});
+
+test('review announces the day boundary and lists gains without mixing them with old clues', () => {
+  const c = client();
+  c.renderWrapUp({day: 1, introduction: '今天的调查结束了', baseline_available: true,
+    known: [{id: 'old', value: '旧线索'}, {id: 'new', value: '新线索'}],
+    discovered: [{id: 'new', value: '新线索'}], unanswered: [],
+    relationship_changes: [{name: '玛尔塔', trust: 3, fear: -2, respect: 0}],
+  });
+  assert.equal(c.elements.get('wrap-introduction').textContent, '今天的调查结束了');
+  assert.match(c.elements.get('wrap-discovered').innerHTML, /新线索/);
+  assert.doesNotMatch(c.elements.get('wrap-discovered').innerHTML, /旧线索/);
+  assert.match(c.elements.get('wrap-relationships').innerHTML, /玛尔塔.*信任 \+3.*恐惧 -2/);
+});
+
+test('NPC panel renders every character, directional values, memory and field explanations', () => {
+  const c = client();
+  c.onPanel({npcs: [
+    {npc_id: 'npc_a', name: '玛尔塔', relationships: {player_1: {trust: 13, fear: 2, respect: 0}},
+      memory: {semantic: [{fact: '<private belief>', confidence: 0.8}]}},
+    {npc_id: 'npc_b', name: '洛伦', relationships: {player_1: {trust: 7, fear: 0, respect: 3}}},
+  ]});
+  const panel = c.elements.get('panel-body').innerHTML;
+  assert.match(panel, /玛尔塔/);
+  assert.match(panel, /洛伦/);
+  assert.match(panel, /13\.0/);
+  assert.match(panel, /7\.0/);
+  assert.match(panel, /&lt;private belief&gt;/);
+  assert.match(panel, /title="确信程度/);
 });

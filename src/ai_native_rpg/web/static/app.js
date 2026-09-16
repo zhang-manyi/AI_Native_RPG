@@ -25,6 +25,7 @@ const ui = {
   ways: el("ways"),
   waysList: el("ways-list"),
   conclude: el("conclude"),
+  concludeReason: el("conclude-reason"),
   history: el("history"),
   dialogue: el("dialogue"),
   dialogueName: el("dialogue-name"),
@@ -43,8 +44,9 @@ const ui = {
   wrapKnown: el("wrap-known"),
   wrapOpenBlock: el("wrap-open-block"),
   wrapOpen: el("wrap-open"),
-  wrapCards: el("wrap-cards"),
-  wrapReads: el("wrap-reads"),
+  wrapIntroduction: el("wrap-introduction"),
+  wrapDiscovered: el("wrap-discovered"),
+  wrapRelationships: el("wrap-relationships"),
   wrapClose: el("wrap-close"),
   intro: el("intro"),
   introTitle: el("intro-title"),
@@ -120,24 +122,6 @@ const SLOT_LABELS = {
 };
 
 const slotLabel = (slot) => SLOT_LABELS[slot] || slot || "";
-
-/* Card names for the wrap-up's imagery keys. Front-end wording again: the server sends
- * keys ('the_moon') precisely so it never has to hold prose. An unknown key falls through
- * to itself rather than being dropped. */
-const CARD_NAMES = {
-  the_moon: "月亮",
-  the_star: "星星",
-  the_tower: "塔",
-  the_hermit: "隐者",
-};
-
-/* The reading's coarse label, as atmosphere. No number: `darkness` is a ratio and turning
- * it back into "还剩 N 条" is exactly what docs/12 §13.3 forbids. */
-const READS_AS = {
-  mostly_dark: "大部分还在暗处。",
-  half_lit: "有些事清楚了，有些还没有。",
-  nearly_clear: "差不多都摊开了。",
-};
 
 function setStatus(text, kind = "") {
   ui.status.className = `status ${kind}`.trim();
@@ -385,6 +369,7 @@ function onScene(scene) {
   renderScene();
   if (scene.ready) {
     setStatus(scene.ending ? "调查结束。你仍可以查看对话记录。" :
+      scene.time_slot === "wrap_up" ? "今天的调查结束了。盘点收获后，回家休息。" :
       scene.event_in_progress ? "阅读对白后，选择一个行动，也可以自由输入。" :
       "可以前往其他地点继续调查。有人在场时，也可以留下自由交谈。");
   }
@@ -433,7 +418,7 @@ function renderScene() {
     `</div>`;
 
   renderWays(s.destinations || []);
-  ui.conclude.hidden = !s.can_conclude;
+  renderConclude();
   ui.ending.hidden = !s.ending;
   ui.endingTitle.textContent = s.ending?.title || "";
   ui.endingText.textContent = s.ending?.text || "";
@@ -603,13 +588,16 @@ function renderWrapUp(view) {
   // Verbatim (docs/12 §13.3): no "该去哪查" appended, no rephrasing into a lead.
   ui.wrapOpen.innerHTML = open.map((q) => `<li>${esc(q)}</li>`).join("");
 
-  const reading = view.reading || {};
-  ui.wrapCards.innerHTML = (reading.imagery || [])
-    .map((card) => `<span class="tarot">${esc(CARD_NAMES[card] || card)}</span>`)
-    .join("");
-  // The coarse label only. The ratio is deliberately never turned back into "还剩 N 条"
-  // — that is the number a player would optimise against (docs/12 §13.3).
-  ui.wrapReads.textContent = `你回到家中，心里仍笼着疑惑，随手抽出两张塔罗牌。${READS_AS[reading.reads_as] || "牌面沉默，只留下模糊的暗示。"}`;
+  ui.wrapIntroduction.textContent = view.introduction;
+  ui.wrapDiscovered.innerHTML = (view.discovered || []).length
+    ? view.discovered.map((f) => `<li>${esc(f.value)}</li>`).join("")
+    : `<li>${view.baseline_available ? "今天没有新增线索。已有记录仍可在下方查阅。" : "旧存档没有当天开始的记录，以下列出目前已知的线索。"}</li>`;
+  const labels = {trust: "信任", fear: "恐惧", respect: "尊重"};
+  ui.wrapRelationships.innerHTML = (view.relationship_changes || []).map((r) =>
+    `<li>${esc(r.name)}：${Object.entries(labels).filter(([k]) => r[k]).map(([k, label]) =>
+      `${label} ${r[k] > 0 ? "+" : ""}${num(r[k], 1)}`).join("，")}</li>`).join("") ||
+    `<li>${view.baseline_available ? "今天的关系值没有变化。" : "旧存档缺少当天的关系基准，暂不推测变化。"}</li>`;
+
 }
 
 /** Where the player may go. The list is the server's; this only draws it.
@@ -687,7 +675,17 @@ function renderDialogue() {
  * talk to there — `setWrapUp` already owns hiding it for that case, but the check is
  * repeated here so a stray call from `renderDialogue` cannot re-show it underneath).
  */
+function renderConclude() {
+  ui.conclude.hidden = false;
+  const reason = state.scene?.conclude_reason || (state.busy ? "请等待当前回合完成。" :
+    state.awaitingAdvance ? "请先读完当前对白。" : "");
+  ui.conclude.disabled = !state.scene?.can_conclude || state.busy || state.awaitingAdvance;
+  ui.conclude.title = reason;
+  ui.concludeReason.textContent = reason;
+}
+
 function renderComposerVisibility() {
+  renderConclude();
   const idle =
     !state.busy &&
     !state.awaitingAdvance &&
@@ -818,13 +816,109 @@ function setPanelOpen(open) {
   ui.toggle.setAttribute("aria-expanded", open ? "true" : "false");
 }
 
+const OP_LABELS = {foreshadow: "剧本伏笔", reveal: "揭示", escalate: "施压", reverse: "重新理解", relieve: "平静回合"};
+const FIELD_HELP = {
+  trust: "信任：此 NPC 对目标的信赖程度，范围 -100 至 100。关系有方向，并非双方共享。",
+  fear: "恐惧：此 NPC 对目标的畏惧程度，范围 -100 至 100。升高可能使其闭口，不等于好感增加。",
+  respect: "尊重：此 NPC 对目标能力或判断的认可，范围 -100 至 100。",
+  importance: "重要度（0—1）：用于情节记忆的检索排序和遗忘衰减，不是相关度。",
+  confidence: "确信程度（0—1）：NPC 对这条信念有多确信；高分也可能是误解。",
+  score: "情节记忆这里显示重要度，语义记忆显示确信程度；不是向量相似度。",
+  npc_id: "角色的内部唯一标识。", name: "角色的显示名字。",
+  alive: "世界状态中该角色是否存活。", location: "角色当前所在地点的 ID。",
+  faction_id: "角色所属阵营；空值表示未设置。", sprite_key: "角色立绘的样式标识。",
+  persona: "剧本配置的相对稳定的人格设定。", traits: "剧本定义的人格倾向及强度，供模型扮演时参考。",
+  background: "角色背景设定。", goal: "角色自己的目标，和玩家目标可能不同。",
+  primary: "角色的首要目标。", secondary: "角色的次要目标。", emotion: "角色当前情绪标签。",
+  beliefs: "角色的主观认知，可能与世界事实不符。", world_state: "世界记录的客观状态。",
+  agent_state: "NPC 的人格、目标、情绪和信念；这里不代表所有字段都会逐回合自动改变。",
+  relationships: "从此 NPC 出发的全部已记录关系；没有记录的 NPC 间关系不会虚构显示。",
+  memory: "该 NPC 的完整长期记忆库，不只显示最近检索命中的条目。",
+  episodic: "情节记忆：角色经历或记住的具体事件。", semantic: "语义记忆：角色持有的概括和信念。",
+  retrieved_memory: "该角色最近一次对话实际取出的记忆；切换地点不会换成其他角色的记录。",
+  memory_id: "记忆条目的唯一标识。", event_description: "角色记住的事件描述。", fact: "NPC 持有的信念文本，不保证为真。",
+  occurred_at_day: "记忆中事件发生的游戏天数。", created_at: "记忆创建时间。", last_updated: "该关系或状态最后写入时间。",
+  tools: "这个 NPC 能调用的工具。", proposals: "此 NPC 提交的行动及校验结果，保留本次会话最近 40 条。",
+  action_type: "申请执行的动作类型。", target_id: "动作要作用的对象。", approved: "校验器是否允许执行此动作。",
+  rule_name: "产生拒绝的具体规则。", reason: "规则给出的可读原因。",
+  defaulted_to_dialogue_player: "是否因关系提案漏填目标而使用本次对话的玩家 ID。显式非法目标不会被替换。",
+  steps: "此 NPC 最近一次调用的执行记录：规划、工具调用、校验和对白等。",
+  step_name: "这一步的名称。", input_summary: "这一步实际使用的输入摘要。", output_summary: "这一步产生的结果摘要。",
+  token_usage: "模型供应商返回的 Token 使用量。", model_used: "实际使用的模型；空值通常是纯规则步骤。",
+  events: "剧本中由这个 NPC 参与的事件及当前状态。", event_id: "剧本事件的唯一标识。",
+  operator: "事件的叙事用途标签；不是一位隐藏的全能 AI 编剧。", delivery: "呈现方式：对话、选择或旁白。",
+  locations: "允许触发事件的地点。", active: "这个事件是否正在进行。", completed: "是否已完成过此事件。",
+  trigger: "剧本写明的触发条件。", mode: "all 要全部满足；any 只需满足一项。", clauses: "条件子句列表。",
+  path: "条件读取的世界状态路径。", op: "比较方式，例如 gte 表示大于等于。", value: "剧本定义的目标值或事实内容。",
+  turn: "游戏回合号。", text: "实际记录的内容。", kind: "记忆种类。",
+  last_turn: "这个 NPC 最近参与对话的回合。", last_dialogue: "这个 NPC 最近输出的对白。",
+  last_turn_cost: "这个 NPC 最近一次模型交互的开销。", llm_calls: "实际模型调用次数。",
+  tokens: "记录到的 Token 总量。", total_latency_ms: "总耗时（毫秒）。", latency_ms: "该步骤耗时（毫秒）。", trace_id: "用于查阅完整调用过程的追踪标识。",
+  relationship_trend: "该 NPC 对玩家的关系变化采样，最近 40 点；恢复存档后从当前值开始重新记录。",
+  trigger_reason: "触发本事件的规则原因；事件选择由剧本条件及引擎完成。",
+  foreshadow: "只呈现剧本预定义的伏笔，并指向已定义的回收目标。已禁止模型自由创作伏笔。",
+  reveal: "呈现已由规则允许的事实或事件，不允许模型凭空创造证据。",
+  escalate: "加强已有处境的压力，不新增案件事实。", reverse: "重新解释已知信息，不改变事实本身。",
+  relieve: "本轮没有新叙事事件，或节奏规则安排缓冲。",
+  章节: "剧本当前章节编号。", 回合: "游戏已推进的回合数。", 张力: "引擎记录的压力值，0—1；不是 NPC 的情绪。",
+  埋设总数: "历史上登记过的剧本伏笔数量，不是玩家还差多少线索。",
+  天: "当前游戏天数 / 剧本允许的调查天数。", 时段: "上午、下午、夜里或免费的每日收束。",
+  已用: "累计消耗的调查时段 / 总预算；每日收束不计费。", 剩余: "还能消耗的调查时段数。",
+  "LLM 调用": "本回合的模型调用次数。", 延迟: "记录的耗时，单位毫秒。",
+  叙事进度: "剧本的章节、回合及压力状态。", 时段预算: "调查时间预算。",
+  伏笔账本: "预定义伏笔的登记及回收条件；不再由模型发明新线索。",
+  解锁进度: "隐藏事实的条件和当前值，仅开发者可见。",
+  "被拒的 Proposal": "校验未通过的动作，没有按该提案改变世界。",
+  算子时间线: "每轮事件的用途、选择原因、阻塞原因及生成的文本。当前剧本路径由规则推进。",
+  关系值走势: "按单个 NPC 展示，避免不同 NPC 的数值连成一条误导曲线。",
+  记忆检索: "该 NPC 最近对话检索的记忆及重要度/确信程度。",
+  本回合开销: "最近一次交互的调用开销和待使用的剧情内容。",
+  所有角色: "按角色展开查看世界状态、关系、完整记忆、事件和本次会话活动。",
+};
+
+function help(key) {
+  const description = FIELD_HELP[key] || `剧本或记录中的「${key}」字段；下方是当前保存的值，未设置时显示为空。`;
+  return `<span class="field-help" tabindex="0" role="img" aria-label="${esc(description)}" title="${esc(description)}">!</span>`;
+}
+
+function debugFields(value, path) {
+  if (value === null || value === undefined) return `<span class="debug-value">未设置</span>`;
+  if (typeof value !== "object") return `<span class="debug-value">${esc(typeof value === "boolean" ? (value ? "是" : "否") : value)}</span>`;
+  if (!Object.keys(value).length) return empty("暂无记录");
+  return `<div class="debug-fields">${Object.entries(value).map(([key, item]) => {
+    const label = Array.isArray(value) ? `记录 ${Number(key) + 1}` : key;
+    const caption = `${esc(label)}${help(Array.isArray(value) ? path.split(".").at(-1) : key)}`;
+    return item && typeof item === "object"
+      ? `<details class="debug-field" data-key="${esc(path + "." + key)}"><summary>${caption}</summary>${debugFields(item, path + "." + key)}</details>`
+      : `<div class="debug-field">${caption}：${debugFields(item, path + "." + key)}</div>`;
+  }).join("")}</div>`;
+}
+
+function renderNpcs(p) {
+  const rows = p.npcs || [];
+  return block("所有角色", rows.length, rows.map(npc => {
+    const relations = Object.entries(npc.relationships || {}).map(([target, rel]) => {
+      const name = rows.find(r => r.npc_id === target)?.name || target;
+      return `<div class="row"><div>对 ${esc(name)}${help("relationships")}</div><div class="stats">${
+        Object.entries({trust: "信任", fear: "恐惧", respect: "尊重"}).map(([k, label]) =>
+          `<div class="stat">${label}${help(k)}<div class="v">${num(rel[k], 1)}</div></div>`).join("")
+      }</div></div>`;
+    }).join("");
+    const {relationship_trend, relationships, npc_id, name, ...detail} = npc;
+    return `<details class="block npc-card" data-key="npc:${esc(npc.npc_id)}">
+      <summary>${esc(npc.name)} · ${esc(npc.npc_id)}${help("npc_id")}</summary>
+      <div class="block-body">${relations}${debugFields(detail, npc.npc_id)}${renderTrend(npc)}</div>
+    </details>`;
+  }).join(""));
+}
+
 function block(title, count, body, { open = true, alert = false } = {}) {
   const badge =
     count === null || count === undefined
       ? ""
       : `<span class="count ${alert ? "alert" : ""}">${esc(count)}</span>`;
-  return `<details class="block" ${open ? "open" : ""}>
-    <summary>${esc(title)}${badge}</summary>
+  return `<details class="block" data-key="${esc(title)}" ${open ? "open" : ""}>
+    <summary>${esc(title)}${help(title)}${badge}</summary>
     <div class="block-body">${body}</div>
   </details>`;
 }
@@ -834,6 +928,7 @@ const empty = (text) => `<p class="empty">${esc(text)}</p>`;
 function renderPanel() {
   const p = state.panel;
   if (!p) return;
+  const expanded = new Map([...ui.panelBody.querySelectorAll("details[data-key]")].map(d => [d.dataset.key, d.open]));
   ui.panelBody.innerHTML = [
     renderBeats(p),
     renderBudget(p),
@@ -841,10 +936,13 @@ function renderPanel() {
     renderUnlock(p),
     renderRejected(p),
     renderTimeline(p),
-    renderTrend(p),
-    renderMemory(p),
+    renderNpcs(p),
     renderCost(p),
   ].join("");
+  ui.panelBody.querySelectorAll("details[data-key]").forEach(d => {
+    if (expanded.has(d.dataset.key)) d.open = expanded.get(d.dataset.key);
+  });
+  ui.panelBody.querySelectorAll(".k").forEach(k => { k.innerHTML += help(k.textContent); });
 }
 
 function renderBeats(p) {
@@ -974,7 +1072,8 @@ function renderTimeline(p) {
       <div class="beat">
         <span class="turn">${r.turn}</span>
         <div>
-          <span class="op op-${esc(r.operator)}">${esc(r.operator)}</span>
+          <span class="op op-${esc(r.operator)}">${esc(OP_LABELS[r.operator] || r.operator)}${help(r.operator)}</span>
+          <div class="why">触发原因${help("trigger_reason")}：${esc(r.trigger_reason || "没有满足条件的事件，或节奏规则暂缓触发。")}</div>
           ${r.starved ? `<span class="tag warn">已停摆</span>` : ""}
           ${r.event_type ? `<span class="id"> ${esc(r.event_type)}</span>` : ""}
           ${r.hook ? `<div class="hook">${esc(r.hook)}</div>` : ""}
@@ -1059,7 +1158,7 @@ function renderTrend(p) {
       <span class="k-respect">respect <b>${num(last.respect)}</b> <i>${delta("respect")}</i></span>
     </div>
     <div class="why">${pts.length} 个采样点 · 纵轴按实际范围缩放</div>`;
-  return block("关系值走势", null, body, { open: false });
+  return block("关系值走势", null, body, { open: false }).replace('data-key="关系值走势"', `data-key="trend:${esc(p.npc_id || "current")}"`);
 }
 
 function renderMemory(p) {
@@ -1187,7 +1286,7 @@ ui.waysList.addEventListener("click", async (e) => {
 });
 
 ui.conclude.addEventListener("click", async () => {
-  if (state.busy) return;
+  if (ui.conclude.disabled || state.busy) return;
   setBusy(true);
   state.waiting = "move";
   setStatus("准备说出结论……", "working");

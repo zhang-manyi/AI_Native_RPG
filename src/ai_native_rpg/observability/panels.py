@@ -191,6 +191,9 @@ class PanelView(BaseModel):
     """
 
     beats: BeatsView
+    npcs: list[dict[str, Any]] = Field(
+        default_factory=list, description="All NPCs, each with its own state, memories and activity"
+    )
     slot_budget: SlotBudget | None = None
     ledger: list[LedgerRow] = Field(default_factory=list)
     unlock_board: list[UnlockRow] = Field(default_factory=list)

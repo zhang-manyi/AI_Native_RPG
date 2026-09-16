@@ -30,7 +30,7 @@ NPC_A = "npc_a"
 OPTIONS = [
     {"id": "goodwill", "text": "我不是来添麻烦的"},
     {"id": "press_that_night", "text": "那晚你在外面，对吗"},
-    {"id": "observe_woodpile", "text": "（看一眼门口的柴堆）"},
+    {"id": "observe_hands", "text": "（她的手一直按着门框）"},
 ]
 
 
@@ -174,7 +174,6 @@ class TestTheEngineSuppliesTheOptions:
         assert {o["id"] for o in options} == {
             "goodwill",
             "press_that_night",
-            "observe_woodpile",
         }
         assert all(set(o) == {"id", "text"} for o in options)
 

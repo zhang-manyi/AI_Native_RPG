@@ -96,6 +96,23 @@ def _script(*events: EventDefinition) -> EventScript:
     return EventScript(events={e.event_id: e for e in events})
 
 
+def test_generated_foreshadow_is_never_sent_to_the_content_model(world):
+    event = _reveal_event(
+        "legacy_hint",
+        operator=NarrativeOperator.FORESHADOW,
+        trigger=_trust_at_least(0),
+        payoff_target="loren_that_night",
+    )
+    llm = MockLLMClient([])
+    engine, manager = _engine(world, llm, script=_script(event))
+    before = manager.snapshot().facts
+    tick = engine.tick(player_id=PLAYER)
+    assert llm.call_count == 0
+    assert tick.selected is None
+    assert manager.snapshot().facts == before
+    assert manager.snapshot().story_beats.open_foreshadowings == {}
+
+
 def _engine(
     world: WorldState, llm: MockLLMClient, directives=None, script: EventScript | None = None
 ) -> tuple[NarrativeEngine, WorldStateManager]:
@@ -403,6 +420,7 @@ class TestEffectsGoThroughTheValidator:
         world.story_beats = StoryBeats(turn=1)
         event = _reveal_event(
             "F_hint",
+            delivery="narration",
             operator=NarrativeOperator.FORESHADOW,
             trigger=_trust_at_least(10),
             payoff_target="loren_that_night",
@@ -430,6 +448,7 @@ class TestEffectsGoThroughTheValidator:
         world.story_beats = StoryBeats(turn=1)
         event = _reveal_event(
             "F_bad",
+            delivery="narration",
             operator=NarrativeOperator.FORESHADOW,
             trigger=_trust_at_least(10),
             payoff_target="victim_name",  # revealed, no reveal_condition
@@ -537,6 +556,7 @@ class TestPendingEvent:
         world.story_beats = StoryBeats(turn=1)
         event = _reveal_event(
             "F_bad",
+            delivery="narration",
             operator=NarrativeOperator.FORESHADOW,
             trigger=_trust_at_least(10),
             payoff_target="victim_name",

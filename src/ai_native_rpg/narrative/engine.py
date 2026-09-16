@@ -37,7 +37,6 @@ from pydantic import BaseModel, Field
 from ..agent.harness import PromptLibrary
 from ..llm.base import LLMClient, Message
 from ..scenario import Ending, NarrativeDirectives
-from ..schemas.common import Condition
 from ..schemas.events import AuthoredLine, CheckBand, EventDefinition, EventOption, EventScript
 from ..schemas.narrative import (
     EventCandidate,
@@ -47,7 +46,7 @@ from ..schemas.narrative import (
     TimeSlot,
 )
 from ..schemas.world_state import ActionProposal, ActionValidationResult
-from ..world.actions import FORESHADOW_PAYOFF_PATH_PREFIXES, ActionType
+from ..world.actions import ActionType
 from ..world.conditions import UnknownPathError, evaluate
 from ..world.manager import WorldStateManager
 from .controller import PacingVerdict, Rejection, select_candidate
@@ -69,7 +68,7 @@ from .rules import (
     progress_quest,
     triggerable_events,
 )
-from .wrap_up import ClueReview, TarotReading, review_clues, tarot_reading
+from .wrap_up import ClueReview, review_clues
 
 #: The actor id every narrative proposal carries. In ``SYSTEM_ACTORS``, and gated
 #: by ``narrative_actions_are_system_only``.
@@ -88,9 +87,6 @@ class GeneratedContent(BaseModel):
     screen: ``dialogue_hook`` is handed to the NPC's Dialogue Generation stage as
     material, not shown to the player (docs/06 §3).
 
-    The three ``planted_*`` fields apply only to ``foreshadow``; the alternative —
-    a separate schema per operator — would mean a second request shape and a second
-    parse path for one extra field.
     """
 
     summary: str = Field(
@@ -101,12 +97,6 @@ class GeneratedContent(BaseModel):
     )
     participants: list[str] = Field(
         default_factory=list, description="display names of the characters involved, usually one"
-    )
-
-    planted_fact_id: str | None = None
-    planted_value: str | None = Field(default=None, description="the detail itself, one short line")
-    payoff_condition: Condition | None = Field(
-        default=None, description="a single clause is enough; no explanation of the threshold"
     )
 
 
@@ -149,16 +139,10 @@ class EventResolutionRecord(BaseModel):
 
 @dataclass(frozen=True)
 class DayWrapUp:
-    """The day's interlude: what is known, and how the cards read (docs/13 §4.2).
-
-    A dataclass rather than a Pydantic model because both halves already are what they
-    are and nothing here is parsed from outside. Grouped into one object so a caller
-    cannot show the reading while forgetting the review — they are one beat.
-    """
+    """The day's review of visible facts, without hidden-state hints."""
 
     day: int
     review: ClueReview
-    reading: TarotReading
 
 
 class NarrativeTick(BaseModel):
@@ -337,14 +321,29 @@ class NarrativeEngine:
         return result
 
     def can_conclude(self, player_id: str) -> bool:
+        return not self.conclude_reason(player_id)
+
+    def conclude_reason(self, player_id: str) -> str:
+        """A player-readable reason shared by the button and its availability check."""
         definition = self._script.get(self._directives.conclusion_event or "")
-        return bool(
-            definition
-            and not self.active_event()
-            and not self.reached_ending()
-            and not self.is_wrapping_up()
-            and event_is_present(self._manager.snapshot(), definition, player_id)
-        )
+        if definition is None:
+            return "这个故事没有设置结论事件。"
+        if self.reached_ending():
+            return "调查已经结束。"
+        if self.is_wrapping_up():
+            return "今天的调查已结束，明天继续作出判断。"
+        if self.active_event():
+            return "请先完成当前对话，或离开现场结束对话。"
+        world = self._manager.snapshot()
+        if not event_is_present(world, definition, player_id):
+            target = "、".join(
+                world.locations[k].name for k in definition.locations if k in world.locations
+            ) or "结论事件所在地点"
+            current = world.player_locations.get(player_id)
+            if current != "village_square" and "village_square" in world.locations:
+                return f"请先回到村庄广场，再前往{target}，与当事人作出结论。"
+            return f"请前往{target}，与当事人作出结论。"
+        return ""
 
     def conclude_case(self) -> PlayerActionResult:
         """Open the conclusion event on the player's own initiative (docs/13 §12, docs/15 §4 M7).
@@ -384,15 +383,14 @@ class NarrativeEngine:
         return self._manager.snapshot().story_beats.time_slot is TimeSlot.WRAP_UP
 
     def wrap_up(self, *, player_id: str) -> DayWrapUp | None:
-        """The day's review and reading, or ``None`` outside the wrap-up.
+        """The day's investigation review, or ``None`` outside the wrap-up.
 
         Returning ``None`` rather than computing it anyway keeps the once-a-day cadence
         docs/13 §4.2 asks for in one place: the ritual is what makes it feel like a ritual,
         and a review available on demand every turn is just a screen.
 
         The review is handed only the player's projection, so it *cannot* read a hidden
-        fact (docs/13 §5.1). The reading gets the world, but reads counts rather than
-        content — how much is still dark, never what it is.
+        fact (docs/13 §5.1). No hidden-state aggregate is exposed.
         """
         world = self._manager.snapshot()
         if world.story_beats.time_slot is not TimeSlot.WRAP_UP:
@@ -402,7 +400,6 @@ class NarrativeEngine:
         return DayWrapUp(
             day=world.time_day,
             review=review_clues(view),
-            reading=tarot_reading(world, view),
         )
 
     def close_out_day(self) -> PlayerActionResult:
@@ -451,6 +448,9 @@ class NarrativeEngine:
         candidates = check_triggers(
             world, player_id=player_id, script=self._script, directives=self._directives
         )
+        # Authored foreshadow events run through _tick_authored. The content model
+        # must never invent clues or their future payoff conditions.
+        candidates = [c for c in candidates if c.operator is not NarrativeOperator.FORESHADOW]
         verdict = select_candidate(candidates, beats=world.story_beats, profile=profile)
 
         event: NarrativeEvent | None = None
@@ -741,54 +741,10 @@ class NarrativeEngine:
         lines += ["", "本场禁止（绝对约束）："]
         lines.extend(f"  - {c}" for c in candidate.constraints)
 
-        if candidate.operator is NarrativeOperator.FORESHADOW:
-            lines += self._foreshadow_guidance(world, player_id)
-
         return [
             Message(role="system", content=system),
             Message(role="user", content="\n".join(lines)),
         ]
-
-    def _foreshadow_guidance(self, world, player_id: str) -> list[str]:
-        """What a plant may hinge on, and what is already hanging.
-
-        The open ledger is here because without it every plant was a fresh
-        invention. One run, with the player inside Marta's house, planted a scrap of
-        red cloth on the mill wheel, then a drag mark by the millrace, then wax on
-        her windowsill — three unrelated objects in three different places, none
-        picking the previous one up. The generator was told the count of open loops
-        ("1/3 loops open") and never their content, so "another hint toward the same
-        conclusion" was not something it could aim at. Naming them turns the second
-        plant into a second angle on the first, which is what the Three Clue Rule
-        behind ``MAX_OPEN_FORESHADOWINGS`` actually asks for.
-
-        The example paths are built from this world rather than written in. They used
-        to read ``relationships.npc_a.player_1.trust 或 quests.investigation.stage``,
-        which is one story's ids in framework code — wrong for any other pack, and
-        wrong here the moment the pack renames a quest.
-        """
-        allowed = ", ".join(f"{p}*" for p in FORESHADOW_PAYOFF_PATH_PREFIXES)
-        lines = ["", f"payoff_condition 的 path 只能用这几类：{allowed}"]
-
-        examples = []
-        npc_id = next(iter(world.npcs), None)
-        if npc_id:
-            examples.append(f"relationships.{npc_id}.{player_id}.trust")
-        quest = progress_quest(world, self._directives)
-        if quest is not None:
-            examples.append(f"quests.{quest.quest_id}.stage")
-        if examples:
-            lines.append(f"（例如 {' 或 '.join(examples)}）")
-
-        open_loops = world.story_beats.open_foreshadowings
-        if open_loops:
-            lines += ["", "已经埋下、还没回收的细节："]
-            lines.extend(f"  - {entry.note or entry.fact_id}" for entry in open_loops.values())
-            lines.append(
-                "这一条要和上面某一条指向同一个结论——是同一件事的另一个侧面，"
-                "不是又一件不相干的东西。不要重复已经埋过的细节。"
-            )
-        return lines
 
     def _cast_and_place_lines(self, world, player_id: str) -> list[str]:
         """Who may appear, and where the player is standing.
@@ -1018,43 +974,6 @@ class NarrativeEngine:
             self._submit(
                 ActionType.ADVANCE_STORY_BEAT,
                 payload={"tension": round(min(1.0, current + TENSION_STEP), 4)},
-            )
-        ]
-
-    def _foreshadow_effects(self, event: NarrativeEvent | None) -> list[ActionValidationResult]:
-        """Plant what the model wrote, letting the Validator judge it.
-
-        A model that omits the fields, or writes a loop that is already due, is
-        rejected rather than worked around: the rejection is the useful signal
-        (docs/07 §2.3, §3) and inventing a fallback loop here would hide it.
-        """
-        if event is None:
-            return []
-        content = event.generated_content
-        fact_id = content.get("planted_fact_id")
-        condition = content.get("payoff_condition")
-        if not fact_id or not condition:
-            return [
-                ActionValidationResult(
-                    proposal_id=uuid.uuid4().hex,
-                    approved=False,
-                    reason="the generator omitted planted_fact_id or payoff_condition, "
-                    "so there is nothing to plant",
-                    rule_name="generator_output_incomplete",
-                )
-            ]
-        return [
-            self._submit(
-                ActionType.PLANT_FORESHADOWING,
-                target_id=str(fact_id),
-                payload={
-                    "value": content.get("planted_value", content.get("summary", "")),
-                    "payoff_condition": condition,
-                    "note": content.get("summary", ""),
-                    # Carried so the Validator can check them. Generated names are
-                    # the one part of a proposal no rule could previously see.
-                    "participants": list(event.participants),
-                },
             )
         ]
 

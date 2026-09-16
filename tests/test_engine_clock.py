@@ -93,15 +93,15 @@ class TestTheWrapUpArrivesOnSchedule:
         assert summary is not None
         assert summary.review.known == engine._manager.player_view(PLAYER).visible_facts
 
-    def test_the_reading_comes_with_it(self, engine):
+    def test_the_review_comes_with_it(self, engine):
         for _ in range(SLOTS_PER_DAY):
             engine._manager.submit(_slot())
 
         summary = engine.wrap_up(player_id=PLAYER)
 
         assert summary is not None
-        assert summary.reading.reads_as in {"mostly_dark", "half_lit", "nearly_clear"}
-        assert summary.day == summary.review.day == summary.reading.day
+        assert summary.review.known_count >= 0
+        assert summary.day == summary.review.day
 
     def test_closing_out_the_day_only_works_at_the_wrap_up(self, engine):
         """Otherwise a caller could skip a slot it did not want to spend."""

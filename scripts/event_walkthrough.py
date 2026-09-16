@@ -77,7 +77,7 @@ def main() -> int:
     parser.add_argument(
         "--option",
         default="goodwill",
-        help="M1 里选哪个选项：goodwill / press_that_night / observe_woodpile",
+        help="M1 里选哪个选项：goodwill / press_that_night",
     )
     parser.add_argument("--trust", type=float, default=None, help="开局把 trust 设成这个值")
     parser.add_argument("--seed", type=int, default=0, help="随机带的种子，同种子结果可复现")

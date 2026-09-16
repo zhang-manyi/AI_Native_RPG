@@ -76,6 +76,14 @@ def _reveal_truth_side(world) -> None:
 
 
 class TestConcludeCase:
+    def test_conclusion_reason_explains_the_square_route_to_the_forest(self):
+        engine, _ = _engine(load_scenario(PACK))
+
+        reason = engine.conclude_reason(PLAYER)
+
+        assert "村庄广场" in reason
+        assert "森林入口" in reason
+
     def test_opens_the_conclusion_event_regardless_of_stage(self):
         """docs/14 §4.2: 指控错人 must be reachable before the case is otherwise solved."""
         engine, manager = _engine(_world_at_stage(0))

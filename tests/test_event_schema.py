@@ -210,7 +210,7 @@ class TestOptionShape:
         press = EventOption(
             option_id="press",
             tag=OptionTag.PRESS,
-            text="木屑是怎么来的",
+            text="那晚你为什么一直没睡",
             check=OptionCheck(npc_id=NPC_A, dimension="trust", threshold=30),
             on_success="half_told",
             on_failure="deflected",

@@ -280,6 +280,6 @@ def test_an_option_cannot_be_submitted_while_a_turn_is_in_flight(session):
     session.submit_turn("第一句", option_id="goodwill")
 
     with pytest.raises(SessionError, match="in flight"):
-        session.submit_turn("第二句", option_id="observe_woodpile")
+        session.submit_turn("第二句", option_id="goodwill")
 
     session.join(timeout=30)

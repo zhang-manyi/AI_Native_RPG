@@ -1,17 +1,4 @@
-"""The wrap-up screen at the Web layer (docs/12 §13.3).
-
-Two properties carry this file, and both are leak checks rather than rendering checks:
-
-* the review **only restates what the player has** — its input is a ``VisibleState``, so a
-  leak would require widening a parameter type, not forgetting a branch (docs/13 §5.1);
-* the reading **carries no raw counts, and the Web layer does not reconstruct them**.
-  ``TarotReading`` withholds them on purpose ("还剩 7 条" is a number the player optimises
-  against, docs/15 §2), so inverting the ratio back into a count here would undo the one
-  decision that shaped the model.
-
-``tests/test_wrap_up.py`` pins the same properties one layer down. These are the
-HTTP-layer counterparts docs/12 §13.3 asks for.
-"""
+"""Daily review cadence, visibility and HTTP contract."""
 
 from __future__ import annotations
 
@@ -56,6 +43,80 @@ def _reach_the_wrap_up(session: Session) -> None:
     for destination in hops[:SLOTS_PER_DAY]:
         session.submit_move(destination)
         session.join(timeout=30)
+
+
+def test_daily_changes_survive_resume_and_reset_next_morning(session, tmp_path):
+    from ai_native_rpg.schemas.world_state import ActionProposal
+    from ai_native_rpg.web.session import load_save
+
+    baseline = session._day_start["known"].copy()
+    result = session.manager.submit(
+        ActionProposal(
+            proposal_id="daily-trust",
+            actor_id="npc_a",
+            action_type="adjust_relationship",
+            target_id=session.player_id,
+            payload={"trust": 5},
+        )
+    )
+    assert result.approved
+    _reach_the_wrap_up(session)
+    review = session.wrap_up()
+    assert {f["id"] for f in review.discovered} == {
+        f["id"] for f in review.known if baseline.get(f["id"]) != f["value"]
+    }
+    assert next(r for r in review.relationship_changes if r["npc_id"] == "npc_a")["trust"] == 5
+    saved = load_save(session.session_id, tmp_path / "saves")
+    resumed = Session(
+        session_id="resumed-review",
+        scenario=SCENARIO,
+        resume=saved,
+        trace_dir=tmp_path / "resumed-traces",
+        save_dir=tmp_path / "saves",
+    )
+    try:
+        assert resumed.wrap_up() == review
+        resumed.submit_close_out_day()
+        resumed.join(timeout=30)
+        assert resumed._day_start["day"] == 2
+        assert resumed._day_start["relationships"]["npc_a"]["trust"] == 15
+    finally:
+        resumed.close()
+
+
+def test_old_save_without_daily_baseline_does_not_invent_new_clues(session):
+    session._day_start = None
+    _reach_the_wrap_up(session)
+    review = session.wrap_up()
+    assert not review.baseline_available
+    assert review.discovered == review.relationship_changes == []
+    assert review.known
+
+
+def test_all_npcs_have_separate_memories_and_relationships(session):
+    from ai_native_rpg.schemas.memory import SemanticMemory
+
+    session._npcs["npc_b"].memory.add_semantic(
+        SemanticMemory(
+            memory_id="private-belief",
+            npc_id="npc_b",
+            fact="Only Loren remembers this",
+            confidence=0.7,
+        )
+    )
+    session.submit_turn("I want to help", option_id="goodwill")
+    session.join(timeout=30)
+    rows = {r["npc_id"]: r for r in session.panel().npcs}
+    assert set(rows) == set(session.manager.snapshot().npcs)
+    assert rows["npc_a"]["relationships"][session.player_id]["trust"] == 13
+    assert rows["npc_b"]["relationships"][session.player_id]["trust"] != 13
+    assert "private-belief" in json.dumps(rows["npc_b"]["memory"])
+    assert "private-belief" not in json.dumps(rows["npc_a"]["memory"])
+    assert "embedding" not in json.dumps(rows)
+    assert rows["npc_a"]["last_dialogue"]
+    assert "last_dialogue" not in rows["npc_b"]
+    rows["npc_b"]["memory"]["semantic"].clear()
+    assert session._npcs["npc_b"].memory.semantic_count > 0
 
 
 # --- the cadence -----------------------------------------------------------
@@ -194,85 +255,11 @@ def test_the_wrap_up_module_does_not_import_world_state():
 def test_the_builder_takes_the_projections_not_the_world():
     import inspect
 
-    from ai_native_rpg.narrative.wrap_up import ClueReview, TarotReading
+    from ai_native_rpg.narrative.wrap_up import ClueReview
     from ai_native_rpg.web.wrap_up_view import build_wrap_up
 
     annotations = inspect.get_annotations(build_wrap_up, eval_str=True)
     assert annotations["review"] is ClueReview
-    assert annotations["reading"] is TarotReading
-
-
-# --- the reading says shape, not counts ------------------------------------
-
-
-def test_the_reading_carries_a_ratio_and_a_label(session):
-    _reach_the_wrap_up(session)
-    reading = session.wrap_up().reading
-
-    assert 0.0 <= reading.darkness <= 1.0
-    assert reading.reads_as in {"mostly_dark", "half_lit", "nearly_clear"}
-    # The label is the engine's judgement, not a constant this layer knows: asserting a
-    # particular one here would break whenever the pack revealed one more opening fact.
-    assert reading.reads_as == session.engine.wrap_up(player_id=session.player_id).reading.reads_as
-
-
-def test_a_darker_case_reads_darker(session):
-    """The label tracks the world, so the screen is not showing a fixed mood.
-
-    Re-hiding an opening fact is the smallest way to move ``darkness`` without playing a
-    whole case, and it checks the direction rather than a threshold value.
-    """
-    _reach_the_wrap_up(session)
-    lit = session.wrap_up().reading
-
-    world = session.manager.snapshot()
-    for fact in world.facts.values():
-        fact.visibility = Visibility.HIDDEN
-        fact.reveal_condition = None
-    session.manager._state = world
-
-    darker = session.wrap_up().reading
-    assert darker.darkness > lit.darkness
-    assert darker.reads_as == "mostly_dark"
-
-
-def test_the_reading_exposes_no_count_field(session):
-    """docs/12 §13.3: ``TarotReading`` omits raw counts, and so must its view."""
-    _reach_the_wrap_up(session)
-    payload = session.wrap_up().reading.model_dump()
-
-    assert set(payload) == {"darkness", "tension", "imagery", "reads_as"}
-
-
-def test_the_payload_never_states_how_many_clues_remain(session):
-    """The ratio must not be invertible from what is sent.
-
-    Recovering "7 left" needs the total, and no total appears in the payload — which is
-    the structural version of "don't multiply the fraction back out".
-    """
-    _reach_the_wrap_up(session)
-    world = session.manager.snapshot()
-    view = session.wrap_up()
-
-    hidden_count = len(world.facts) - len(view.known)
-    payload = json.dumps(view.model_dump(), ensure_ascii=False, default=str)
-
-    # Neither the number still hidden nor the total it would be measured against.
-    for forbidden in (hidden_count, len(world.facts)):
-        assert f'"{forbidden}"' not in payload
-    numbers = {v for v in view.reading.model_dump().values() if isinstance(v, int)}
-    assert numbers == set()
-
-
-def test_the_imagery_never_names_a_fact(session):
-    _reach_the_wrap_up(session)
-    world = session.manager.snapshot()
-
-    for card in session.wrap_up().reading.imagery:
-        assert card not in world.facts
-        for fact in world.facts.values():
-            if isinstance(fact.value, str):
-                assert card not in fact.value
 
 
 # --- the HTTP surface ------------------------------------------------------
@@ -307,8 +294,8 @@ def test_the_endpoint_serves_the_screen_at_the_wrap_up(monkeypatch, tmp_path):
 
         body = client.get(f"/api/session/{sid}/wrap_up").json()
         assert body["day"] == 1
-        assert body["reading"]["reads_as"] in {"mostly_dark", "half_lit", "nearly_clear"}
-        assert set(body["reading"]) == {"darkness", "tension", "imagery", "reads_as"}
+        assert "discovered" in body
+        assert "relationship_changes" in body
 
         # And no hidden value came along for the ride.
         for value in _hidden_values(session):

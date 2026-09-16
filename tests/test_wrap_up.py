@@ -22,7 +22,7 @@ import uuid
 
 import pytest
 
-from ai_native_rpg.narrative.wrap_up import ClueReview, review_clues, tarot_reading
+from ai_native_rpg.narrative.wrap_up import ClueReview, review_clues
 from ai_native_rpg.schemas.narrative import SLOTS_PER_DAY, TimeSlot
 from ai_native_rpg.schemas.world_state import ActionProposal, Visibility, WorldState
 from ai_native_rpg.world.manager import WorldStateManager
@@ -123,7 +123,7 @@ class TestTheReviewOnlyRestatesWhatIsKnown:
         import ai_native_rpg.narrative.wrap_up as module
 
         source = inspect_source(module)
-        # WorldState appears only for the tarot, which reads counts. What must not appear
+        # What must not appear
         # is any use of the fact table's values.
         assert "fact.value" not in source
         assert ".facts[" not in source
@@ -169,74 +169,6 @@ class TestOpenQuestionsDoNotDescribeTheAnswer:
         assert not any("谁" in q for q in after.unanswered)
 
 
-class TestTheTarotReadsShapeNotContent:
-    """docs/13 §4.2: 塔罗占卜给暗示性但不确定的提示.
-
-    Divination is allowed to be vague, which is exactly why it can read world-level
-    structure without breaking the visibility rule: the counts say how *much* is left,
-    never what it is.
-    """
-
-    def test_a_fresh_case_reads_as_mostly_dark(self, manager):
-        reading = tarot_reading(manager.snapshot(), manager.player_view(PLAYER))
-
-        assert reading.reads_as == "mostly_dark"
-
-    def test_revealing_everything_makes_it_read_as_nearly_clear(self, manager):
-        world = manager.snapshot()
-        for fact in world.facts.values():
-            fact.visibility = Visibility.REVEALED
-        lit = WorldStateManager(world)
-
-        reading = tarot_reading(lit.snapshot(), lit.player_view(PLAYER))
-
-        assert reading.reads_as == "nearly_clear"
-
-    def test_the_imagery_never_names_a_fact(self, manager):
-        """A card that varied with a specific hidden fact would be a leak as atmosphere."""
-        world = manager.snapshot()
-        reading = tarot_reading(world, manager.player_view(PLAYER))
-
-        for card in reading.imagery:
-            assert card not in world.facts
-            for fact in world.facts.values():
-                if isinstance(fact.value, str):
-                    assert card not in fact.value
-
-    def test_high_tension_shows_up_in_the_reading(self, manager):
-        manager.submit(
-            ActionProposal(
-                proposal_id=uuid.uuid4().hex,
-                actor_id="narrative_engine",
-                action_type="advance_story_beat",
-                payload={"tension": 0.8},
-            )
-        )
-
-        reading = tarot_reading(manager.snapshot(), manager.player_view(PLAYER))
-
-        assert reading.tension == pytest.approx(0.8)
-        assert "the_tower" in reading.imagery
-
-    def test_the_reading_reports_no_raw_counts(self):
-        """docs/15 §2's refusal to print ``[示好 65%]``, applied here.
-
-        A precise "7 clues left" is a number the player optimises against; a fraction
-        plus a coarse label is atmosphere with real information behind it.
-        """
-        fields = set(TarotReading_fields())
-        assert "hidden_count" not in fields
-        assert "darkness" in fields
-
-
-def TarotReading_fields() -> list[str]:
-    import dataclasses
-
-    from ai_native_rpg.narrative.wrap_up import TarotReading
-
-    return [f.name for f in dataclasses.fields(TarotReading)]
-
-
 class TestTheWrapUpCostsNoSlot:
     """docs/13 §4.1: 它不占用时段，是自动到来的过场."""
 
@@ -258,7 +190,6 @@ class TestTheWrapUpCostsNoSlot:
         before = manager.snapshot().story_beats.time_slot
 
         review_clues(manager.player_view(PLAYER))
-        tarot_reading(manager.snapshot(), manager.player_view(PLAYER))
 
         assert manager.snapshot().story_beats.time_slot is before
 

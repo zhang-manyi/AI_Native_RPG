@@ -85,7 +85,7 @@
 
 - **玩家移动**（[13 §12](./13_Narrative_Events.md#12-玩家动作)）。`ActionType.MOVE` 存在、能通过校验、报告成功、而**谁也没动**：`_apply_move` 写的是 `npcs[actor_id].location`，玩家不在 `npcs` 里；`_move_must_be_adjacent` 也拿 NPC 的位置判邻接。两处现在都按 actor 的种类取位置。连带修掉一个内容 bug：`loren_that_night` 的第二条通道（`stage >= 3`，"独立调查"）需要玩家能走到酒馆和森林，所以作者写了两条路、其中一条是碎石。
 - **放宽 actor 检查必须同时收紧动作。** 让玩家 id 通过 `_actor_must_exist`，同时就暴露了其余所有动作类型给它——`reveal_fact` 会让玩家解锁自己的线索，`adjust_relationship` 会让他设定 NPC 对自己的观感，两者都是 [04 §3.3](./04_World_State_Manager.md#33-叙事推进不等于披露授权) 禁止的披露旁路。它们此前**只是被意外挡住的**（玩家 id 恰好通不过 actor 检查），所以新增 `players_may_only_move`。
-- **时间制**（[13 §4](./13_Narrative_Events.md#4-时间制)）。`TimeSlot` 挂在 `story_beats` 下（该前缀已在 `Condition` 白名单里，所以剧本能把「只有晚上」写成触发条件），`time_day` 留在 `WorldState` 原处，由 Manager 一处同时写两半。晚上保持为可消耗的时段，理由见 §4.1。收束段（`wrap_up.py`）签名只收 `VisibleState`，因此在类型上就读不到 hidden fact；塔罗读的是聚合量而非内容。
+- **时间制**（[13 §4](./13_Narrative_Events.md#4-时间制)）。`TimeSlot` 挂在 `story_beats` 下（该前缀已在 `Condition` 白名单里，所以剧本能把「只有晚上」写成触发条件），`time_day` 留在 `WorldState` 原处，由 Manager 一处同时写两半。晚上保持为可消耗的时段，理由见 §4.1。收束段（`wrap_up.py`）签名只收 `VisibleState`，因此在类型上就读不到 hidden fact。
 - **fear 会涨了**（[14 §4.3](./14_Case_Design.md#43-被洛伦先动手-玛尔塔彻底闭口)）。两半：prompt 现在写全三个维度并明说 trust 与 fear 不是一根轴的两头；另有一条失败 [追问]/[试探] 的确定性下限。**只改 prompt 不够**——模型没有理由知道"闭口"这个结局存在，靠模型自愿选对维度的通道和死通道差不多。作者写了 fear 的结果优先于下限，否则 [15 §4](./15_Event_Script.md) 的每个数字都会悄悄膨胀。
 - **结局可达性由加载器校验**（[13 §11](./13_Narrative_Events.md#11-每个结局必须可达)）。剧本用 `narrative.endings` 声明结局，`reachability.py` 在启动时校验。关键在于**原有的路径解析检查抓不到那三个 bug——那三条路径全都能正常解析**，缺的是"有没有人写这个路径"。关系值按 `(npc, dimension)` 成对追踪，因为 fear 那个 bug 是维度形状的：`relationships.npc_a.*` 几乎每回合都在动，唯独 `fear` 不动。检查器第一次跑就找到了第四条死通道：`tension >= 0.8` 在 M6（`escalate`）写出来之前无人可抬，因此该结局标 `pending: true`——把条件留在剧本里和事件放一起，而不是删掉；标记留着不清本身是加载错误。
 

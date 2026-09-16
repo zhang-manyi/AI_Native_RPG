@@ -86,7 +86,7 @@ def test_complete_truth_route_without_typing_or_model_calls(game, monkeypatch):
     settle(game)
     choose(game, "tell_loren_alive")
     assert game.engine.reached_ending().ending_id == "truth_uncovered"
-    assert game.scene().ending["title"] == "通往镇上的路"
+    assert game.scene().ending["title"] == "结局：通往镇上的路"
     assert game._npcs["npc_a"].memory.episodic_count > 0
     assert game._npcs["npc_c"].memory.episodic_count > 0
     with pytest.raises(SessionError):
@@ -218,10 +218,12 @@ def test_expression_failure_keeps_the_result_and_uses_authored_reply(game, monke
 
 
 def test_leaving_closes_the_previous_event_and_cannot_repeat_an_observation(game):
-    choose(game, "observe_woodpile")
+    choose(game, "goodwill")
+    choose(game, "help_latch")
+    choose(game, "observe_hands")
     before = game.manager.snapshot()
     with pytest.raises(SessionError):
-        game.submit_turn("再看看", option_id="observe_woodpile")
+        game.submit_turn("再看看", option_id="observe_hands")
     assert game.manager.snapshot() == before
     move(game, "village_square")
     assert game.engine.active_event() is None

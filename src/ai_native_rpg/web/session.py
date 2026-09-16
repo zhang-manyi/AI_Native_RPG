@@ -166,6 +166,7 @@ class SaveGame:
     world: WorldState | None
     memory_paths: dict[str, Path]
     transcript: list[dict[str, str]]
+    day_start: dict[str, Any] | None = None
 
     @property
     def memory_path(self) -> Path | None:
@@ -254,6 +255,7 @@ def load_save(save_id: str, root: Path | None = None) -> SaveGame:
         world=world,
         memory_paths=memory_paths,
         transcript=[dict(line) for line in meta.get("transcript") or []],
+        day_start=meta.get("day_start"),
     )
 
 
@@ -418,6 +420,10 @@ class Session:
         self._relationship_trend: list[dict[str, float]] = []
         self._last_cost: Any = None
         self._last_memory: Any = []
+        self._npc_activity: dict[str, dict] = {}
+        self._npc_trends: dict[str, list] = {npc_id: [] for npc_id in world.npcs}
+        self._day_start = resume.day_start if resume else self._day_baseline()
+        self._sample_relationship()
         # Restored so the page opens on the conversation the player left, rather than
         # an empty screen in front of an NPC who remembers them. The panel series
         # (timeline, rejected proposals, trust trend) deliberately start empty: those
@@ -590,8 +596,12 @@ class Session:
         scene.ready = not self.busy
         ending = self.engine.reached_ending()
         if ending:
-            scene.ending = {"title": ending.player_title, "text": ending.player_text}
-        scene.can_conclude = self.engine.can_conclude(self.player_id)
+            scene.ending = {
+                "title": f"结局：{ending.player_title}",
+                "text": ending.player_text,
+            }
+        scene.conclude_reason = self.engine.conclude_reason(self.player_id)
+        scene.can_conclude = not scene.conclude_reason
         return scene
 
     def panel(self) -> PanelView:
@@ -600,12 +610,13 @@ class Session:
         runtime = self._npcs.get(self._resolve_current_npc_id())
         return PanelView(
             beats=build_beats(world),
+            npcs=self._npc_panels(world),
             slot_budget=build_slot_budget(world),
             ledger=build_ledger(world),
             unlock_board=build_unlock_board(world),
             rejected_proposals=list(reversed(self._rejected[-20:])),
             operator_timeline=list(reversed(self._timeline[-20:])),
-            relationship_trend=self._relationship_trend[-40:],
+            relationship_trend=self._npc_trends.get(self._resolve_current_npc_id(), [])[-40:],
             memory=self._last_memory,
             memory_counts={
                 "episodic": runtime.memory.episodic_count if runtime is not None else 0,
@@ -616,7 +627,7 @@ class Session:
         )
 
     def wrap_up(self) -> WrapUpView | None:
-        """The day's review and reading, or ``None`` outside the wrap-up.
+        """The day's investigation review, or ``None`` outside the wrap-up.
 
         ``None`` is passed through rather than smoothed over: ``engine.wrap_up()`` returns
         it deliberately, because a review available on demand every turn is just a screen,
@@ -627,7 +638,24 @@ class Session:
         day = self.engine.wrap_up(player_id=self.player_id)
         if day is None:
             return None
-        return build_wrap_up(review=day.review, reading=day.reading)
+        baseline = self._day_start
+        valid = baseline is not None and baseline.get("day") == day.day
+        changes = []
+        if valid:
+            for npc_id, npc in self.manager.snapshot().npcs.items():
+                current = self.manager.get_relationship(npc_id, self.player_id)
+                before = baseline["relationships"].get(npc_id, {})
+                delta = {
+                    k: round(getattr(current, k) - before.get(k, 0), 2)
+                    for k in ("trust", "fear", "respect")
+                }
+                if any(delta.values()):
+                    changes.append({"npc_id": npc_id, "name": npc.display_name, **delta})
+        return build_wrap_up(
+            review=day.review,
+            baseline=baseline["known"] if valid else None,
+            relationship_changes=changes,
+        )
 
     @property
     def busy(self) -> bool:
@@ -877,6 +905,7 @@ class Session:
             return
         runtime = self._npcs[npc_id]
         trust_before = self.manager.get_trust(npc_id, self.player_id)
+        rel_before = self.manager.get_relationship(npc_id, self.player_id)
 
         # Content generated after the previous turn is woven into this one, so the
         # player never waits on the narrative call (docs/02 §4).
@@ -937,6 +966,7 @@ class Session:
 
         self._last_cost = turn_cost(trace)
         self._last_memory = memory_hits(trace)
+        self._record_npc_activity(trace)
         self._rejected.extend(rejected_from_trace(trace, turn=world.story_beats.turn))
         self._sample_relationship()
 
@@ -953,6 +983,16 @@ class Session:
                 strategy=response.plan.strategy,
                 trust_before=trust_before,
                 trust_after=trust_after,
+                relationship_changes={
+                    k: round(
+                        getattr(self.manager.get_relationship(npc_id, self.player_id), k)
+                        - getattr(rel_before, k),
+                        2,
+                    )
+                    for k in ("trust", "fear", "respect")
+                    if getattr(self.manager.get_relationship(npc_id, self.player_id), k)
+                    != getattr(rel_before, k)
+                },
                 latency_ms=(time.perf_counter() - started) * 1000.0,
                 used_pending_hook=bool(pending),
                 option_id=chosen,
@@ -988,6 +1028,7 @@ class Session:
                 )
                 speaker, line = npc_id, response.dialogue
                 self._record_response_trace(trace, classification)
+                self._sample_relationship()
             else:
                 trace = None
                 expression_failure = None
@@ -1098,6 +1139,7 @@ class Session:
         self.traces.save(trace)
         self._last_cost = turn_cost(trace)
         self._last_memory = memory_hits(trace)
+        self._record_npc_activity(trace)
         self._rejected.extend(
             rejected_from_trace(trace, turn=self.manager.snapshot().story_beats.turn)
         )
@@ -1265,6 +1307,7 @@ class Session:
             ).model_dump(),
         )
         if result.approved:
+            self._day_start = self._day_baseline()
             tick = self.engine.refresh_authored(self.player_id)
             if tick:
                 self.narrative_traces.save(tick)
@@ -1341,6 +1384,7 @@ class Session:
                 "turn": self.manager.snapshot().story_beats.turn,
                 "saved_at": utc_now().isoformat(),
                 "transcript": self.transcript,
+                "day_start": self._day_start,
             }
             path = directory / "session.json"
             tmp = path.with_suffix(".json.tmp")
@@ -1368,20 +1412,96 @@ class Session:
         self.emit(EventType.SCENE, self.scene().model_dump())
         self.emit(EventType.PANEL, self.panel().model_dump())
 
+    def _day_baseline(self) -> dict[str, Any]:
+        world = self.manager.snapshot()
+        return {
+            "day": world.time_day,
+            "known": dict(self.manager.player_view(self.player_id).visible_facts),
+            "relationships": {
+                npc_id: self.manager.get_relationship(npc_id, self.player_id).model_dump(
+                    mode="json"
+                )
+                for npc_id in world.npcs
+            },
+        }
+
+    def _record_npc_activity(self, trace: AgentTrace) -> None:
+        activity = self._npc_activity.setdefault(trace.npc_id, {"proposals": []})
+        activity["retrieved_memory"] = [m.model_dump() for m in memory_hits(trace)]
+        activity["last_turn_cost"] = turn_cost(trace).model_dump()
+        activity["last_dialogue"] = trace.final_dialogue
+        activity["last_turn"] = self.manager.snapshot().story_beats.turn
+        activity["steps"] = [step.model_dump(mode="json") for step in trace.steps]
+        for step in trace.steps:
+            if step.step_name == "action_validation":
+                activity["proposals"].append(
+                    {"turn": activity["last_turn"], **step.input_summary, **step.output_summary}
+                )
+        activity["proposals"] = activity["proposals"][-40:]
+
+    def _npc_panels(self, world: WorldState) -> list[dict[str, Any]]:
+        rows = []
+        for npc_id, npc in world.npcs.items():
+            runtime = self._npcs.get(npc_id)
+            relationships = {
+                target: rel.model_dump(mode="json")
+                for target, rel in world.relationships.get(npc_id, {}).items()
+            }
+            relationships.setdefault(
+                self.player_id,
+                self.manager.get_relationship(npc_id, self.player_id).model_dump(mode="json"),
+            )
+            events = []
+            for event in self.engine.script.events.values():
+                if event.npc_id != npc_id:
+                    continue
+                events.append(
+                    {
+                        "event_id": event.event_id,
+                        "operator": event.operator.value,
+                        "delivery": event.delivery,
+                        "locations": event.locations,
+                        "active": bool(
+                            world.story_beats.active_event
+                            and world.story_beats.active_event.event_id == event.event_id
+                        ),
+                        "completed": event.event_id in world.story_beats.completed_events,
+                        "trigger": event.trigger.model_dump(mode="json"),
+                    }
+                )
+            rows.append(
+                {
+                    "npc_id": npc_id,
+                    "name": npc.display_name,
+                    "world_state": npc.model_dump(mode="json"),
+                    "agent_state": runtime.harness.state_snapshot() if runtime else {},
+                    "relationships": relationships,
+                    "relationship_trend": self._npc_trends.get(npc_id, [])[-40:],
+                    "memory": runtime.memory.snapshot()
+                    if runtime
+                    else {"episodic": [], "semantic": []},
+                    "tools": runtime.tool_names if runtime else [],
+                    "events": events,
+                    **self._npc_activity.get(npc_id, {}),
+                }
+            )
+        return rows
+
     def _sample_relationship(self) -> None:
         world = self.manager.snapshot()
-        npc_id = self._resolve_current_npc_id()
-        if npc_id is None:
-            return
-        rel = self.manager.get_relationship(npc_id, self.player_id)
-        self._relationship_trend.append(
-            {
+        for npc_id in world.npcs:
+            rel = self.manager.get_relationship(npc_id, self.player_id)
+            point = {
                 "turn": world.story_beats.turn,
                 "trust": rel.trust,
                 "fear": rel.fear,
                 "respect": rel.respect,
             }
-        )
+            points = self._npc_trends.setdefault(npc_id, [])
+            if not points or points[-1] != point:
+                points.append(point)
+            del points[:-40]
+        self._relationship_trend = self._npc_trends.get(self._resolve_current_npc_id(), [])
 
     @property
     def npc_name(self) -> str:

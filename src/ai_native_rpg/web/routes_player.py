@@ -162,7 +162,7 @@ def post_turn(session_id: str, body: TurnRequest, request: Request) -> TurnRespo
 
 @router.get("/session/{session_id}/wrap_up", response_model=WrapUpView | None)
 def get_wrap_up(session_id: str, request: Request) -> WrapUpView | None:
-    """The day's review and reading, or ``null`` outside the wrap-up.
+    """The day's investigation review, or ``null`` outside the wrap-up.
 
     ``null`` rather than a 404: the session exists and the question is legitimate, the
     answer is simply "not right now". Once a day is what makes it a ritual instead of a
