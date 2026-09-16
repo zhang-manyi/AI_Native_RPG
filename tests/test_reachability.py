@@ -165,25 +165,12 @@ class TestTheShippedPacksEndings:
         assert condition is not None
         assert any(c.value <= 0.8 for c in condition.clauses)
 
-    def test_the_unfinished_ending_says_so(self):
-        """Declared and flagged, rather than omitted.
+    def test_all_shipped_endings_are_enabled(self):
+        assert not any(e.pending for e in load_endings(PACK))
 
-        Leaving it out would make the check pass and lose the record — which is exactly
-        how a road ends up written only in a document.
-        """
-        pending = [e for e in load_endings(PACK) if e.pending]
-
-        assert [e.ending_id for e in pending] == ["loren_moves_first"]
-        assert "M6" in pending[0].path_note
-
-    def test_the_pending_ending_would_otherwise_fail(self, pack):
-        """It is genuinely unreachable, so the flag is carrying real weight.
-
-        M5 gave ``story_beats.tension`` a writer (a failed [追问] against Loren at the
-        forest), so the pending ending's real gap moved to its other clause:
-        ``npc_b_aware_of_investigation`` is still nothing's to reveal until M6 lands.
-        """
+    def test_removing_m6_leaves_the_awareness_channel_without_a_writer(self, pack):
         world, script = pack
+        script.events.pop("M6_warning")
 
         problems = unreachable_clauses(
             {
@@ -226,8 +213,7 @@ class TestAClauseAlreadyTrueNeedsNoWriter:
         assert unreachable_clauses({"never_found_out": condition}, world=world, script=script) == []
 
     def test_a_stay_hidden_clause_passes_without_a_revealer(self, pack):
-        """``npc_a_threatened`` has no outcome revealing it yet (M6 is unwritten), and that
-        is fine here — a clause asking it to stay hidden needs no writer at all."""
+        """A clause asking a fact to stay hidden needs no writer at all."""
         world, script = pack
         stay_hidden = Condition(
             mode="all",
@@ -241,13 +227,9 @@ class TestAClauseAlreadyTrueNeedsNoWriter:
         assert unreachable_clauses({"x": stay_hidden}, world=world, script=script) == []
 
     def test_but_a_become_revealed_clause_still_needs_one(self, pack):
-        """The same fact, the other direction: nothing reveals it yet, so this cannot hold.
-
-        ``ella_whereabouts`` no longer serves as this example: M7's ``told_loren_truth``
-        outcome reveals it now (docs/15 §4 M7), so a clause asking it to become revealed
-        is reachable and would make a poor negative case.
-        """
+        """Removing M6 makes its threat disclosure unreachable."""
         world, script = pack
+        script.events.pop("M6_warning")
         must_reveal = Condition(
             mode="all",
             clauses=[

@@ -1,7 +1,7 @@
 # 14. Case Design：村庄失踪案的内容设计
 
 > 当前可玩范围、交互方式及实测路线以 [16 引导式调查](./16_Guided_Playthrough.md) 为准。
-> 本文保留完整内容设计；M6、S2、S3 等设想尚未纳入当前 Web 版本。
+> 本文保留完整内容设计；当前进度以 [09](./09_Reference_Scenario.md) 为准，M6 的最小转述分支与完整现场对峙设计需要区分。
 
 机制在 [13_Narrative_Events.md](./13_Narrative_Events.md)，本文档是**内容**：谁知道什么、哪些事件、通向哪些结局。
 

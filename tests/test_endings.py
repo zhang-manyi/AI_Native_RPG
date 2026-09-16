@@ -17,8 +17,11 @@ through M7 at all: the clock's own ending, and the milestone that must *not* bec
 
 from __future__ import annotations
 
+import pytest
+
 from ai_native_rpg.llm import MockLLMClient
 from ai_native_rpg.narrative.engine import NarrativeEngine
+from ai_native_rpg.narrative.rules import check_terminal_ending
 from ai_native_rpg.scenario import (
     load_endings,
     load_event_script,
@@ -26,6 +29,7 @@ from ai_native_rpg.scenario import (
     load_scenario,
 )
 from ai_native_rpg.schemas.narrative import SLOTS_PER_DAY
+from ai_native_rpg.schemas.world_state import Visibility
 from ai_native_rpg.world.manager import WorldStateManager
 
 PACK = "village_disappearance"
@@ -37,6 +41,20 @@ NPC_A = "npc_a"
 # the tavern's own trigger machinery to cooperate.
 _HOME = "npc_a_house"
 _SQUARE = "village_square"
+
+
+@pytest.mark.parametrize(
+    ("tension", "aware", "expected"),
+    [(0.6, True, None), (0.8, False, None), (0.8, True, "loren_moves_first")],
+)
+def test_loren_ending_requires_both_pressure_and_disclosed_awareness(tension, aware, expected):
+    """Boundary checks supplement the normal-start routes in test_web_playthrough."""
+    world = load_scenario(PACK)
+    world.story_beats.tension = tension
+    world.facts["npc_b_aware_of_investigation"].visibility = (
+        Visibility.REVEALED if aware else Visibility.HIDDEN
+    )
+    assert check_terminal_ending(load_endings(PACK), world) == expected
 
 
 def _content() -> dict:

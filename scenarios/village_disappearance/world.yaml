@@ -389,14 +389,7 @@ narrative:
         村里的搜寻被他的威胁和混乱打断，玛尔塔也彻底闭上了门。你把已经掌握的内容
         留在笔记里，未能核实的说法旁仍画着问号，再也等不到下一次追问的机会。
         案子没有真正结束，只是从你的手里失去了继续追查的机会。
-      # `pending` because the second clause has no writer yet: M5 gave `story_beats.tension`
-      # a writer (a failed [追问] against Loren at the forest), but `npc_b_aware_of_investigation`
-      # is still nothing's to reveal until M6（洛伦上门警告）lands. Declared anyway, with the
-      # flag: leaving it out of the pack would make the check pass and lose the record, which
-      # is how a road ends up written only in a document. The loader refuses the flag once M6
-      # gives the second clause a writer too.
-      pending: true
-      path_note: 夜间时段去森林、反复逼问，张力持续上升而不推进线索（需要 M6，下一批）
+      path_note: 森林 M5 追问失败（0.2）→ M6 连续施压两次（0.6）→ 回玛尔塔家听到警告 → 再去森林施压（0.8）
       # Both halves, per docs/14 §4.3. The second clause was missing when this was first
       # declared, and its absence changes the meaning: tension alone is "the story got
       # tense", while tension *and* him knowing someone is asking is "他知道你在查，而你
@@ -465,9 +458,8 @@ narrative:
 # which operators never had — so operators are demoted here to `operator:`, meaning
 # only "how is this voiced".
 #
-# First batch: M1 + M2 + F1 (docs/15 §8). Enough to exercise scripted lines, tagged
-# options, the three-band check, and foreshadowing hung on the authored clue chain.
-# M3-M7 and the side events follow with the time system.
+# Current minimal network: M1-M7, F1-F3, and S1's latch repair. M6 uses the
+# off-screen warning report; the full on-site confrontation is outside this slice.
 #
 # TWO RULE SETS THAT LOOK ALIKE (docs/15 §6.2):
 #   - `trigger` is a hard Condition. `trust >= 20` at 19 does not fire. No band.
@@ -478,6 +470,79 @@ narrative:
 # Every `relationship_changes` delta is bounded by MAX_RELATIONSHIP_STEP (15). That
 # is what makes the social line a sequence of events rather than one generous turn.
 events:
+  # M6's minimal off-screen branch (docs/15 §4): the player was questioning Loren
+  # in the forest; on returning home Marta reports his visit. No NPC teleport or
+  # hidden omniscient narration. Put the report before ordinary house conversations.
+  M6_warning:
+    delivery: narration
+    locations: [npc_a_house]
+    npc_id: npc_a
+    operator: reverse
+    intensity: 0.8
+    preference_tag: intrigue
+    max_exchanges: 1
+    trigger:
+      mode: all
+      clauses:
+        - {path: story_beats.tension, op: gte, value: 0.6}
+        - {path: story_beats.completed_events, op: contains, value: M6_pressure}
+    presentation:
+      - {speaker: npc_a, text: 你不在的时候，洛伦来过。他知道你在打听那晚的事。他站在门口说，孩子乱跑是很危险的，眼睛一直看着里屋。}
+      - {speaker: narrator, text: 玛尔塔把儿子拉到身后。她一直护着这扇门，原来是怕调查牵连孩子。继续逼问洛伦，可能会让他的警告变成行动。}
+    default_outcome: warning_heard
+    outcomes:
+      warning_heard:
+        summary: 玛尔塔转述洛伦的警告；她此前的回避显出了护子的意味
+        relationship_changes:
+          npc_a: {fear: 12}
+        sets_flags: [loren_warning_heard]
+        reveals_facts: [npc_b_aware_of_investigation, npc_a_threatened]
+
+  # Continuing the failed M5 confrontation is a choice, never a travel/tick tax.
+  # At 0.6 the player must hear the warning before this can lead to an attack.
+  # No new clue or side quest: this is the risk-input half of M6.
+  M6_pressure:
+    delivery: choice
+    locations: [forest_edge]
+    npc_id: npc_b
+    operator: escalate
+    intensity: 0.8
+    preference_tag: intrigue
+    max_exchanges: 1
+    repeatable: true
+    trigger:
+      mode: all
+      clauses:
+        - {path: story_beats.closed_events, op: contains, value: M5_forest_evidence}
+        - {path: story_beats.tension, op: lt, value: 0.8}
+    presentation:
+      - {speaker: narrator, text: 洛伦攥着猎具，不再回答。你可以离开去查别的线索；也可以继续施压，承担激怒他的风险。若他提到了玛尔塔，先回她家确认情况。}
+    options:
+      - option_id: keep_pressing
+        tag: press
+        text: 继续逼问洛伦——即使他已经警告过你
+        requires:
+          mode: any
+          clauses:
+            - {path: story_beats.tension, op: lt, value: 0.6}
+            - {path: facts.npc_b_aware_of_investigation.visibility, op: eq, value: revealed}
+        on_success: pressure_mounts
+      - option_id: stop_pressing
+        tag: observe
+        text: 停止施压，靠线索作判断
+        on_success: stepped_back
+    default_outcome: stepped_back
+    outcomes:
+      pressure_mounts:
+        npc_reply: 你还要问下去？玛尔塔家里还有个孩子。别把事情弄到收不了场。
+        summary: 你没有新证据，仍继续逼问；洛伦提到了玛尔塔，危险正在加剧
+        tension_change: 0.2
+      stepped_back:
+        summary: 你暂时停止追问，仍可去别处调查
+        closes_event: true
+    constraints:
+      - 不要泄露艾拉的去向或洛伦对那晚的误解
+      - 洛伦自己也害怕，不要让他享受恐吓
   # --- M1: 敲响玛尔塔的门 ---------------------------------------------------
   # The opening. Scripted lines first (the player states who he is and who sent him —
   # no disagreement there, so it should not cost a decision), then the options.
@@ -1315,24 +1380,15 @@ facts:
 
   # --- NPC_A's motive: why she is afraid to talk ---
   #
-  # This is the pack's `reversal_fact`, so its wording carries the whole re-read: once it is
-  # known, her evasions stop looking like shielding a killer. Rewritten for docs/14 §1 —
-  # "她的儿子会是下一个" was a murderer's threat, and there is no murderer. What he actually
-  # said is what he believes: children who wander are in danger, because he thinks he is the
-  # danger. **He is being literal** (docs/14 §1.1), and Marta heard a threat because a threat
-  # is what the sentence sounds like from outside. Neither of them is lying.
+  # M6's report re-reads her evasions as protecting her son. Only what Marta can
+  # report belongs in this fact: Loren's private interpretation of the old collision
+  # remains behind M7. Trust alone must not disclose a warning the player never heard.
   npc_a_threatened:
-    value: 洛伦站在玛尔塔门口说"孩子乱跑是很危险的"，眼睛看着里屋——她听成了威胁，而他说的是他以为自己已经做过的事
+    value: 玛尔塔说洛伦来门口警告"孩子乱跑是很危险的"，眼睛看着里屋——她怕调查牵连儿子
     visibility: hidden
     reveal_condition:
-      mode: all
       clauses:
-        - path: relationships.npc_a.player_1.trust
-          op: gte
-          value: 70
-        - path: relationships.npc_a.player_1.fear
-          op: lte
-          value: 20
+        - {path: story_beats.flags, op: contains, value: loren_warning_heard}
 
   # --- M3's [观察] ---
   # Gated on the same trust the event itself requires: by the time this outcome can

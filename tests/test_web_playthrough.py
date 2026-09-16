@@ -1,5 +1,7 @@
 """Play using only actions offered by the page. Never patch world state to progress."""
 
+import json
+
 import pytest
 
 from ai_native_rpg.config import Settings
@@ -112,6 +114,124 @@ def test_deadline_is_reachable_using_only_travel_and_day_close(game):
         move(game, "npc_a_house")
     assert game.engine.reached_ending().ending_id == "never_found_out"
     assert game.scene().options == []
+
+
+def raise_loren_pressure(game, *, check_stale=True):
+    """Start from the ordinary forest menu; every mutation is a player action."""
+    choose(game, "press_loren")  # trust 0: certain failure, closes only M5
+    assert game.manager.snapshot().story_beats.tension == 0.2
+    for expected in (0.4, 0.6):
+        choose(game, "keep_pressing")
+        assert game.manager.snapshot().story_beats.tension == expected
+    assert game.engine.reached_ending() is None
+    assert "keep_pressing" not in {o.option_id for o in game.scene().options}
+    if check_stale:
+        before = game.manager.snapshot()
+        with pytest.raises(SessionError):
+            game.submit_turn("继续追问", option_id="keep_pressing")
+        assert game.manager.snapshot() == before
+
+
+def hear_loren_warning(game):
+    fear_before = game.manager.get_relationship("npc_a", game.player_id).fear
+    move(game, "village_square")
+    move(game, "npc_a_house")
+    world = game.manager.snapshot()
+    assert world.story_beats.completed_events.count("M6_warning") == 1
+    assert game.manager.get_relationship("npc_a", game.player_id).fear == fear_before + 12
+    assert world.story_beats.tension == 0.6
+    assert world.facts["npc_b_aware_of_investigation"].visibility == "revealed"
+    assert world.facts["npc_a_threatened"].visibility == "revealed"
+    assert any("你不在的时候" in p.text for p in game.scene().passages)
+    visible = {f["id"] for f in game.scene().visible_facts}
+    assert {"loren_that_night", "ella_whereabouts"}.isdisjoint(visible)
+    assert game.engine.reached_ending() is None
+
+
+def test_loren_moves_first_from_initial_state_and_survives_resume(game, tmp_path, monkeypatch):
+    def unexpected(*args, **kwargs):
+        raise AssertionError("the authored failure route must not call an LLM")
+
+    monkeypatch.setattr(game.engine._llm, "complete", unexpected)
+    move(game, "village_square")
+    move(game, "forest_edge")
+    raise_loren_pressure(game)
+    hear_loren_warning(game)
+    move(game, "village_square")
+    move(game, "forest_edge")
+    choose(game, "keep_pressing")
+    world = game.manager.snapshot()
+    assert world.story_beats.tension == 0.8
+    assert world.story_beats.ended_at == "loren_moves_first"
+    assert world.time_day <= world.story_beats.day_limit
+    assert game.scene().ending["title"] == "结局：调查失控"
+    assert game.scene().options == []
+    assert not game.scene().can_conclude
+
+    # The authored choice and all Validator decisions remain in the persisted trace.
+    records = [
+        json.loads(p.read_text(encoding="utf-8")) for p in (tmp_path / "traces").rglob("*.json")
+    ]
+    resolutions = [
+        step["output_summary"]
+        for record in records
+        for step in record.get("steps", [])
+        if step["step_name"] == "event_resolution"
+    ]
+    assert any(r["event_id"] == "M6_pressure" for r in resolutions)
+    assert all(p["approved"] for r in resolutions for p in r["proposals"])
+    warning_ticks = [r for r in records if "M6_warning" in r.get("authored_events", [])]
+    assert len(warning_ticks) == 1
+    assert all(p["approved"] for p in warning_ticks[0]["proposals"])
+    saved = load_save(game.session_id, tmp_path / "saves")
+    resumed = Session(
+        session_id="resumed-ending",
+        scenario=game.scenario,
+        settings=Settings(use_mock=True),
+        trace_dir=tmp_path / "resume-traces",
+        save_dir=tmp_path / "saves",
+        resume=saved,
+    )
+    try:
+        assert resumed.manager.snapshot() == world
+        assert resumed.scene().ending == game.scene().ending
+        with pytest.raises(SessionError):
+            resumed.submit_turn("继续追问")
+        resumed.submit_move("village_square")
+        settle(resumed)
+        resumed.submit_conclude_case()
+        settle(resumed)
+        refused = [e for e in resumed._history if e.data.get("approved") is False]
+        assert len(refused) == 2
+        assert resumed.manager.snapshot() == world
+    finally:
+        resumed.close()
+
+
+def test_warning_is_once_only_and_backing_off_preserves_the_truth_route(game):
+    for option in ("goodwill", "help_latch", "goodwill", "goodwill"):
+        choose(game, option)
+    move(game, "village_square")
+    move(game, "tavern")
+    choose(game, "goodwill")
+    move(game, "village_square")
+    move(game, "forest_edge")
+    choose(game, "observe_traces")  # secure evidence before closing M5
+    raise_loren_pressure(game)
+    hear_loren_warning(game)
+    fear = game.manager.get_relationship("npc_a", game.player_id).fear
+    game.engine.refresh_authored(game.player_id)
+    assert game.manager.get_relationship("npc_a", game.player_id).fear == fear
+    assert game.manager.snapshot().story_beats.completed_events.count("M6_warning") == 1
+    move(game, "village_square")
+    move(game, "forest_edge")
+    choose(game, "stop_pressing")
+    assert game.manager.snapshot().story_beats.is_closed("M6_pressure")
+    game.submit_conclude_case()
+    settle(game)
+    choose(game, "tell_loren_alive")
+    assert game.engine.reached_ending().ending_id == "truth_uncovered"
+    assert game.manager.snapshot().story_beats.tension == 0.6
 
 
 def test_stale_option_is_refused_without_changing_the_world(game):
@@ -250,7 +370,8 @@ def test_losing_the_witness_still_allows_independent_investigation(game):
     assert game.engine.reached_ending().ending_id == "truth_uncovered"
 
 
-def test_complete_playthrough_through_player_http_routes(tmp_path, monkeypatch):
+@pytest.mark.parametrize("route", ["truth", "loren"])
+def test_complete_playthrough_through_player_http_routes(tmp_path, monkeypatch, route):
     from fastapi.testclient import TestClient
 
     from ai_native_rpg.web import session as session_module
@@ -287,10 +408,21 @@ def test_complete_playthrough_through_player_http_routes(tmp_path, monkeypatch):
                 self.post("wrap_up/close")
 
         game = HTTPGame()
-        investigate(game)
-        game.post("conclude")
-        settle(game)
-        choose(game, "tell_loren_alive")
+        if route == "truth":
+            investigate(game)
+            game.post("conclude")
+            settle(game)
+            choose(game, "tell_loren_alive")
+            assert live.engine.reached_ending().ending_id == "truth_uncovered"
+        else:
+            move(game, "village_square")
+            move(game, "forest_edge")
+            raise_loren_pressure(game, check_stale=False)
+            hear_loren_warning(game)
+            move(game, "village_square")
+            move(game, "forest_edge")
+            choose(game, "keep_pressing")
+            assert live.engine.reached_ending().ending_id == "loren_moves_first"
         assert game.scene().ending is not None
         frames = "".join(event.frame() for event in live._history)
         assert "event: dialogue" in frames
