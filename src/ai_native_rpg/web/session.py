@@ -479,6 +479,12 @@ class Session:
             if refreshed:
                 self.narrative_traces.save(refreshed)
                 self._collect_presentation()
+            if self.engine.is_reporting():
+                # Re-open the current report presentation, including saves made with
+                # the former face-to-face conclusion script.
+                self._passages = [
+                    line.model_dump() for line in self.engine.active_event().presentation
+                ]
             if not self._passages and self.transcript:
                 self._passages = [dict(self.transcript[-1])]
 
@@ -575,7 +581,15 @@ class Session:
             # Filtered by requires (docs/15 §7 M7): the same list the classifier sees,
             # so a gated option cannot show as a button while being invisible to typing.
             options=[
-                SceneOption(option_id=o.option_id, tag=o.tag.value, text=o.text)
+                SceneOption(
+                    option_id=o.option_id,
+                    tag=o.tag.value,
+                    text=o.text,
+                    final_report=bool(
+                        self.engine.is_reporting()
+                        and definition.outcome_for(o.on_success).closes_event
+                    ),
+                )
                 for o in self.engine.visible_event_options()
             ],
             event_in_progress=definition is not None,
@@ -602,6 +616,7 @@ class Session:
             }
         scene.conclude_reason = self.engine.conclude_reason(self.player_id)
         scene.can_conclude = not scene.conclude_reason
+        scene.report_active = self.engine.is_reporting()
         return scene
 
     def panel(self) -> PanelView:
@@ -778,6 +793,14 @@ class Session:
         text = text.strip()
         if not text:
             raise SessionError("empty input")
+
+        if self.engine.is_reporting() and option_id is None:
+            option_id = next(
+                (o.option_id for o in self.engine.visible_event_options() if o.text == text),
+                None,
+            )
+            if option_id is None:
+                raise SessionError("请选择报告中的判断，或合上报告继续调查。")
 
         turn = _Turn(turn_id=uuid.uuid4().hex, text=text, option_id=option_id)
         # Count both jobs before either is queued: a turn is in flight from here
@@ -1008,7 +1031,7 @@ class Session:
         definition = self.engine.active_event()
         if definition is None:
             return
-        npc_id = self._resolve_current_npc_id()
+        npc_id = None if self.engine.is_reporting() else self._resolve_current_npc_id()
         runtime = self._npcs.get(npc_id)
         trust_before = self.manager.get_trust(npc_id, self.player_id) if npc_id else 0
         rel_before = self.manager.get_relationship(npc_id, self.player_id) if npc_id else None
@@ -1060,9 +1083,9 @@ class Session:
                         logger.warning(
                             "NPC expression failed; using authored result", exc_info=True
                         )
-                        runtime.harness.remember_exchange(turn.text, line)
+                        runtime.harness.remember_exchange(turn.text, line, player_id=self.player_id)
                 elif runtime:
-                    runtime.harness.remember_exchange(turn.text, line)
+                    runtime.harness.remember_exchange(turn.text, line, player_id=self.player_id)
                 if trace is None:
                     trace = AgentTrace(
                         trace_id=uuid.uuid4().hex,

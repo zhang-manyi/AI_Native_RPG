@@ -88,7 +88,7 @@ def test_complete_truth_route_without_typing_or_model_calls(game, monkeypatch):
     settle(game)
     choose(game, "tell_loren_alive")
     assert game.engine.reached_ending().ending_id == "truth_uncovered"
-    assert game.scene().ending["title"] == "结局：通往镇上的路"
+    assert game.scene().ending["title"] == "结局：调查结论：艾拉自行离村"
     assert game._npcs["npc_a"].memory.episodic_count > 0
     assert game._npcs["npc_c"].memory.episodic_count > 0
     with pytest.raises(SessionError):
@@ -102,7 +102,7 @@ def test_early_accusation_reaches_an_ending_without_exposing_the_answer(game):
         choose(game, option)
     game.submit_conclude_case()
     settle(game)
-    assert "tell_loren_alive" not in {o.option_id for o in game.scene().options}
+    assert "tell_loren_alive" in {o.option_id for o in game.scene().options}
     choose(game, "accuse_loren")
     assert game.engine.reached_ending().ending_id == "accused_the_wrong_man"
     assert "错" not in game.scene().ending["title"]
@@ -114,6 +114,87 @@ def test_deadline_is_reachable_using_only_travel_and_day_close(game):
         move(game, "npc_a_house")
     assert game.engine.reached_ending().ending_id == "never_found_out"
     assert game.scene().options == []
+
+
+@pytest.mark.parametrize(
+    ("option_id", "ending_id"),
+    [
+        ("accuse_loren", "accused_the_wrong_man"),
+        ("accuse_innkeeper", "accused_the_wrong_man"),
+        ("accuse_marta", "accused_the_wrong_man"),
+        ("tell_loren_alive", "report_unverified"),
+        ("report_unresolved", "report_unresolved"),
+    ],
+)
+def test_report_can_be_submitted_from_empty_square(game, option_id, ending_id):
+    move(game, "village_square")
+    before = game.manager.snapshot()
+    memories = {key: npc.memory.snapshot() for key, npc in game._npcs.items()}
+    game.submit_conclude_case()
+    settle(game)
+    assert game.scene().report_active
+    assert all(p.speaker == "narrator" for p in game.scene().passages)
+    assert all(o.final_report == (o.option_id != "not_yet") for o in game.scene().options)
+    with pytest.raises(SessionError, match="请选择报告"):
+        game.submit_turn("你那晚做了什么？")
+    choose(game, option_id)
+    assert game.engine.reached_ending().ending_id == ending_id
+    assert game.manager.snapshot().player_locations == before.player_locations
+    assert (
+        game.manager.snapshot().story_beats.slots_spent_today
+        == before.story_beats.slots_spent_today
+    )
+    assert all(p.speaker == "narrator" for p in game.scene().passages)
+    assert {key: npc.memory.snapshot() for key, npc in game._npcs.items()} == memories
+    assert "镇上议事厅" in game.scene().ending["text"]
+
+
+def test_report_beside_npc_stays_private_and_resumes_as_a_report(game, tmp_path):
+    investigate(game)
+    memories = {key: npc.memory.snapshot() for key, npc in game._npcs.items()}
+    game.submit_conclude_case()
+    settle(game)
+    saved = load_save(game.session_id, tmp_path / "saves")
+    # Reproduce an old report save whose last displayed line was the old opening.
+    saved.transcript.append({"speaker": "narrator", "text": "洛伦停下手里的活。"})
+    resumed = Session(
+        session_id="report-resume",
+        scenario=game.scenario,
+        settings=Settings(use_mock=True),
+        trace_dir=tmp_path / "report-traces",
+        save_dir=tmp_path / "saves",
+        resume=saved,
+        dev_mode=False,
+    )
+    try:
+        assert resumed.scene().report_active
+        assert all("洛伦停下" not in p.text for p in resumed.scene().passages)
+        with pytest.raises(SessionError, match="请选择报告"):
+            resumed.submit_turn("你做了什么？")
+        choose(resumed, "tell_loren_alive")
+        assert resumed.engine.reached_ending().ending_id == "truth_uncovered"
+        assert {key: npc.memory.snapshot() for key, npc in resumed._npcs.items()} == memories
+        assert all(p.speaker == "narrator" for p in resumed.scene().passages)
+    finally:
+        resumed.close()
+
+
+def test_putting_report_away_preserves_facts_and_allows_reopening(game):
+    move(game, "village_square")
+    before = game.manager.snapshot()
+    game.submit_conclude_case()
+    settle(game)
+    choose(game, "not_yet")
+    assert game.scene().ending is None
+    assert game.manager.snapshot().facts == before.facts
+    assert (
+        game.manager.snapshot().story_beats.slots_spent_today
+        == before.story_beats.slots_spent_today
+    )
+    assert game.scene().passages[0].text == "你合上尚未提交的报告，继续调查。"
+    game.submit_conclude_case()
+    settle(game)
+    assert game.scene().report_active
 
 
 def raise_loren_pressure(game, *, check_stale=True):

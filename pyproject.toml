@@ -52,7 +52,8 @@ line-length = 100
 src = ["src", "tests"]
 # docs/schemas/ holds the design-time drafts; src/ai_native_rpg/schemas/ supersedes
 # them and is what gets linted.
-extend-exclude = ["docs/schemas"]
+# Archived experiment sources are immutable evidence, not active implementation.
+extend-exclude = ["docs/schemas", "evals/reports/**/sources"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]

@@ -1058,7 +1058,26 @@ button:focus-visible,
   overflow: hidden;
   background: #0d1017;
   border-left: 1px solid var(--edge);
+  position: relative;
 }
+
+.panel-resizer { position: absolute; left: -5px; top: 0; bottom: 0; width: 10px; cursor: col-resize; z-index: 3; }
+.panel-resizer:hover, .panel-resizer:focus { background: var(--accent); opacity: .45; outline: none; }
+body.resizing-panel, body.resizing-panel * { cursor: col-resize !important; user-select: none !important; }
+
+.panel-view-toggle { margin-left: .75rem; border: 1px solid var(--edge); background: var(--ink-2); color: var(--text-muted); border-radius: 999px; padding: .2rem .55rem; font-size: .7rem; cursor: pointer; }
+.panel-view-toggle:hover { color: var(--lamp); border-color: var(--lamp-dim); }
+
+.day-progress { display: flex; align-items: center; gap: .55rem; min-width: 14rem; margin-left: auto; font-size: .72rem; color: var(--text-muted); }
+.day-progress-track { display: flex; gap: 3px; flex: 1; max-width: 7rem; }
+.day-segment { height: 6px; flex: 1; border-radius: 3px; background: var(--edge); }
+.day-segment.spent { background: var(--accent); }
+.day-segment.current { background: var(--lamp); box-shadow: 0 0 6px var(--lamp-glow); }
+.gauge-dashboard { display: grid; grid-template-columns: 110px 1fr; gap: .9rem; padding: 1rem 0; border-bottom: 1px solid var(--edge-soft); }
+.gauge-ring { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--lamp) var(--value), var(--edge) 0); position: relative; }
+.gauge-ring::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: #0d1017; }
+.gauge-ring > div { position: relative; z-index: 1; text-align: center; }.gauge-ring strong { display: block; font-size: 1.25rem; color: var(--lamp); }.gauge-ring small { color: var(--text-muted); font-size: .65rem; }
+.gauge-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; align-items: center; }.gauge-stats div { text-align: center; }.gauge-stats b { display: block; color: var(--text); font-size: 1.15rem; }.gauge-stats span { color: var(--text-muted); font-size: .65rem; }.gauge-hint { grid-column: 1 / -1; margin: 0; color: var(--text-faint); font-size: .72rem; }
 
 #panel[hidden] {
   display: none;

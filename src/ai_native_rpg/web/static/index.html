@@ -15,6 +15,10 @@
         <header class="topbar">
           <h1 id="title">AI Native RPG</h1>
           <div class="meta" id="backend-meta"></div>
+          <div class="day-progress" id="day-progress" aria-label="今日调查进度" hidden>
+            <span class="day-progress-label" id="day-progress-label"></span>
+            <div class="day-progress-track" id="day-progress-track"></div>
+          </div>
           <button
             class="panel-toggle"
             id="panel-toggle"
@@ -140,7 +144,7 @@
         </section>
 
         <div class="conclude-control">
-          <button type="button" id="conclude" class="conclude-button" disabled aria-describedby="conclude-reason">做出结论</button>
+          <button type="button" id="conclude" class="conclude-button" disabled aria-describedby="conclude-reason">整理调查报告</button>
           <span id="conclude-reason" class="why"></span>
         </div>
         <p class="status" id="status" role="status" aria-live="polite"></p>
@@ -200,9 +204,11 @@
       </main>
 
       <aside id="panel" aria-label="开发者面板" hidden>
+        <div class="panel-resizer" id="panel-resizer" role="separator" aria-orientation="vertical" aria-label="拖动调整开发者面板宽度" tabindex="0"></div>
         <div class="panel-head">
           <h2>叙事状态</h2>
           <span class="turn-badge" id="panel-turn"></span>
+          <button type="button" class="panel-view-toggle" id="panel-view-toggle" aria-pressed="false" title="切换参数表盘">◉ 表盘</button>
         </div>
         <div class="panel-body" id="panel-body"></div>
       </aside>

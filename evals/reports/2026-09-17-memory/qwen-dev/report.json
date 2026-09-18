@@ -1,0 +1,45 @@
+{
+  "experiment": "retrieval",
+  "manifest": {
+    "created_at": "2026-09-17T09:13:38.425290+00:00",
+    "git_head": "eccf46c1a5ebe438504a685cc00026504ab9f64b",
+    "files": {
+      "evals/memory_cases.yaml": "1853510361168edaeb899cceb298c2c29d61aadd35488ab24e1df501207bbe69",
+      "src/ai_native_rpg/memory_evaluation.py": "bdcf48a1d81e7d031c33c997dac946eba3fef01fd2a157a0075995fc5ca9027a",
+      "src/ai_native_rpg/agent/memory_store.py": "2dc4750985a9a2a962b20363bc2c348914dd4d58b208f5d40463a5255bc39a17",
+      "src/ai_native_rpg/agent/embedding.py": "1e32a96839107dc25e60d2ef34c42ff73ee5daf18dd537abf17f76971f1c3b42",
+      "src/ai_native_rpg/agent/embedding_qwen.py": "2e6ed525fbfc97561798b1995c3df5fecd2d8aeb8891f95f6251276f3610a783",
+      "src/ai_native_rpg/agent/harness.py": "79ff468bc5755b93009ccc7c4eae085f14e34ea58eada3f1f5479ca53ec34303",
+      "src/ai_native_rpg/evaluation.py": "174cc94d3605d3439b792f74ecb9e512f401f095f7e5cc2d2b6668ff572a54ee",
+      "src/ai_native_rpg/llm/openai_compatible.py": "041d7bbb3691aff1f3c54541a8665b5776d4f770fa4606cd21da73bb68ea4132",
+      "scenarios/village_disappearance/world.yaml": "9a288aee08936658460af0c317ac7909ee8082d2f7f88e1f1ab3ba20953aba59",
+      "prompts/narrative_generate.txt": "cb9fe25ee9b4759ee797e36221b9fa56ce625ffb3addebfae1a8bf89651edc02",
+      "prompts/npc_dialogue.txt": "fa145567850fbe37daa7b23f97215f77c0a3a7a9907a57dc6838f59b5581584a",
+      "prompts/npc_planning.txt": "65f275fd33b7691c67afebc425a7841c3c5110ec83de21a4a53e27d77669b132"
+    },
+    "python": "3.12.11",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "packages": {
+      "sentence-transformers": "5.7.0",
+      "transformers": "5.17.0",
+      "torch": "2.14.0",
+      "numpy": "2.5.3",
+      "httpx": "0.28.1"
+    }
+  },
+  "dataset_version": "memory-v1",
+  "backend_requested": "qwen",
+  "split": "dev",
+  "top_k": 3,
+  "importance_weight": 0.5,
+  "rows": [],
+  "status": "unavailable",
+  "limitations": [
+    "Synthetic authored labels; no independent human annotation.",
+    "MRR uses the full 100-memory pool, recall uses top 3 episodic entries.",
+    "No-answer nonempty measures returned noise, not an acceptance decision.",
+    "Foreign-memory isolation is a storage contract, not dialogue safety.",
+    "One deterministic retrieval pass; no significance claim."
+  ],
+  "error_type": "ImportError"
+}

@@ -9,11 +9,15 @@ function client() {
   const elements = new Map();
   const element = () => ({
     hidden: true, disabled: false, innerHTML: '', textContent: '', value: '',
-    classList: { toggle() {} }, setAttribute() {}, addEventListener() {},
+    classList: { toggle() {} }, setAttribute() {},
+    listeners: {}, addEventListener(type, listener) { this.listeners[type] = listener; },
     querySelectorAll() { return []; }, appendChild() {}, focus() {},
   });
   const requests = [];
+  const confirmations = [];
+  const confirmation = { accepted: false };
   const context = vm.createContext({
+    window: { confirm(message) { confirmations.push(message); return confirmation.accepted; } },
     document: {
       getElementById(id) {
         if (!elements.has(id)) elements.set(id, element());
@@ -27,7 +31,7 @@ function client() {
   const source = fs.readFileSync(path.join(__dirname, '../src/ai_native_rpg/web/static/app.js'), 'utf8');
   vm.runInContext(source.replace(/boot\(\);\s*$/, '') +
     '\nglobalThis.testClient = { onScene, advance, onMove, onPanel, renderWrapUp, state };', context);
-  return { ...context.testClient, elements, requests };
+  return { ...context.testClient, elements, requests, confirmations, confirmation };
 }
 
 function scene(overrides = {}) {
@@ -71,6 +75,30 @@ test('an empty scene can narrate and offer investigation actions without a chat 
   assert.equal(c.requests.length, 0);
 });
 
+test('report hides nearby NPC chat and requires confirmation before final submission', async () => {
+  const c = client();
+  c.onScene(scene({report_active: true, passages: [], options: [
+    {option_id: 'report', tag: 'observe', text: '提交报告：个人判断', final_report: true},
+    {option_id: 'return', tag: 'observe', text: '继续调查', final_report: false},
+  ]}));
+  assert.equal(c.elements.get('composer').hidden, true);
+  assert.equal(c.elements.get('options').hidden, false);
+  assert.match(c.elements.get('cast').innerHTML, /调查报告/);
+  assert.doesNotMatch(c.elements.get('cast').innerHTML, /玛尔塔/);
+  assert.match(c.elements.get('options').innerHTML, /\[报告\]/);
+  const click = c.elements.get('options').listeners.click;
+  const event = id => ({ target: { closest() { return {
+    dataset: {option: id}, querySelector() { return {textContent: '提交报告：个人判断'}; },
+  }; } } });
+  await click(event('report'));
+  assert.equal(c.confirmations.length, 1);
+  assert.equal(c.requests.length, 0, 'cancel keeps the report open');
+  c.confirmation.accepted = true;
+  await click(event('report'));
+  assert.equal(c.requests.length, 1);
+  assert.equal(JSON.parse(c.requests[0][1].body).option_id, 'report');
+});
+
 test('public ready snapshots unlock input without developer tick events', async () => {
   const c = client();
   c.onScene(scene({ ready: false }));
@@ -85,6 +113,7 @@ test('ending leaves the transcript accessible and closes action controls', () =>
   const c = client();
   c.onScene(scene({ passages: [], options: [], ending: { title: '结局：调查结束', text: '你作出了判断。' } }));
   assert.equal(c.elements.get('ending').hidden, false);
+  assert.equal(c.elements.get('cast').innerHTML, '');
   assert.equal(c.elements.get('ending-title').textContent, '结局：调查结束');
   assert.equal(c.elements.get('composer').hidden, true);
   assert.equal(c.elements.get('options').hidden, true);

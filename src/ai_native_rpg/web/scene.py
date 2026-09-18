@@ -106,6 +106,7 @@ class SceneOption(BaseModel):
     already settled and the interface only draws it.
     """
 
+    final_report: bool = False
     option_id: str
     tag: str = Field(description="goodwill / press / probe / observe — the visible label")
     text: str = Field(description="what the player would say, shown as authored")
@@ -141,6 +142,7 @@ class SceneView(BaseModel):
     passage_id: str = ""
     ending: dict[str, str] | None = None
     can_conclude: bool = False
+    report_active: bool = False
     conclude_reason: str = ""
     ready: bool = True
     visible_facts: list[dict[str, Any]] = Field(default_factory=list)

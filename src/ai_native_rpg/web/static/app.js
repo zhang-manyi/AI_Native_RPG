@@ -16,6 +16,9 @@ const ui = {
   app: el("app"),
   title: el("title"),
   meta: el("backend-meta"),
+  dayProgress: el("day-progress"),
+  dayProgressLabel: el("day-progress-label"),
+  dayProgressTrack: el("day-progress-track"),
   toggle: el("panel-toggle"),
   when: el("when"),
   placeLabel: el("place-label"),
@@ -56,6 +59,8 @@ const ui = {
   panel: el("panel"),
   panelBody: el("panel-body"),
   panelTurn: el("panel-turn"),
+  panelResizer: el("panel-resizer"),
+  panelViewToggle: el("panel-view-toggle"),
   ending: el("ending"),
   endingTitle: el("ending-title"),
   endingText: el("ending-text"),
@@ -98,6 +103,7 @@ const state = {
   pendingOptions: [],
   passageId: null,
   authoredQueue: false,
+  panelGauge: false,
 };
 
 // --- helpers ---------------------------------------------------------------
@@ -370,6 +376,7 @@ function onScene(scene) {
   if (scene.ready) {
     setStatus(scene.ending ? "调查结束。你仍可以查看对话记录。" :
       scene.time_slot === "wrap_up" ? "今天的调查结束了。盘点收获后，回家休息。" :
+      scene.report_active ? "选择报告判断；提交最终报告将结束调查。暂不提交可继续调查。" :
       scene.event_in_progress ? "阅读对白后，选择一个行动，也可以自由输入。" :
       "可以前往其他地点继续调查。有人在场时，也可以留下自由交谈。");
   }
@@ -378,6 +385,7 @@ function onScene(scene) {
 function onPanel(panel) {
   state.panel = panel;
   renderPanel();
+  if (state.scene) renderDayProgress(state.scene);
 }
 
 function onFailed(data) {
@@ -404,6 +412,7 @@ function renderScene() {
   // "第 2 天 · 下午" (docs/12 §13.1). Day and slot only: the 12-slot budget belongs to
   // the panel, since it is the kind of number a player would optimise against.
   ui.when.textContent = `第 ${s.time_day} 天 · ${slotLabel(s.time_slot)}`;
+  renderDayProgress(s);
   ui.placeLabel.textContent = s.location?.name || "";
   ui.placeDesc.textContent = s.location?.description || "";
   ui.panelTurn.textContent = `第 ${s.turn} 轮 · 第 ${s.time_day} 天`;
@@ -436,6 +445,16 @@ function renderScene() {
   // The slot in the scene snapshot is the only signal needed; keeping a separate "are we
   // wrapping up" flag would be a second source of truth for one boolean.
   setWrapUp(s.time_slot === "wrap_up" && !s.ending);
+}
+
+function renderDayProgress(s) {
+  const budget = state.panel?.slot_budget;
+  if (!budget || s.time_slot === "wrap_up") { ui.dayProgress.hidden = true; return; }
+  ui.dayProgress.hidden = false;
+  const perDay = Math.max(1, Math.round((budget.total || 3) / (budget.day_limit || 1)));
+  const spentToday = Math.max(0, budget.spent_total - (budget.day - 1) * perDay);
+  ui.dayProgressLabel.textContent = `今日还可调查 ${Math.max(0, perDay - spentToday)} 个地点`;
+  ui.dayProgressTrack.innerHTML = Array.from({length: perDay}, (_, i) => `<span class="day-segment ${i < spentToday ? "spent" : ""} ${i === spentToday ? "current" : ""}></span>`).join("");
 }
 
 /** Show or withhold the options tray, per the same "is it the player's move" test the
@@ -535,7 +554,7 @@ function renderOptions(options) {
       (o) =>
         `<button type="button" class="option" data-option="${esc(o.option_id)}"
                  ${state.busy ? "disabled" : ""}>
-           <span class="tag-label">[${esc(TAG_LABELS[o.tag] || o.tag)}]</span>
+           <span class="tag-label">[${esc(state.scene?.report_active ? (o.final_report ? "报告" : "返回") : TAG_LABELS[o.tag] || o.tag)}]</span>
            <span class="option-text">${esc(o.text)}</span>
          </button>`,
     )
@@ -691,6 +710,7 @@ function renderComposerVisibility() {
     !state.awaitingAdvance &&
     !state.wrapUpActive &&
     !state.scene?.ending &&
+    !state.scene?.report_active &&
     state.currentNpcId !== null &&
     (state.scene?.npcs || []).length > 0;
   ui.composer.hidden = !idle;
@@ -738,6 +758,14 @@ async function advance() {
 }
 
 function renderCast() {
+  if (state.scene?.ending) {
+    ui.cast.innerHTML = "";
+    return;
+  }
+  if (state.scene?.report_active) {
+    ui.cast.innerHTML = `<p class="cast-empty">调查报告 · 个人记录</p>`;
+    return;
+  }
   const npcs = state.scene?.npcs || [];
   if (npcs.length === 0) {
     ui.cast.innerHTML = `<p class="cast-empty">这里没有人。</p>`;
@@ -939,10 +967,22 @@ function renderPanel() {
     renderNpcs(p),
     renderCost(p),
   ].join("");
+  ui.panelBody.classList.toggle("gauge-mode", state.panelGauge);
+  if (state.panelGauge) renderGaugeSummary(p);
   ui.panelBody.querySelectorAll("details[data-key]").forEach(d => {
     if (expanded.has(d.dataset.key)) d.open = expanded.get(d.dataset.key);
   });
   ui.panelBody.querySelectorAll(".k").forEach(k => { k.innerHTML += help(k.textContent); });
+}
+
+function renderGaugeSummary(p) {
+  const b = p.beats || {}, budget = p.slot_budget || {};
+  const tension = Math.max(0, Math.min(100, Math.round(Number(b.tension || 0) * 100)));
+  const remaining = Number(budget.remaining ?? 0), total = Number(budget.total || 1);
+  const gauge = document.createElement("div");
+  gauge.className = "gauge-dashboard";
+  gauge.innerHTML = `<div class="gauge-ring" style="--value:${tension * 3.6}deg"><div><strong>${tension}%</strong><small>叙事张力</small></div></div><div class="gauge-stats"><div><b>${remaining}</b><span>剩余时段</span></div><div><b>${budget.day ?? "—"}</b><span>当前天数</span></div><div><b>${total - remaining}/${total}</b><span>已用预算</span></div></div><p class="gauge-hint">聚合关键参数；展开下方分组可查看完整追踪信息。</p>`;
+  ui.panelBody.prepend(gauge);
 }
 
 function renderBeats(p) {
@@ -1239,6 +1279,8 @@ ui.composer.addEventListener("submit", async (e) => {
 ui.options.addEventListener("click", async (e) => {
   const button = e.target.closest("button[data-option]");
   if (!button || state.busy) return;
+  const option = state.pendingOptions.find(o => o.option_id === button.dataset.option);
+  if (option?.final_report && !window.confirm(`${option.text}\n\n提交后将结束本次调查。确定提交这份最终报告吗？`)) return;
 
   // The option's own text is what the player said, so it goes in as the utterance —
   // exactly what typing that sentence would have sent.
@@ -1289,7 +1331,7 @@ ui.conclude.addEventListener("click", async () => {
   if (ui.conclude.disabled || state.busy) return;
   setBusy(true);
   state.waiting = "move";
-  setStatus("准备说出结论……", "working");
+  setStatus("正在整理调查报告……", "working");
 
   const res = await fetch(`/api/session/${state.sessionId}/conclude`, { method: "POST" });
 
@@ -1322,6 +1364,32 @@ document.addEventListener("keydown", (e) => {
 ui.logToggle.addEventListener("click", () => setLogOpen(!state.logOpen));
 
 ui.toggle.addEventListener("click", () => setPanelOpen(!state.panelOpen));
+
+ui.panelViewToggle.addEventListener("click", () => {
+  state.panelGauge = !state.panelGauge;
+  ui.panelViewToggle.setAttribute("aria-pressed", state.panelGauge ? "true" : "false");
+  ui.panelViewToggle.textContent = state.panelGauge ? "☷ 详细" : "◉ 表盘";
+  renderPanel();
+});
+
+let resizingPanel = false;
+ui.panelResizer.addEventListener("pointerdown", (event) => {
+  resizingPanel = true;
+  ui.panelResizer.setPointerCapture(event.pointerId);
+  document.body.classList.add("resizing-panel");
+});
+ui.panelResizer.addEventListener("pointermove", (event) => {
+  if (!resizingPanel) return;
+  const width = Math.max(280, Math.min(window.innerWidth * 0.65, window.innerWidth - event.clientX));
+  document.documentElement.style.setProperty("--panel-width", `${width}px`);
+});
+ui.panelResizer.addEventListener("pointerup", () => { resizingPanel = false; document.body.classList.remove("resizing-panel"); });
+ui.panelResizer.addEventListener("keydown", (event) => {
+  if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+  const current = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--panel-width"));
+  document.documentElement.style.setProperty("--panel-width", `${Math.max(280, current + (event.key === "ArrowLeft" ? 24 : -24))}px`);
+  event.preventDefault();
+});
 
 ui.introStart.addEventListener("click", () => {
   ui.intro.hidden = true;

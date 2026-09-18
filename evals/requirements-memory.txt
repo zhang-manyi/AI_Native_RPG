@@ -1,0 +1,8 @@
+# Tested Windows CPU environment for the optional memory experiment.
+# Install into the project venv; these are not runtime dependencies of the game.
+sentence-transformers==5.7.0
+transformers==5.17.0
+torch==2.14.0
+numpy==2.2.6
+scipy==1.15.3
+scikit-learn==1.7.2

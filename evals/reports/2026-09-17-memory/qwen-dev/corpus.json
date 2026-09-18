@@ -1,0 +1,1402 @@
+[
+  {
+    "memory_id": "notebook_name",
+    "npc_id": "npc_a",
+    "event_description": "玩家说他给自己的笔记取名叫青石手记。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "notebook_other",
+    "npc_id": "npc_a",
+    "event_description": "药师把她自己的账本叫作松针账册。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "latch_help",
+    "npc_id": "npc_a",
+    "event_description": "玩家替我换下折断的门闩，现在大门能关牢了。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "latch_other",
+    "npc_id": "npc_a",
+    "event_description": "木匠帮酒馆补好了窗框。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "tea_player",
+    "npc_id": "npc_a",
+    "event_description": "玩家告诉我，他喝茶只要薄荷茶，而且不要加糖。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "tea_miller",
+    "npc_id": "npc_a",
+    "event_description": "磨坊主爱喝加蜂蜜的姜茶。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "meeting_old",
+    "npc_id": "npc_a",
+    "event_description": "第2天玩家约我次日中午在磨坊见面。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "meeting_new",
+    "npc_id": "npc_a",
+    "event_description": "第3天玩家取消了磨坊之约，明确改为当日傍晚在石桥碰面。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "parcel_left",
+    "npc_id": "npc_a",
+    "event_description": "玩家把装着退烧药的布包放在井边，托我照看。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "parcel_taken",
+    "npc_id": "npc_a",
+    "event_description": "次日药师带着玩家的口信，从井边取走了那包退烧药。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "lantern_return",
+    "npc_id": "npc_b",
+    "event_description": "玩家把借走照路的风灯擦干净，放回我家门前。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "lantern_other",
+    "npc_id": "npc_b",
+    "event_description": "守夜人将自己的油灯挂在广场的木柱上。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "ankle_player",
+    "npc_id": "npc_b",
+    "event_description": "玩家向我解释自己走得慢，是昨天扭伤了左脚踝。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "ankle_carpenter",
+    "npc_id": "npc_b",
+    "event_description": "木匠伤的是右手腕，因此暂停干活。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "rope_old",
+    "npc_id": "npc_b",
+    "event_description": "第1天玩家说备用麻绳放在谷仓。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "rope_new",
+    "npc_id": "npc_b",
+    "event_description": "第4天玩家特意纠正，备用麻绳已从谷仓搬到工具棚。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "private_route_fact",
+    "npc_id": "npc_b",
+    "event_description": "我私下走北坡小径去收猎套，这条路线从未告诉玩家。",
+    "importance": 0.9,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "public_route",
+    "npc_id": "npc_b",
+    "event_description": "我公开告诉村民，去集市可以沿河边大道走。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "miller_before",
+    "npc_id": "npc_a",
+    "event_description": "那天下雨之前，磨坊主来到我家借梯子。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "miller_after",
+    "npc_id": "npc_a",
+    "event_description": "雨停以后，磨坊主到我家送来一袋面粉。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "scarf_player",
+    "npc_id": "npc_a",
+    "event_description": "玩家临走时把蓝色围巾搭在我家椅背上，忘了带走。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "scarf_neighbor",
+    "npc_id": "npc_a",
+    "event_description": "邻居把红围巾挂在自家门后。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "soup_player",
+    "npc_id": "npc_a",
+    "event_description": "玩家提醒我做饭时不要放花生，他吃了会过敏。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "soup_neighbor",
+    "npc_id": "npc_a",
+    "event_description": "邻居不喜欢香菜，但没有食物过敏。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "basket_old",
+    "npc_id": "npc_a",
+    "event_description": "第2天玩家把竹篮放在门后的柜子里。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "basket_new",
+    "npc_id": "npc_a",
+    "event_description": "第5天玩家把竹篮从门后柜子移到了灶台下面，并告诉了我。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "grain_received",
+    "npc_id": "npc_a",
+    "event_description": "玩家送了两袋燕麦到我家，作为过冬的粮食。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "grain_distributed",
+    "npc_id": "npc_a",
+    "event_description": "我随后把玩家送来的燕麦分出一袋，交给药师。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "private_letter_fact",
+    "npc_id": "npc_a",
+    "event_description": "我把儿子寄来的信藏在床板下，从未让玩家知道这个藏信地点。",
+    "importance": 0.9,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "public_letter",
+    "npc_id": "npc_a",
+    "event_description": "邮差把公开通知贴在广场告示板上。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "whistle_player",
+    "npc_id": "npc_b",
+    "event_description": "玩家送了我一只骨哨，说遇到危险时可以吹响求助。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "whistle_guard",
+    "npc_id": "npc_b",
+    "event_description": "守卫领到一只铜铃，用于夜间报时。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "debt_player",
+    "npc_id": "npc_b",
+    "event_description": "玩家借给我七枚铜币买盐，我答应赶集后还给他。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "debt_innkeeper",
+    "npc_id": "npc_b",
+    "event_description": "我另欠酒馆老板十二枚铜币，是上个月的酒钱。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "trap_old",
+    "npc_id": "npc_b",
+    "event_description": "第3天玩家说他的兽夹设在榆树旁。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "trap_new",
+    "npc_id": "npc_b",
+    "event_description": "第6天玩家说原来榆树旁的兽夹已撤走，现在改设在溪沟边。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "crossing_before",
+    "npc_id": "npc_b",
+    "event_description": "玩家先加固了松动的独木桥，让桥面不再摇晃。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "crossing_after",
+    "npc_id": "npc_b",
+    "event_description": "独木桥修好以后，玩家扶着药师从桥上过河。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "bells_before",
+    "npc_id": "npc_b",
+    "event_description": "午钟敲响之前，我看见玩家在井边洗手。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "bells_after",
+    "npc_id": "npc_b",
+    "event_description": "午钟响过之后，玩家到面包铺买了面包。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_000",
+    "npc_id": "npc_a",
+    "event_description": "第1天在广场，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_001",
+    "npc_id": "npc_a",
+    "event_description": "第2天在磨坊，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_002",
+    "npc_id": "npc_a",
+    "event_description": "第3天在井边，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_003",
+    "npc_id": "npc_a",
+    "event_description": "第4天在河岸，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_004",
+    "npc_id": "npc_a",
+    "event_description": "第5天在工具棚，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_005",
+    "npc_id": "npc_a",
+    "event_description": "第6天在酒馆，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_006",
+    "npc_id": "npc_a",
+    "event_description": "第1天在菜园，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_007",
+    "npc_id": "npc_a",
+    "event_description": "第2天在仓库，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_008",
+    "npc_id": "npc_a",
+    "event_description": "第3天在石桥，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_009",
+    "npc_id": "npc_a",
+    "event_description": "第4天在面包铺，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_010",
+    "npc_id": "npc_a",
+    "event_description": "第5天在广场，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_011",
+    "npc_id": "npc_a",
+    "event_description": "第6天在磨坊，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_012",
+    "npc_id": "npc_a",
+    "event_description": "第1天在井边，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_013",
+    "npc_id": "npc_a",
+    "event_description": "第2天在河岸，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_014",
+    "npc_id": "npc_a",
+    "event_description": "第3天在工具棚，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_015",
+    "npc_id": "npc_a",
+    "event_description": "第4天在酒馆，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_016",
+    "npc_id": "npc_a",
+    "event_description": "第5天在菜园，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_017",
+    "npc_id": "npc_a",
+    "event_description": "第6天在仓库，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_018",
+    "npc_id": "npc_a",
+    "event_description": "第1天在石桥，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_019",
+    "npc_id": "npc_a",
+    "event_description": "第2天在面包铺，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_020",
+    "npc_id": "npc_a",
+    "event_description": "第3天在广场，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_021",
+    "npc_id": "npc_a",
+    "event_description": "第4天在磨坊，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_022",
+    "npc_id": "npc_a",
+    "event_description": "第5天在井边，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_023",
+    "npc_id": "npc_a",
+    "event_description": "第6天在河岸，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_024",
+    "npc_id": "npc_a",
+    "event_description": "第1天在工具棚，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_025",
+    "npc_id": "npc_a",
+    "event_description": "第2天在酒馆，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_026",
+    "npc_id": "npc_a",
+    "event_description": "第3天在菜园，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_027",
+    "npc_id": "npc_a",
+    "event_description": "第4天在仓库，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_028",
+    "npc_id": "npc_a",
+    "event_description": "第5天在石桥，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_029",
+    "npc_id": "npc_a",
+    "event_description": "第6天在面包铺，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_030",
+    "npc_id": "npc_a",
+    "event_description": "第1天在广场，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_031",
+    "npc_id": "npc_a",
+    "event_description": "第2天在磨坊，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_032",
+    "npc_id": "npc_a",
+    "event_description": "第3天在井边，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_033",
+    "npc_id": "npc_a",
+    "event_description": "第4天在河岸，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_034",
+    "npc_id": "npc_a",
+    "event_description": "第5天在工具棚，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_035",
+    "npc_id": "npc_a",
+    "event_description": "第6天在酒馆，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_036",
+    "npc_id": "npc_a",
+    "event_description": "第1天在菜园，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_037",
+    "npc_id": "npc_a",
+    "event_description": "第2天在仓库，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_038",
+    "npc_id": "npc_a",
+    "event_description": "第3天在石桥，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_039",
+    "npc_id": "npc_a",
+    "event_description": "第4天在面包铺，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_040",
+    "npc_id": "npc_a",
+    "event_description": "第5天在广场，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_041",
+    "npc_id": "npc_a",
+    "event_description": "第6天在磨坊，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_042",
+    "npc_id": "npc_a",
+    "event_description": "第1天在井边，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_043",
+    "npc_id": "npc_a",
+    "event_description": "第2天在河岸，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_044",
+    "npc_id": "npc_a",
+    "event_description": "第3天在工具棚，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_045",
+    "npc_id": "npc_a",
+    "event_description": "第4天在酒馆，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_046",
+    "npc_id": "npc_a",
+    "event_description": "第5天在菜园，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_047",
+    "npc_id": "npc_a",
+    "event_description": "第6天在仓库，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_048",
+    "npc_id": "npc_a",
+    "event_description": "第1天在石桥，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_049",
+    "npc_id": "npc_a",
+    "event_description": "第2天在面包铺，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_050",
+    "npc_id": "npc_a",
+    "event_description": "第3天在广场，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_051",
+    "npc_id": "npc_a",
+    "event_description": "第4天在磨坊，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_052",
+    "npc_id": "npc_a",
+    "event_description": "第5天在井边，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_053",
+    "npc_id": "npc_a",
+    "event_description": "第6天在河岸，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_054",
+    "npc_id": "npc_a",
+    "event_description": "第1天在工具棚，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_055",
+    "npc_id": "npc_a",
+    "event_description": "第2天在酒馆，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_056",
+    "npc_id": "npc_a",
+    "event_description": "第3天在菜园，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_057",
+    "npc_id": "npc_a",
+    "event_description": "第4天在仓库，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_058",
+    "npc_id": "npc_a",
+    "event_description": "第5天在石桥，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_059",
+    "npc_id": "npc_a",
+    "event_description": "第6天在面包铺，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_060",
+    "npc_id": "npc_a",
+    "event_description": "第1天在广场，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_061",
+    "npc_id": "npc_a",
+    "event_description": "第2天在磨坊，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_062",
+    "npc_id": "npc_a",
+    "event_description": "第3天在井边，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_063",
+    "npc_id": "npc_a",
+    "event_description": "第4天在河岸，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_064",
+    "npc_id": "npc_a",
+    "event_description": "第5天在工具棚，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_065",
+    "npc_id": "npc_a",
+    "event_description": "第6天在酒馆，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_066",
+    "npc_id": "npc_a",
+    "event_description": "第1天在菜园，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_067",
+    "npc_id": "npc_a",
+    "event_description": "第2天在仓库，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_068",
+    "npc_id": "npc_a",
+    "event_description": "第3天在石桥，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_069",
+    "npc_id": "npc_a",
+    "event_description": "第4天在面包铺，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_070",
+    "npc_id": "npc_a",
+    "event_description": "第5天在广场，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_071",
+    "npc_id": "npc_a",
+    "event_description": "第6天在磨坊，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_a_background_072",
+    "npc_id": "npc_a",
+    "event_description": "第1天在井边，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_a_background_073",
+    "npc_id": "npc_a",
+    "event_description": "第2天在河岸，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_a_background_074",
+    "npc_id": "npc_a",
+    "event_description": "第3天在工具棚，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_a_background_075",
+    "npc_id": "npc_a",
+    "event_description": "第4天在酒馆，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_a_background_076",
+    "npc_id": "npc_a",
+    "event_description": "第5天在菜园，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_a_background_077",
+    "npc_id": "npc_a",
+    "event_description": "第6天在仓库，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_000",
+    "npc_id": "npc_b",
+    "event_description": "第1天在广场，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_001",
+    "npc_id": "npc_b",
+    "event_description": "第2天在磨坊，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_002",
+    "npc_id": "npc_b",
+    "event_description": "第3天在井边，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_003",
+    "npc_id": "npc_b",
+    "event_description": "第4天在河岸，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_004",
+    "npc_id": "npc_b",
+    "event_description": "第5天在工具棚，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_005",
+    "npc_id": "npc_b",
+    "event_description": "第6天在酒馆，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_006",
+    "npc_id": "npc_b",
+    "event_description": "第1天在菜园，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_007",
+    "npc_id": "npc_b",
+    "event_description": "第2天在仓库，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_008",
+    "npc_id": "npc_b",
+    "event_description": "第3天在石桥，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_009",
+    "npc_id": "npc_b",
+    "event_description": "第4天在面包铺，邻居整理了散落的木柴。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_010",
+    "npc_id": "npc_b",
+    "event_description": "第5天在广场，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_011",
+    "npc_id": "npc_b",
+    "event_description": "第6天在磨坊，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_012",
+    "npc_id": "npc_b",
+    "event_description": "第1天在井边，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_013",
+    "npc_id": "npc_b",
+    "event_description": "第2天在河岸，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_014",
+    "npc_id": "npc_b",
+    "event_description": "第3天在工具棚，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_015",
+    "npc_id": "npc_b",
+    "event_description": "第4天在酒馆，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_016",
+    "npc_id": "npc_b",
+    "event_description": "第5天在菜园，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_017",
+    "npc_id": "npc_b",
+    "event_description": "第6天在仓库，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_018",
+    "npc_id": "npc_b",
+    "event_description": "第1天在石桥，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_019",
+    "npc_id": "npc_b",
+    "event_description": "第2天在面包铺，邮差清点了空袋子。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_020",
+    "npc_id": "npc_b",
+    "event_description": "第3天在广场，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_021",
+    "npc_id": "npc_b",
+    "event_description": "第4天在磨坊，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_022",
+    "npc_id": "npc_b",
+    "event_description": "第5天在井边，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_023",
+    "npc_id": "npc_b",
+    "event_description": "第6天在河岸，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_024",
+    "npc_id": "npc_b",
+    "event_description": "第1天在工具棚，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_025",
+    "npc_id": "npc_b",
+    "event_description": "第2天在酒馆，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_026",
+    "npc_id": "npc_b",
+    "event_description": "第3天在菜园，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_027",
+    "npc_id": "npc_b",
+    "event_description": "第4天在仓库，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_028",
+    "npc_id": "npc_b",
+    "event_description": "第5天在石桥，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_029",
+    "npc_id": "npc_b",
+    "event_description": "第6天在面包铺，木匠擦净了窗台。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_030",
+    "npc_id": "npc_b",
+    "event_description": "第1天在广场，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_031",
+    "npc_id": "npc_b",
+    "event_description": "第2天在磨坊，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_032",
+    "npc_id": "npc_b",
+    "event_description": "第3天在井边，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_033",
+    "npc_id": "npc_b",
+    "event_description": "第4天在河岸，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_034",
+    "npc_id": "npc_b",
+    "event_description": "第5天在工具棚，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_035",
+    "npc_id": "npc_b",
+    "event_description": "第6天在酒馆，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_036",
+    "npc_id": "npc_b",
+    "event_description": "第1天在菜园，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_037",
+    "npc_id": "npc_b",
+    "event_description": "第2天在仓库，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_038",
+    "npc_id": "npc_b",
+    "event_description": "第3天在石桥，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_039",
+    "npc_id": "npc_b",
+    "event_description": "第4天在面包铺，守卫搬开了旧木箱。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_040",
+    "npc_id": "npc_b",
+    "event_description": "第5天在广场，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_041",
+    "npc_id": "npc_b",
+    "event_description": "第6天在磨坊，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_042",
+    "npc_id": "npc_b",
+    "event_description": "第1天在井边，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_043",
+    "npc_id": "npc_b",
+    "event_description": "第2天在河岸，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_044",
+    "npc_id": "npc_b",
+    "event_description": "第3天在工具棚，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_045",
+    "npc_id": "npc_b",
+    "event_description": "第4天在酒馆，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_046",
+    "npc_id": "npc_b",
+    "event_description": "第5天在菜园，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_047",
+    "npc_id": "npc_b",
+    "event_description": "第6天在仓库，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_048",
+    "npc_id": "npc_b",
+    "event_description": "第1天在石桥，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_049",
+    "npc_id": "npc_b",
+    "event_description": "第2天在面包铺，药师晾晒了空竹筐。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_050",
+    "npc_id": "npc_b",
+    "event_description": "第3天在广场，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_051",
+    "npc_id": "npc_b",
+    "event_description": "第4天在磨坊，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_052",
+    "npc_id": "npc_b",
+    "event_description": "第5天在井边，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_053",
+    "npc_id": "npc_b",
+    "event_description": "第6天在河岸，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_054",
+    "npc_id": "npc_b",
+    "event_description": "第1天在工具棚，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_055",
+    "npc_id": "npc_b",
+    "event_description": "第2天在酒馆，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_056",
+    "npc_id": "npc_b",
+    "event_description": "第3天在菜园，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_057",
+    "npc_id": "npc_b",
+    "event_description": "第4天在仓库，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_058",
+    "npc_id": "npc_b",
+    "event_description": "第5天在石桥，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_059",
+    "npc_id": "npc_b",
+    "event_description": "第6天在面包铺，村民扫去了落叶。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_060",
+    "npc_id": "npc_b",
+    "event_description": "第1天在广场，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_061",
+    "npc_id": "npc_b",
+    "event_description": "第2天在磨坊，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_062",
+    "npc_id": "npc_b",
+    "event_description": "第3天在井边，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_063",
+    "npc_id": "npc_b",
+    "event_description": "第4天在河岸，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_064",
+    "npc_id": "npc_b",
+    "event_description": "第5天在工具棚，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_065",
+    "npc_id": "npc_b",
+    "event_description": "第6天在酒馆，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_066",
+    "npc_id": "npc_b",
+    "event_description": "第1天在菜园，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_067",
+    "npc_id": "npc_b",
+    "event_description": "第2天在仓库，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_068",
+    "npc_id": "npc_b",
+    "event_description": "第3天在石桥，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_069",
+    "npc_id": "npc_b",
+    "event_description": "第4天在面包铺，磨坊主换了灯芯。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_070",
+    "npc_id": "npc_b",
+    "event_description": "第5天在广场，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_071",
+    "npc_id": "npc_b",
+    "event_description": "第6天在磨坊，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_072",
+    "npc_id": "npc_b",
+    "event_description": "第1天在井边，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_073",
+    "npc_id": "npc_b",
+    "event_description": "第2天在河岸，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_074",
+    "npc_id": "npc_b",
+    "event_description": "第3天在工具棚，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_075",
+    "npc_id": "npc_b",
+    "event_description": "第4天在酒馆，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  },
+  {
+    "memory_id": "npc_b_background_076",
+    "npc_id": "npc_b",
+    "event_description": "第5天在菜园，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 5
+  },
+  {
+    "memory_id": "npc_b_background_077",
+    "npc_id": "npc_b",
+    "event_description": "第6天在仓库，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 6
+  },
+  {
+    "memory_id": "npc_b_background_078",
+    "npc_id": "npc_b",
+    "event_description": "第1天在石桥，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 1
+  },
+  {
+    "memory_id": "npc_b_background_079",
+    "npc_id": "npc_b",
+    "event_description": "第2天在面包铺，商贩收起了遮雨布。",
+    "importance": 0.4,
+    "occurred_at_day": 2
+  },
+  {
+    "memory_id": "npc_b_background_080",
+    "npc_id": "npc_b",
+    "event_description": "第3天在广场，孩子们捡起了石子。",
+    "importance": 0.4,
+    "occurred_at_day": 3
+  },
+  {
+    "memory_id": "npc_b_background_081",
+    "npc_id": "npc_b",
+    "event_description": "第4天在磨坊，孩子们捡起了石子。",
+    "importance": 0.4,
+    "occurred_at_day": 4
+  }
+]

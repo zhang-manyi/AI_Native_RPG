@@ -64,6 +64,8 @@ class TestTheShippedPacksEndings:
         endings = load_endings(PACK)
 
         assert {e.ending_id for e in endings} == {
+            "report_unverified",
+            "report_unresolved",
             "truth_uncovered",
             "accused_the_wrong_man",
             "loren_moves_first",
@@ -119,6 +121,8 @@ class TestTheShippedPacksEndings:
         terminal = {e.ending_id for e in load_endings(PACK) if e.terminal}
 
         assert terminal == {
+            "report_unverified",
+            "report_unresolved",
             "truth_uncovered",
             "accused_the_wrong_man",
             "loren_moves_first",

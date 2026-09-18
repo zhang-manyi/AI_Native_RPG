@@ -115,11 +115,12 @@ def test_authored_passages_carry_their_actual_speakers(session):
 # --- form two: the tagged option -------------------------------------------
 
 
-def test_options_carry_id_tag_and_text_only(session):
+def test_options_carry_public_fields_without_resolution_details(session):
     """No check, no threshold, no outcome (docs/13 §3: consequences are authored)."""
     _open_the_event(session)
 
-    assert set(SceneOption.model_fields) == {"option_id", "tag", "text"}
+    assert set(SceneOption.model_fields) == {"option_id", "tag", "text", "final_report"}
+    assert all(not option.final_report for option in session.scene().options)
 
 
 def test_no_option_payload_names_an_outcome(session):

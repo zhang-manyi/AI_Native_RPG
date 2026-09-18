@@ -1,0 +1,5 @@
+# Keep archived evidence byte-for-byte, including hashed source snapshots.
+evals/reports/** -text
+# Frozen datasets also have byte-level hashes in experiment protocols.
+evals/*.json -text
+evals/*.yaml -text

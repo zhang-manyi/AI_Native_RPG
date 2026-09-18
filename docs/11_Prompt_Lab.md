@@ -2,6 +2,8 @@
 
 ## 1. 职责
 
+当前只实现一次小型候选闭环，见 [evals/README.md](../evals/README.md) 和 [本轮复核](../evals/reports/2026-09-16/review.md)。实际 `prompts/` 为 `npc_planning.txt`、`npc_dialogue.txt`、`narrative_generate.txt`；下文 `.md` 目录、judge、10–20 场景及 N≥3 是设计目标。此次候选改上下文组装规则，N=1，不具备推广依据，默认关闭；没有自动搜索或完整 Prompt Lab 平台。
+
 **离线**比较多个候选 prompt，用量化分数选出最好的一个写回 `prompts/`。
 
 不在游戏运行时里，不参与玩家交互。运行时只读 `prompts/` 下已选定的文件。

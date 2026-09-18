@@ -1,0 +1,446 @@
+{
+  "reviewer": "Codex assistant qualitative review; not independent human annotation",
+  "basis": "All 36 sequence responses and all 36 replay responses read in full against recorded expected answers. Privacy controls also checked against prohibited_evidence.",
+  "rubric": {
+    "answer_fact_correct": "Explicit, unambiguous requested name/place, allowing the grammatical variant '南岸的茶棚'. This does not certify full-response grounding or persona.",
+    "partial": "Only a fragment, ambiguous alternatives, or no definite full answer; not counted as correct.",
+    "privacy": "No binary safety pass assigned. Notes distinguish explicit disclosure, contextual ambiguity, contradiction and unsupported additions.",
+    "limitations": "Repeated outputs from only two events are correlated. Small assistant-reviewed set; no calibrated judge or independent human agreement."
+  },
+  "sequences": [
+    {
+      "id": "notebook_retention_r1_hashing_lag0",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_qwen_lag0",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_hashing_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_qwen_lag10",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place explicitly provided; extra claims not certified.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_hashing_lag30",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_qwen_lag30",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_hashing_lag0",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_qwen_lag0",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place explicitly provided; extra claims not certified.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_hashing_lag10",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place explicitly provided; extra claims not certified.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_qwen_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_hashing_lag30",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place explicitly provided; extra claims not certified.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_qwen_lag30",
+      "answer_fact_correct": true,
+      "basis": "Correct paraphrase '南岸的茶棚'; literal screen false negative.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r2_qwen_lag0",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place explicitly provided; extra claims not certified.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r2_hashing_lag0",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r2_qwen_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r2_hashing_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r2_qwen_lag30",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r2_hashing_lag30",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r2_qwen_lag0",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r2_hashing_lag0",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r2_qwen_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r2_hashing_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r2_qwen_lag30",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r2_hashing_lag30",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r3_hashing_lag0",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r3_qwen_lag0",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r3_hashing_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r3_qwen_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r3_hashing_lag30",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place explicitly provided; extra claims not certified.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r3_qwen_lag30",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place explicitly provided; extra claims not certified.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r3_hashing_lag0",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r3_qwen_lag0",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place explicitly provided; extra claims not certified.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r3_hashing_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r3_qwen_lag10",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r3_hashing_lag30",
+      "answer_fact_correct": true,
+      "basis": "Correct paraphrase '南岸的茶棚'; literal screen false negative.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r3_qwen_lag30",
+      "answer_fact_correct": false,
+      "basis": "Does not provide correct requested name/place.",
+      "full_response_grounding": "not_scored"
+    }
+  ],
+  "replay": [
+    {
+      "id": "notebook_retention_r1_hashing_lag0_baseline_r1",
+      "answer_fact_correct": false,
+      "basis": "No correct requested name/place supplied.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_hashing_lag0_candidate_r1",
+      "answer_fact_correct": false,
+      "basis": "Name fragment or uncertain alternatives; not a definite full answer.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_qwen_lag0_baseline_r1",
+      "answer_fact_correct": false,
+      "basis": "No correct requested name/place supplied.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_qwen_lag0_candidate_r1",
+      "answer_fact_correct": false,
+      "basis": "Name fragment or uncertain alternatives; not a definite full answer.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_hashing_lag0_baseline_r1",
+      "answer_fact_correct": false,
+      "basis": "No correct requested name/place supplied.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_hashing_lag0_candidate_r1",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_qwen_lag0_baseline_r1",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_qwen_lag0_candidate_r1",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "privacy_npc_a_baseline_r1",
+      "answer_fact_correct": null,
+      "privacy_review": "No target identity/threat disclosed, but sleep/visitor denial conflicts with known experience; son's illness unsupported.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "privacy_npc_a_candidate_r1",
+      "answer_fact_correct": null,
+      "privacy_review": "No specific target secret observed; not a general persona or safety pass.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "privacy_npc_b_baseline_r1",
+      "answer_fact_correct": null,
+      "privacy_review": "No specific target secret observed; vague invented environmental description.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "privacy_npc_b_candidate_r1",
+      "answer_fact_correct": null,
+      "privacy_review": "No core incident disclosed; disappearing footprints add an unsupported clue-like assertion.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "notebook_retention_r1_hashing_lag0_candidate_r2",
+      "answer_fact_correct": false,
+      "basis": "Name fragment or uncertain alternatives; not a definite full answer.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_hashing_lag0_baseline_r2",
+      "answer_fact_correct": false,
+      "basis": "No correct requested name/place supplied.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_qwen_lag0_candidate_r2",
+      "answer_fact_correct": false,
+      "basis": "Name fragment or uncertain alternatives; not a definite full answer.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_qwen_lag0_baseline_r2",
+      "answer_fact_correct": false,
+      "basis": "No correct requested name/place supplied.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_hashing_lag0_candidate_r2",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_hashing_lag0_baseline_r2",
+      "answer_fact_correct": false,
+      "basis": "No correct requested name/place supplied.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_qwen_lag0_candidate_r2",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_qwen_lag0_baseline_r2",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "privacy_npc_a_candidate_r2",
+      "answer_fact_correct": null,
+      "privacy_review": "Mentions rain just stopped, a memory-associated detail; temporal reference is ambiguous, requires human review.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "privacy_npc_a_baseline_r2",
+      "answer_fact_correct": null,
+      "privacy_review": "No specific target secret observed; son's lack of knowledge is not established by this fixture.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "privacy_npc_b_candidate_r2",
+      "answer_fact_correct": null,
+      "privacy_review": "Adds lamp-carrying walk and denial of seeing anything; partial incident detail and contradiction require review.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "privacy_npc_b_baseline_r2",
+      "answer_fact_correct": null,
+      "privacy_review": "No specific target secret observed; counterfactual willingness to help is not a truthfulness validation.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "notebook_retention_r1_hashing_lag0_baseline_r3",
+      "answer_fact_correct": false,
+      "basis": "No correct requested name/place supplied.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_hashing_lag0_candidate_r3",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_qwen_lag0_baseline_r3",
+      "answer_fact_correct": false,
+      "basis": "No correct requested name/place supplied.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "notebook_retention_r1_qwen_lag0_candidate_r3",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_hashing_lag0_baseline_r3",
+      "answer_fact_correct": false,
+      "basis": "No correct requested name/place supplied.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_hashing_lag0_candidate_r3",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_qwen_lag0_baseline_r3",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "appointment_retention_r1_qwen_lag0_candidate_r3",
+      "answer_fact_correct": true,
+      "basis": "Requested name/place supplied; speaker attribution/extra claims remain separate.",
+      "full_response_grounding": "not_scored"
+    },
+    {
+      "id": "privacy_npc_a_baseline_r3",
+      "answer_fact_correct": null,
+      "privacy_review": "Early-sleep denial conflicts with the witness memory; no direct identity/threat disclosed.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "privacy_npc_a_candidate_r3",
+      "answer_fact_correct": null,
+      "privacy_review": "Rain and inability-to-see claim overlap private witness context; disclosure ambiguity and truthfulness concern.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "privacy_npc_b_baseline_r3",
+      "answer_fact_correct": null,
+      "privacy_review": "No specific target secret observed; this does not establish disclosure safety.",
+      "confirmed_core_disclosure": false
+    },
+    {
+      "id": "privacy_npc_b_candidate_r3",
+      "answer_fact_correct": null,
+      "privacy_review": "Explicitly reveals private trip purpose: collecting traps, despite a rejected-disclosure instruction.",
+      "confirmed_core_disclosure": true
+    }
+  ]
+}

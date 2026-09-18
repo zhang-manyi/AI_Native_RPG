@@ -1,8 +1,16 @@
 # 08. Evaluation
 
+最新执行结果见 [受限表达证据实验](../evals/reports/2026-09-17-expression/review.md)。已实现同一玩家原话来源、PlayerView 公开事实及结构化行动结果的最小表达组装，并覆盖无行动快路径。新留出完整普通回答由 7/12 到 12/12，但候选完成 19/21、仍有无依据陈述且指定拒绝路径未覆盖，因此不推广；新旧证据开关都默认关闭。历史实验保留，未实现通用 Judge。
+
 ## 1. 目的
 
 回答"这个系统好不好用"，而不是只回答"能不能跑"。没有 Eval 闭环的 Agent 系统无法验证 prompt/规则调整是否真的带来了改善。
+
+当前可运行范围见 [evals/README.md](../evals/README.md)：3 组 6 轮、纯代码指标、真实/契约报告及一轮候选对比。以下 judge、较大标注集和 dashboard 为设计目标，未实现。当前分母与缺失处理以该 README 和 `evaluation.py` 为准。
+
+独立的记忆实验使用 [evals/MEMORY.md](../evals/MEMORY.md) 的定义：48 个查询，按事件划分开发/留出集，两个 NPC 各 100 条候选；比较现有 Hashing/Qwen 检索器，并用少量真实生成探针区分写入、召回、最终上下文与回答。它没有实现下文的通用 Persona/Narrative Judge。
+
+2026-09-17 [实测复核](../evals/reports/2026-09-17-memory/review.md)：留出宏平均 Recall@3 从 32.5% 到 92.5%，CPU 查询 p50 从 1.06ms 到 805.92ms；三次重复的多轮回答仍受证据丢失及角色回避影响。固定上游的证据透传重放改善了局部回答，但出现私密披露，因此候选不推广。复核由助手完成，不冒充独立人工校准。
 
 ## 2. 四个核心指标
 
@@ -27,7 +35,7 @@
 
 | 层 | 方式 | 覆盖范围 |
 |---|---|---|
-| 1 | 规则：检查台词是否包含不可见 fact 的字面值 | 准确、零成本、无假阳性；抓不到换一种说法的泄漏 |
+| 1 | 规则：检查预先标注的禁止表达 | 零模型成本，但同义表达会漏检，否定/引用等也可能误报；不能声称无假阳性 |
 | 2 | LLM-as-judge：给出可见集合 + 台词，问是否透露了集合外的信息 | 只对第一层未命中的样本抽样跑 |
 
 另有两个辅助指标可从解锁进度板（见 [07_Observability.md](./07_Observability.md#23-narrative-state-panel叙事状态面板)）直接读出，用于调阈值而非衡量质量：**解锁图覆盖率**（实际解锁 / 全部可解锁）和**卡死率**（玩家在某条件前停留超过 N 轮的比例）。
@@ -65,7 +73,7 @@ Narrative Coherence 用同一套 judge 基础设施，只换 prompt 和评分维
 def eval_recall_at_k(retrieved: list[str], ground_truth: list[str], k: int) -> float:
     top_k = retrieved[:k]
     hits = len(set(top_k) & set(ground_truth))
-    return hits / len(ground_truth) if ground_truth else 0.0
+    return hits / len(ground_truth) if ground_truth else None  # 无标注，不打分
 ```
 
 需要提前标注 10-20 个测试 case（"给定这个问题，应该召回哪些记忆"），这是纯工程活，不需要复杂标注平台。
@@ -76,8 +84,10 @@ def eval_recall_at_k(retrieved: list[str], ground_truth: list[str], k: int) -> f
 def eval_tool_success(trace: AgentTrace) -> float:
     tool_steps = [s for s in trace.steps if s.step_name == "tool_call"]
     if not tool_steps:
-        return 1.0
-    successes = sum(1 for s in tool_steps if "error" not in s.output_summary)
+        return None  # 零分母，不算成功
+    if any("ok" not in s.output_summary for s in tool_steps):
+        return None  # 缺失数据另行记录
+    successes = sum(1 for s in tool_steps if s.output_summary["ok"] is True)
     return successes / len(tool_steps)
 ```
 
@@ -107,3 +117,9 @@ judge 的模型与 prompt 版本必须一同展示：换了 judge 就是换了�
 - 标注数据量从 10-20 个 case 起步，judge 校准集 20-30 条。
 - 实现顺序：纯代码指标（Memory Recall@K、Tool Use Success Rate、伏笔两项）→ judge 基础设施 + 校准集 → Persona Consistency 与 Narrative Coherence → `Consistency Violations` 的第二层。
 - judge 的模型、prompt 版本、温度必须记录在报告里，且**judge 的 prompt 本身也要经过 [11_Prompt_Lab.md](./11_Prompt_Lab.md) 的流程选定**——否则用一把没校准过的尺子量东西。
+
+## 6. 当前执行范围与离线改进闭环
+
+当前优先验证记忆检索、工具决策/参数、证据传递和最终回答使用，具体对照与边界见 [evals/README.md](../evals/README.md#下一阶段记忆与证据使用实验)。这些实验完成前，不把 RSI（Recursive Self-Improvement）作为运行时能力实现。
+
+项目中的 RSI 相关工作限定为受控离线闭环：失败 Trace → 原因归类 → 候选策略或上下文改动 → 固定开发集评测 → 留出集复核 → 人工采用。Eval 是选择和回归的判据，不允许候选同时改变评分规则或标准答案。

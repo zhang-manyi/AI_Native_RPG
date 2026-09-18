@@ -249,6 +249,11 @@ class MemoryStore:
 
     # --- reads -------------------------------------------------------------
 
+    def episodic_by_ids(self, memory_ids: list[str]) -> list[EpisodicMemory]:
+        """Resolve executed-tool IDs locally; caller text never grants disclosure."""
+        wanted = set(memory_ids)
+        return [m.model_copy(deep=True) for m in self._episodic if m.memory_id in wanted]
+
     @property
     def episodic_count(self) -> int:
         return len(self._episodic)

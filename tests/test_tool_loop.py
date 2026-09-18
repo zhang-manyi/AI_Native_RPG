@@ -81,6 +81,44 @@ class TestToolsAreOffered:
 
 
 class TestSingleToolIteration:
+    def test_action_dialogue_keeps_recalled_and_tool_evidence(self, martha, manager):
+        memory = MemoryStore(martha.npc_id)
+        from ai_native_rpg.schemas.memory import EpisodicMemory
+
+        memory.add_episodic(
+            EpisodicMemory(
+                memory_id="notebook",
+                npc_id=martha.npc_id,
+                event_description="玩家把笔记叫做青石手记",
+                importance=0.8,
+                occurred_at_day=1,
+            )
+        )
+        llm = MockLLMClient(
+            [
+                [
+                    ToolCall(
+                        id="fact", name="check_public_fact", arguments={"fact_id": "victim_name"}
+                    )
+                ],
+                _plan(action={"action_type": "adjust_relationship", "payload": {"trust": 5}}),
+                {"dialogue": "d"},
+            ],
+            token_usage={"prompt_tokens": 10, "completion_tokens": 2},
+        )
+        _, trace = _harness(
+            martha, manager, llm, memory=memory, retain_dialogue_evidence=True
+        ).respond("笔记名字和孩子姓名？", player_id=PLAYER)
+        regeneration = llm.calls[-1].messages[-1].content
+        assert "青石手记" in regeneration
+        assert "艾拉" in regeneration
+        assert "工具返回" in regeneration
+        assert (
+            sum(s.token_usage.get("prompt_tokens", 0) for s in trace.steps if s.token_usage) == 30
+        )
+        tool_step = next(s for s in trace.steps if s.step_name == "tool_call")
+        assert tool_step.output_summary["result"]["known"] is True
+
     def test_result_is_fed_back_and_loop_converges(self, martha, manager):
         llm = MockLLMClient(
             [
@@ -261,6 +299,7 @@ class TestTraceAndRegression:
         assert response.dialogue == "好吧。"
         assert [s.step_name for s in trace.steps] == [
             "memory_retrieval",
+            "tool_request",
             "tool_call",
             "planning",
             "action_validation",

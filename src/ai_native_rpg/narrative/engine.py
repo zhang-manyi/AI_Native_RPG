@@ -323,6 +323,15 @@ class NarrativeEngine:
     def can_conclude(self, player_id: str) -> bool:
         return not self.conclude_reason(player_id)
 
+    def is_reporting(self) -> bool:
+        """A private conclusion event must not route text to a nearby NPC."""
+        definition = self.active_event()
+        return bool(
+            definition
+            and definition.event_id == self._directives.conclusion_event
+            and definition.npc_id is None
+        )
+
     def conclude_reason(self, player_id: str) -> str:
         """A player-readable reason shared by the button and its availability check."""
         definition = self._script.get(self._directives.conclusion_event or "")
@@ -334,15 +343,9 @@ class NarrativeEngine:
             return "今天的调查已结束，明天继续作出判断。"
         if self.active_event():
             return "请先完成当前对话，或离开现场结束对话。"
-        world = self._manager.snapshot()
-        if not event_is_present(world, definition, player_id):
-            target = "、".join(
-                world.locations[k].name for k in definition.locations if k in world.locations
-            ) or "结论事件所在地点"
-            current = world.player_locations.get(player_id)
-            if current != "village_square" and "village_square" in world.locations:
-                return f"请先回到村庄广场，再前往{target}，与当事人作出结论。"
-            return f"请前往{target}，与当事人作出结论。"
+        # Reaching a conclusion is the investigator's private act of judgment. It must
+        # remain available wherever the player is, so the UI never directs them to a
+        # suspect's location or forces a face-to-face accusation.
         return ""
 
     def conclude_case(self) -> PlayerActionResult:
@@ -366,10 +369,6 @@ class NarrativeEngine:
             return PlayerActionResult(
                 approved=False, reason=f"conclusion event {event_id!r} is not in the script"
             )
-        world = self._manager.snapshot()
-        player_id = next(iter(world.player_locations), "")
-        if not event_is_present(world, definition, player_id):
-            return PlayerActionResult(approved=False, reason="请到结论事件所在的地点再作判断。")
         result = conclude_case(
             self._manager, event_id=event_id, max_exchanges=definition.max_exchanges
         )

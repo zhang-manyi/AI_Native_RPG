@@ -64,7 +64,7 @@
 | 3 | 完成 | Narrative Engine + 算子 + 伏笔账本 + `StoryBeats` | 线索按节奏逐步解锁，伏笔有回收 |
 | 4 | 进行中 | Player Model 影响披露方式 + 调试面板 | 两种玩法风格拿到不同的线索呈现 |
 | 5 | 最小剧情闭环完成；完整设计仍有裁剪项 | Web 时段、移动、多 NPC 路由，M1–M7 最小路径、F1–F3、S1 修门闩 | 四个终局可从普通开局到达；M6 采用事后转述分支，详见下方验收边界 |
-| 6 | 未开始 | Eval 脚本 + 数据回流一轮 | 改 prompt 前后的指标对比 |
+| 6 | 最小闭环完成；真实质量尚未验收 | 基础 6 轮、记忆检索/多轮使用、全量及受限证据表达对照；固定留出与真实重复运行 | 能展示失败归因、成本与指标对比；受限表达候选仍默认关闭，见 [实验总览](../evals/OVERVIEW.md) |
 
 切片 5 是**修正一处设计偏差**，不是加功能：[05 §2.1](./05_Narrative_Engine.md#21-规则触发确定性) 原本写的候选是*事件*，实现走成了*算子*，于是"这回合该发生什么"没有依据可答（症状见下方"一轮真实对局暴露的四件事"，以及新增的第五件）。它同时让 [10 §5](./10_Narrative_Operators.md#5-结构质量优先级) 优先级表第 4 行「收束」从待实现变为可实现——现在做不了，是因为没有任何状态表达"故事走到哪一步了"。
 
@@ -98,7 +98,7 @@
 | M6、被洛伦先动手 | 本轮完成最小路径 | `M6_pressure` 承接 M5 失败，`M6_warning` 在玛尔塔家转述警告；终局去掉 `pending`。不含现场多 NPC 对峙 |
 | facts 整段重构 | 部分实现，不能标为整体完成 | 已重命名 `loren_that_night`、调整真相，F2/F3 的 facts 和披露写入链路也已存在；本轮补 M6 威胁披露。完整设计中的 `loren_watches_the_room` 独立观察分支仍未实现，整段还留有旧门槛/旧流程注释，未做逐条语义验收 |
 | Player Model | 只有 schema/消费接口，行为写入未实现 | `schemas/narrative.py` 的 `PlayerProfile`、`controller.select_candidate(profile=...)`；无 Behavior Tracker。当前 authored Web 调度按剧本顺序，不走画像排序 |
-| Eval | 尚无可运行 Eval 入口 | `scripts/` 只有 Web、聊天、事件演练入口；pytest 回归不等同于模型行为评测或 prompt 优化闭环 |
+| Eval | 本轮已补最小入口和一轮闭环 | `scripts/eval.py`、`evals/cases.json`；mock 契约与真实效果分开，报告见下；未实现完整平台或 judge |
 | 支线 | S1 部分实现，S2/S3 未实现 | S1 修门闩可用；保密承诺及背诺后果未实现。本轮不增加支线 |
 
 **本轮最小闭环**：普通开局 → 广场 → 森林 → M5 追问失败（tension 0.2）→ 两次“继续逼问”（0.4、0.6）→ 广场 → 玛尔塔家自动听取 M6 警告（fear +12，记录 `npc_b_aware_of_investigation` 与 `npc_a_threatened`）→ 广场 → 森林 → 再次逼问（0.8）→ `loren_moves_first`。总共六次移动，两个收束后在第三天上午结束，未超过十二时段；自动事件和同次到访中的选项不额外扣时段。夜晚本身不加张力，风险来自明确的施压动作。
@@ -109,7 +109,22 @@
 
 本轮相关回归共 **287 通过、1 跳过**，覆盖 `web_playthrough`、`reachability`、`endings`、事件链/触发/加载/结算、叙事引擎与 Web 移动/回合/收束/输入/场景隔离/前端契约。跳过的是旧 pending-hook 测试：开局没有生成式 beat，因此没有 hook 可交接；前端 Node 契约测试已通过。改动的 Python 测试通过 Ruff，`git diff --check` 通过。未跑全量测试，未做浏览器视觉试玩。可快速复验本轮核心路径：`.venv\Scripts\python.exe -m pytest tests/test_web_playthrough.py tests/test_reachability.py tests/test_endings.py -q`。
 
-**下一步优先做最小 Eval 与一轮优化闭环**：沿用 [08](./08_Evaluation.md) 和现有 Trace，选少量可复现的多轮 NPC 样例（含记忆召回、工具调用、状态/披露约束），提供一个可运行入口和机器可读报告，明确 mock 与真实后端。固定样例与配置后完成一次基线→单项 prompt/规则改动→复测，保留失败案例、token/延迟与指标对比。暂不做完整平台、自动搜索、Player Model 或额外剧情。
+**最小 Eval 与一轮闭环交付（2026-09-16，实际基线 `eccf46c`）**：开始时仓库已包含上一轮 M6 提交，未发现已跟踪文件改动；本轮未提交或推送。新增 `scripts/eval.py`、`evals/cases.json` 和 `evaluation.py`，3 组 6 轮，覆盖跨轮记忆、工具、分类、状态和披露字面筛查。指标分母、ground truth、missing/null 规则及直接运行命令见 [Eval 使用说明](../evals/README.md)。
+
+现有 Trace 补齐工具请求那次模型调用的 token/延迟及工具结果；Eval 另存每次 HTTP 响应、含重解析成本、前后快照、模型标识、配置及文件哈希。真实后端已进行有界调用，请求 `deepseek-v4-flash`、返回 `deepseek-flash`，两者均记录。沙箱 ConnectError 和探索失败报告也保留。
+
+本轮相关回归 **293 通过、2 跳过**：旧 pending-hook 开局未生成 beat、当前剧本没有 partial facts；前端 Node 契约 **7 通过**。Ruff 检查和格式检查通过；Windows CRLF 文件使用 `git -c core.whitespace=cr-at-eol diff --check` 检查，未统一改写历史文件换行。四个结局路径保持覆盖。测试临时目录使用 `data/runtime/`，避免系统 pytest 临时目录权限冲突。
+
+唯一行为候选是在行动后的台词生成中保留已检索和工具返回的证据。正式基线/候选均完成 6/6；Recall@3 均 3/3、状态复核均 6/6、分类均 2/2；笔记名称单例答出，但字面回答总计仍为 2/3，必要工具命中从 3/4 降到 1/4，token 从 24851 增到 30848。**没有整体改善证据，`retain_dialogue_evidence` 默认关闭，候选不推广。** 正式 [对比报告](../evals/reports/2026-09-16/comparison.md) 与 [人工复核和失败案例](../evals/reports/2026-09-16/review.md) 保留全部结论边界。mock 两组均通过，只证明脚本契约。N=1、HashingEmbedder、字面筛查不代表真实模型质量验收；尚未浏览器视觉试玩。
+
+```powershell
+.venv\Scripts\python.exe scripts/eval.py --mode mock --variant baseline --output data/runtime/eval-demo
+.venv\Scripts\python.exe scripts/eval.py --mode real --variant baseline --output data/runtime/eval-real --max-requests 32 --max-seconds 240
+.venv\Scripts\python.exe scripts/eval.py --mode real --variant candidate --output data/runtime/eval-candidate --max-requests 32 --max-seconds 240
+.venv\Scripts\python.exe scripts/eval.py --compare data/runtime/eval-real/report.json data/runtime/eval-candidate/report.json --output data/runtime/eval-compare.md
+```
+
+**截至 2026-09-18，失败复核和受限表达对照已完成，候选不推广**：普通回答有改善，但仍有无依据陈述、规划截断和完整路径拒绝覆盖不足。结果与分母见 [实验总览](../evals/OVERVIEW.md) 和 [受限表达报告](../evals/reports/2026-09-17-expression/review.md)。下一步优先对现有工具与行动建立小规模决策/短任务评测，区分选错工具、参数错误、执行失败、状态未达成及错误宣称成功；根据开发失败只调整一个明确因素，再用新留出和有界真实调用验证。旧留出一旦用于调优即转为开发资料，保留失败和成本，没有证据不推广。之后再收紧表达质量并补 Player Model 的最小写入闭环；暂不增加剧情、完整平台或自动搜索。facts 整段仍只是部分实现，四个结局保持回归覆盖。
 
 **可达性仍有边界**：加载器只证明“有东西写这条路径”，不是“所有选择组合都能在十二时段内到达”。已走通的路径由测试证明；不把局部 facts 调整或静态写入者检查当作完整重构/全图可达性的验收。
 

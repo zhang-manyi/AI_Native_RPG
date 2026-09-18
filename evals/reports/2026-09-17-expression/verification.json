@@ -1,0 +1,38 @@
+{
+  "tests": {
+    "pytest.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "3",
+      "skipped": "2",
+      "tests": "938",
+      "time": "460.832",
+      "timestamp": "2026-09-17T23:05:37.896745+08:00",
+      "hostname": "zmy"
+    },
+    "pytest-focused.xml": {
+      "name": "pytest",
+      "errors": "0",
+      "failures": "0",
+      "skipped": "2",
+      "tests": "146",
+      "time": "71.470",
+      "timestamp": "2026-09-17T23:16:19.727211+08:00",
+      "hostname": "zmy"
+    }
+  },
+  "ruff": "passed",
+  "frontend_tests": {
+    "passed": 8
+  },
+  "frozen_runtime_identical_across_stages": true,
+  "real_request_count": 180,
+  "label_keys_in_requests": false,
+  "credential_content_detected": false,
+  "notes": [
+    "Full-suite initial unconfigured-model run interrupted; not counted as passed.",
+    "Full-suite Qwen run retained three failures; focused Hashing run preserves all assertions.",
+    "Existing SceneOption.final_report addition was present before this task."
+  ],
+  "temporary_directory_cleanup": "Attempted only six task-created .pytest-expression-* directories after preserving reports; Windows ACL denied unit2 even with elevated execution. Remaining temporary directories retained, no ACL changes."
+}

@@ -1,23 +1,14 @@
-"""M7 结论事件: the collision point of the main line and the truth line (docs/15 §4 M7).
+"""M7 reports: private, location-independent judgments with evidence-based endings.
 
-Three properties this file exists to pin:
-
-* the third player verb, ``conclude_case``, opens M7 on the player's own initiative and
-  bypasses the trigger check — docs/14 §4.2's 指控错人 must be reachable *before* the
-  case is fully solved, which the tick-driven trigger machinery cannot express on its
-  own (docs/13 §12);
-* ``EventOption.requires`` hides 告诉洛伦她还活着 until all three truth-side clues are
-  in, and hides 指认老板 until ``innkeeper_hides_something`` is out — an option a player
-  has not earned must not be offered at all, in either the classifier's list or the
-  scene's (docs/15 §7 M7);
-* the runtime ending check actually lands ``story_beats.ended_at`` when M7's outcome
-  satisfies a declared condition (a validator gap made this silently no-op until fixed
-  in this same change — see ``_BEAT_ADVANCE_KEYS`` in ``world/validator.py``).
+Every hypothesis is offered before and after collecting evidence. Submitting a guess
+cannot produce a confession or hidden facts; returning to investigation gives no hint.
 """
 
 from __future__ import annotations
 
 import random
+
+import pytest
 
 from ai_native_rpg.llm import MockLLMClient
 from ai_native_rpg.narrative.engine import NarrativeEngine
@@ -73,16 +64,21 @@ def _reveal_truth_side(world) -> None:
         world.facts[fact_id].visibility = Visibility.REVEALED
     world.story_beats.flags.extend(_TRUTH_FLAGS)
     world.facts["forest_traces"].visibility = Visibility.REVEALED
+    world.story_beats.flags.append("forest_traces_seen")
 
 
 class TestConcludeCase:
-    def test_conclusion_reason_explains_the_square_route_to_the_forest(self):
-        engine, _ = _engine(load_scenario(PACK))
-
-        reason = engine.conclude_reason(PLAYER)
-
-        assert "村庄广场" in reason
-        assert "森林入口" in reason
+    @pytest.mark.parametrize("location", ["npc_a_house", "village_square", "tavern", "forest_edge"])
+    def test_report_opens_at_any_location_without_a_speaker(self, location):
+        world = load_scenario(PACK)
+        world.player_locations[PLAYER] = location
+        engine, manager = _engine(world)
+        assert engine.conclude_reason(PLAYER) == ""
+        assert engine.conclude_case().approved
+        assert engine.is_reporting()
+        assert engine.active_event().npc_id is None
+        assert manager.snapshot().player_locations[PLAYER] == location
+        assert all(line.speaker == "narrator" for line in engine.active_event().presentation)
 
     def test_opens_the_conclusion_event_regardless_of_stage(self):
         """docs/14 §4.2: 指控错人 must be reachable before the case is otherwise solved."""
@@ -132,17 +128,23 @@ class TestConcludeCase:
         assert manager.snapshot().story_beats.slots_spent_today == before
 
 
-class TestRequiresFiltersOptions:
-    def test_tell_loren_alive_is_absent_until_all_three_clues_are_told(self):
+class TestReportHypotheses:
+    def test_all_hypotheses_are_available_before_clues(self):
         engine, _ = _engine(_world_at_stage(3))
         engine.conclude_case()
 
         ids = {o.option_id for o in engine.visible_event_options()}
 
-        assert "tell_loren_alive" not in ids
-        assert {"accuse_loren", "not_yet"} <= ids
+        assert ids == {
+            "accuse_loren",
+            "accuse_innkeeper",
+            "accuse_marta",
+            "tell_loren_alive",
+            "report_unresolved",
+            "not_yet",
+        }
 
-    def test_tell_loren_alive_appears_once_all_three_are_told(self):
+    def test_departure_hypothesis_remains_available_with_all_evidence(self):
         world = _world_at_stage(3)
         _reveal_truth_side(world)
         engine, _ = _engine(world)
@@ -164,10 +166,8 @@ class TestRequiresFiltersOptions:
 
         assert classifier_ids == scene_ids
 
-    def test_accuse_innkeeper_is_gated_on_his_own_tell(self):
-        """`innkeeper_hides_something` is revealed unconditionally once M4 exists in the
-        pack (docs/15 §4 M4's [观察], ungated like every other [观察] fact) — so the gate
-        is exercised through a pack that has not revealed it, not a live trust gap."""
+    def test_innkeeper_hypothesis_does_not_depend_on_a_hidden_clue(self):
+        """No hypothesis disappears merely because supporting evidence is absent."""
         world = _world_at_stage(3)
         world.facts["innkeeper_hides_something"].visibility = Visibility.HIDDEN
         engine, _ = _engine(world)
@@ -175,11 +175,10 @@ class TestRequiresFiltersOptions:
 
         ids = {o.option_id for o in engine.visible_event_options()}
 
-        assert "accuse_innkeeper" not in ids
+        assert "accuse_innkeeper" in ids
 
-    def test_an_option_hidden_by_requires_leaves_the_decision_open(self):
-        """Clicking (or a stale classification landing on) a gated option must not be a
-        backdoor around the gate: it resolves the same as an unrecognised id (docs/15 §7)."""
+    def test_early_correct_guess_is_unverified_and_does_not_reveal_hidden_truth(self):
+        """A guess is a valid submission, but it cannot create evidence or a confession."""
         engine, manager = _engine(_world_at_stage(3))
         engine.conclude_case()
 
@@ -188,9 +187,11 @@ class TestRequiresFiltersOptions:
         )
 
         assert record is not None
-        assert record.outcome_id is None
-        assert not record.finished
+        assert record.outcome_id == "told_loren_truth"
+        assert record.finished
+        assert manager.snapshot().story_beats.ended_at == "report_unverified"
         assert manager.snapshot().facts["ella_whereabouts"].visibility is Visibility.HIDDEN
+        assert manager.snapshot().facts["loren_that_night"].visibility is Visibility.HIDDEN
 
 
 class TestM7Outcomes:
@@ -206,7 +207,7 @@ class TestM7Outcomes:
         assert "accused_someone" in manager.snapshot().story_beats.flags
         assert manager.snapshot().facts["ella_whereabouts"].visibility is Visibility.HIDDEN
 
-    def test_telling_loren_reveals_ella_whereabouts_and_nothing_else_does(self):
+    def test_supported_report_does_not_invent_a_confession(self):
         world = _world_at_stage(3)
         _reveal_truth_side(world)
         engine, manager = _engine(world)
@@ -217,7 +218,11 @@ class TestM7Outcomes:
         )
 
         assert record is not None and record.outcome_id == "told_loren_truth"
-        assert manager.snapshot().facts["ella_whereabouts"].visibility is Visibility.REVEALED
+        assert manager.snapshot().story_beats.ended_at == "truth_uncovered"
+        assert manager.snapshot().facts["ella_whereabouts"].visibility is Visibility.HIDDEN
+        assert manager.snapshot().facts["loren_that_night"].visibility is Visibility.HIDDEN
+        assert "report_departure" in manager.snapshot().story_beats.flags
+        assert "told_loren_truth" not in manager.snapshot().story_beats.flags
 
     def test_not_yet_does_not_close_the_case_and_may_be_reopened(self):
         """docs/15 §4 M7: 我还不能确定 是"不结束，回到调查"，不是一个终局.
