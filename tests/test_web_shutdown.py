@@ -23,6 +23,8 @@ import pytest
 pytest.importorskip("fastapi", reason="needs the 'web' extra")
 pytest.importorskip("uvicorn", reason="needs the 'web' extra")
 
+from ai_native_rpg.agent import HashingEmbedder
+from ai_native_rpg.web import registry
 from ai_native_rpg.web.app import create_app
 from ai_native_rpg.web.events import KEEPALIVE_SECONDS
 from ai_native_rpg.web.serve import StreamAwareServer, build_server
@@ -37,8 +39,13 @@ PROMPT_SECONDS = 8
 
 
 @pytest.fixture
-def running_server():
+def running_server(monkeypatch):
     """A real server on a real socket, torn down at the end of the test."""
+    # Socket lifecycle checks must not load model weights or use a system proxy.
+    monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
+    monkeypatch.setattr(
+        registry, "build_shared_embedder", lambda: (HashingEmbedder(), "HashingEmbedder")
+    )
     app = create_app(dev_mode=True)
     server = build_server(
         app,

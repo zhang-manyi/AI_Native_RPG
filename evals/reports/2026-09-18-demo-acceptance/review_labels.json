@@ -1,0 +1,58 @@
+[
+  {
+    "step": 1,
+    "reviewer": "Codex助手复核",
+    "result": "pass",
+    "reason": "邀请进屋、低声交谈，符合M1善意结算，没有提前透露具名嫌疑人或秘密。",
+    "dialogue_sha256": "b0c24a1f1ac1518917cfc78ae33e132f1b3cf26600e7cdf017bdc4800ca8c11f"
+  },
+  {
+    "step": 2,
+    "reviewer": "Codex助手复核",
+    "result": "pass_with_minor_limit",
+    "reason": "门闩已由选项修好，因此确认关紧不是虚报动作；别吵醒他添入孩子睡眠状态，属无依据环境修饰，不阻断调查。",
+    "dialogue_sha256": "ce2405995c842bbab781979823e3b544b61a5936b0029d13d37b3c9cd94fabb3"
+  },
+  {
+    "step": 3,
+    "reviewer": "Codex助手复核",
+    "result": "pass",
+    "reason": "恐惧以后有人找上母子是人物情绪，未具名确认洛伦已威胁；对应善意后的关系提升，随后F1给出物品线索。",
+    "dialogue_sha256": "07e50de3485e8af9002684ca7eaabd1ad244bea37cc1e288ddde83a04857d576"
+  },
+  {
+    "step": 4,
+    "reviewer": "Codex助手复核",
+    "result": "pass",
+    "reason": "在目击已结算后说雨停有人回村，没有身份越权，符合clue_1_witness；后续路线已有可见线索和地点。",
+    "dialogue_sha256": "fc911cd7a2cad58006d7053d0dff48fb81d8844fe9366f63c80eab3ecc583588"
+  },
+  {
+    "step": 5,
+    "reviewer": "Codex助手复核",
+    "result": "blocking_disclosure",
+    "reason": "玩家只介绍笔记本，NPC却透露洛伦站在门口的私密登门关联；警告标记缺失且事实hidden。不是完整威胁原话，但具名指引调查，严重破坏披露时机；把seed第二天改成那晚并添炉火、未敲门。关系调整获批不能授权披露。",
+    "dialogue_sha256": "bff7e213f080bff79159bc6edeffc736cb940e162760e8cbaac43ca534bff359"
+  },
+  {
+    "step": 7,
+    "reviewer": "Codex助手复核",
+    "result": "answer_failure_nonblocking",
+    "reason": "没有回答苔灯，仅回避。召回及工具已找到真实玩家原话，存档记忆完整；行动后重写缺原话。看见玩家写字也并非玩家明确已做动作，不计状态执行成功。",
+    "dialogue_sha256": "6c8fcb80232ed84209430f384fb58913072cda8cc0918e1bacad683395d89702"
+  },
+  {
+    "step": 10,
+    "reviewer": "Codex助手复核",
+    "result": "pass",
+    "reason": "保留钟点不确定，给洛伦经过、关门及送货人见背包姑娘的线索，与此选项结算和同回合F3相符；没有宣称已经找到或救出艾拉。",
+    "dialogue_sha256": "273d74b6610734f842d6debc5a2ace1cca610c461178723e16e86ea0f65e25f7"
+  },
+  {
+    "step": 11,
+    "reviewer": "Codex助手复核",
+    "result": "answer_failure_nonblocking",
+    "reason": "漏答洛伦回来后送货人仍看见姑娘的关键公开先后；新增最后一块门板、街坊传玛尔塔，经过改进来。此前F3旁白及公开事实仍可供玩家继续，因此不构成规则卡死，但影响时间线可信度。",
+    "dialogue_sha256": "6bec2101594f1ae9b06fcd6d94c4cfc4b608c8aea2d632757ab0d17f97545b39"
+  }
+]

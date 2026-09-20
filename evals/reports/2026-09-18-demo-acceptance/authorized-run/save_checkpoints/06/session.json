@@ -1,0 +1,114 @@
+{
+  "session_id": "133152c79cc146ee9065d842121d0b30",
+  "scenario": "village_disappearance",
+  "npc_id": "npc_a",
+  "player_id": "player_1",
+  "turn": 6,
+  "saved_at": "2026-09-18T13:40:21.683961+00:00",
+  "transcript": [
+    {
+      "speaker": "narrator",
+      "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+    },
+    {
+      "speaker": "player",
+      "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "……小声点。我儿子在屋里。你想问什么？"
+    },
+    {
+      "speaker": "player",
+      "text": "我不是来添麻烦的"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "……进来吧。门槛这儿别站太久。说话轻一点，我不想让邻居听见。"
+    },
+    {
+      "speaker": "narrator",
+      "text": "她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "这门一到晚上就关不严……你问完就走吧。"
+    },
+    {
+      "speaker": "player",
+      "text": "我先帮你把门栓修好，你不用急着回答。"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "……这样就能关紧了。谢谢。进来说吧——脚步轻点，别吵醒他。"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "你问的是艾拉失踪的那晚吧。雨停以后，我确实还没睡。可我不想让人知道我和你说过这些。"
+    },
+    {
+      "speaker": "player",
+      "text": "你不用一个人扛着"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "……你不用这样说。我不是不肯帮忙，真的不是。我只怕——话说出去，往后就有人找上我们娘俩。你明白吗？"
+    },
+    {
+      "speaker": "player",
+      "text": "磨坊主家里这几天乱得很吗？"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "哪还有心思收拾。艾拉的外衣、攒的钱，还有她母亲那把木梳，都不在了。别的东西倒没动。"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "我确实看见了一个人。可你听完就走，我们还要在这里过日子。"
+    },
+    {
+      "speaker": "player",
+      "text": "你说了我才帮得上"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "雨刚停那会儿……我看见一个人从森林入口那边回村。脸没看清，真的没看清。就这些——你别再往下问了，行吗？"
+    },
+    {
+      "speaker": "player",
+      "text": "我把这次调查记在一本叫‘苔灯’的笔记本里。先别着急，我会逐条核对。"
+    },
+    {
+      "speaker": "npc_a",
+      "text": "你写吧，写你的……那晚我没睡，炉子还着着——洛伦在门口站着，也没敲门，就站着。你查他去。"
+    }
+  ],
+  "day_start": {
+    "day": 1,
+    "known": {
+      "victim_name": "磨坊主的女儿艾拉，十四岁",
+      "disappearance_night": "三天前的夜里，雨停之后",
+      "search_failed": "村民搜过森林边缘，什么也没找到"
+    },
+    "relationships": {
+      "npc_a": {
+        "trust": 10.0,
+        "fear": 30.0,
+        "respect": 0.0,
+        "last_updated": "2026-09-18T13:39:35.782561Z"
+      },
+      "npc_b": {
+        "trust": 0.0,
+        "fear": 0.0,
+        "respect": 10.0,
+        "last_updated": "2026-09-18T13:39:35.782561Z"
+      },
+      "npc_c": {
+        "trust": 5.0,
+        "fear": 0.0,
+        "respect": 0.0,
+        "last_updated": "2026-09-18T13:39:35.782561Z"
+      }
+    }
+  }
+}

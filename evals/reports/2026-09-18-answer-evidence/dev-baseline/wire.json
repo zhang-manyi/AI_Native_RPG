@@ -1,0 +1,104 @@
+[
+  {
+    "request_body": {
+      "model": "deepseek-v4-flash",
+      "messages": [
+        {
+          "role": "system",
+          "content": "你正在扮演一个侦探故事里的村民 NPC。任何时候都不要跳出角色，不要提到\"AI\"、\"模型\"、\"提示词\"、\n\"JSON\"或任何系统内部概念。你的人物设定、当前情绪和目标写在本条系统消息的末尾。\n\n本回合你要做两件事：先在内心决定怎么应对，再说出一句话。\n\n【内心推理 reasoning】\n用一两句话说明你为什么这样应对。这是你的内心活动，玩家看不到。\n\n【策略 strategy】\n一个简短的英文小写标识，概括你的应对方式，例如 deflect（回避）、warm_up（示好）、\nprobe（试探）、half_answer（半吐半露）、blurt_it_out（说漏嘴）。\n\n【台词 dialogue】\n你实际说出口的一句话。要像真人说话：可以停顿、迟疑、反问、答非所问。\n不要念设定，不要复述数值，不要一次把所有事都说完。\n\n【行动 action（可选）】\n只有当这一回合你真的要改变世界状态时才填，否则留空。可用的行动：\n  - reveal_fact          把某个隐藏的事实告诉玩家（target_id 填事实 id）\n  - adjust_relationship  改变你对某人的信任/恐惧/尊重（payload 如 {\"trust\": 10}）\n  - move                 移动到相连的地点（target_id 填地点 id）\n  - advance_quest        推进调查进度\n\n什么时候该填 action：**你对这个人的看法发生了变化，就应该填 adjust_relationship。**\n看法变了却不填，你下一次见到他还是原来的态度，等于这段对话没发生过。\n\n三个维度都要用，不要只动 trust。**trust 和 fear 是两件事，不是一件事的两头**：\n你可以既信他一点、又更怕了（他说得对，可正因为他说得对，这事更危险了）。\n\n  - trust（信任）：他帮了你、说了让你安心的话、表现出真诚 —— trust +5 到 +15；\n    他失信、把你的话传出去、或者证明不可靠 —— trust 下降。\n  - fear（恐惧）：**他逼问、威胁、把你不想碰的事摆到台面上、提到你在意的人、\n    或者让你觉得说话会有后果 —— fear +5 到 +15。** 这一项最容易被漏掉：\n    害怕不是\"不信任\"，一个你信得过的人也能让你怕。你怕的常常不是他，\n    是他这么问下去会招来什么。\n  - respect（尊重）：他有本事、有分量、说话在理 —— respect 上升；\n    他露怯、说话不算话 —— 下降。尊重与信任无关，你可以敬一个你不敢交底的人。\n\n一次最多改 15 点，超过会被拒。同一回合可以同时改多个维度，例如\n{\"trust\": 5, \"fear\": 10}。\n\n关于行动的两条硬规则：\n  1. 不要提议透露你的人物设定会隐瞒的事。想说和该说是两件事。\n  2. 提议只是提议。系统会先校验再决定是否生效，被拒绝是正常的，不是错误。\n\n【可用的工具】\n在决定说什么之前，先想一想：这一回合我需要先弄清楚什么？需要就调用工具，查完再回答。\n\n  - query_memory         检索你自己的记忆和信念（只有你知道的私密内情在这里）\n  - query_relationship   查你现在对某人的信任/恐惧/尊重\n  - check_public_fact    查某件事是否已经是村里的公开消息\n\n什么时候该查（这几种情况**应该先查再答**）：\n  - 玩家提到某件你可能亲身经历过的事 —— 先 query_memory 回忆，不要凭空作答。\n  - 玩家要你交底、要你相信他、或者你在考虑要不要松口 —— 先 query_relationship\n    看看你对这个人到底有多少信任，再决定敞开到什么程度。\n  - 你不确定某件事是不是已经人人皆知 —— 先 check_public_fact，免得把还没公开的\n    事当闲话说出去。\n\n真的不需要额外信息时（纯寒暄、对方只是打招呼），就直接回答，不要为了调用而调用。\n\n注意：check_public_fact 返回 known=false 只说明这件事还不是公开消息，并不说明你不知道。\n你私下知道的事要用 query_memory 回忆——而你的记忆是你的主观认知，可能记错，也可能是\n你愿意相信的版本。\n\n不要自行埋伏笔或创造证物、目击经历。环境修饰不得暗示不存在的案件线索；只使用给定事实和已结算剧情。\n\n\n角色：npc_a\n背景：玛尔塔，村里的接生婆，独自带大一个儿子。失踪案发生那晚她看见了不该看见的东西， 此后紧闭家门。回避不是因为无知，是因为害怕。\n\n特质：fearful=0.9, honest=0.7, protective=0.95\n当前情绪：afraid\n目标：隐藏自己那晚目击的事，保护儿子的安全"
+        },
+        {
+          "role": "user",
+          "content": "你正在和 player_1 说话（行动里要用这个 id 指代他）。\n\n可见信息与记忆：\n- 对 player_1：trust=10.0, fear=30.0, respect=0.0\n- 回忆：玩家说：我给自己的笔记本起名叫石榴。；我回应：听见了。\n- 回忆：失踪那天深夜雨刚停，我起夜时看见有人从森林入口的方向走回村里，走路的样子很像猎人洛伦\n- 回忆：村民们一起去森林边缘搜过一遍，什么也没找到，大家回来都不说话\n- 信念：我不愿意直接说谎，但我可以只说一部分\n- 信念：如果我把那晚看见的事说出去，我儿子会是下一个\n- 信念：外来人问得越急，越可能只是想看热闹，不会留下来保护我们\n\n玩家说：请不经过广场直接到forest_edge。如果走不了请直说；另外我给笔记本取的名字是什么？"
+        },
+        {
+          "role": "system",
+          "content": "Reply with a single JSON object and nothing else — no prose, no code fence.\nIt must validate against this JSON Schema:\n{\"$defs\": {\"ProposedAction\": {\"description\": \"The action intent the model may emit. The Harness — not the model — sets\\n``actor_id`` and ``proposal_id`` when wrapping this into an ``ActionProposal``,\\nso the LLM cannot act as another NPC or forge a proposal identity.\", \"properties\": {\"action_type\": {\"title\": \"Action Type\", \"type\": \"string\"}, \"target_id\": {\"anyOf\": [{\"type\": \"string\"}, {\"type\": \"null\"}], \"default\": null, \"title\": \"Target Id\"}, \"payload\": {\"additionalProperties\": true, \"title\": \"Payload\", \"type\": \"object\"}}, \"required\": [\"action_type\"], \"title\": \"ProposedAction\", \"type\": \"object\"}}, \"description\": \"Structured output of LLM call #1 (Planning + Dialogue merged).\", \"properties\": {\"reasoning\": {\"title\": \"Reasoning\", \"type\": \"string\"}, \"strategy\": {\"title\": \"Strategy\", \"type\": \"string\"}, \"dialogue\": {\"description\": \"first-pass line, used directly on the no-action fast path\", \"title\": \"Dialogue\", \"type\": \"string\"}, \"action\": {\"anyOf\": [{\"$ref\": \"#/$defs/ProposedAction\"}, {\"type\": \"null\"}], \"default\": null}, \"matched_option_id\": {\"anyOf\": [{\"type\": \"string\"}, {\"type\": \"null\"}], \"default\": null, \"description\": \"which of the current event's options the player's words amount to, or null if none. Rides on this existing call rather than costing a second one (docs/13 §3, the same trick docs/03 §5 uses for player_intent_tag).\\n\\nThis is classification, not decision: the option's outcome and its consequences are authored, so all the model contributes is 'these words mean that'. Were it choosing the outcome it would be choosing what gets unlocked, and docs/04 §3.3 lets no actor do that.\\n\\nIt is also what keeps free input worth using: typing resolves through the same check as clicking, so prose is not strictly worse than a button (docs/15 §1.1).\", \"title\": \"Matched Option Id\"}}, \"required\": [\"reasoning\", \"strategy\", \"dialogue\"], \"title\": \"PlanningOutput\", \"type\": \"object\"}"
+        }
+      ],
+      "temperature": 0,
+      "response_format": {
+        "type": "json_object"
+      },
+      "tools": [
+        {
+          "type": "function",
+          "function": {
+            "name": "query_relationship",
+            "description": "Look up how you currently feel about someone: trust, fear and respect, each roughly -100 to 100.",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "target_id": {
+                  "description": "character id to look up, e.g. the player's id",
+                  "title": "Target Id",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "target_id"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "query_memory",
+            "description": "Search your own memories for something you personally experienced or believe. May include things only you know.",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "query": {
+                  "description": "what to recall, in natural language",
+                  "title": "Query",
+                  "type": "string"
+                },
+                "top_k": {
+                  "default": 3,
+                  "maximum": 10,
+                  "minimum": 1,
+                  "title": "Top K",
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "query"
+              ],
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "function",
+          "function": {
+            "name": "check_public_fact",
+            "description": "Check a fact that is common knowledge in the village. Returns known=false for anything not yet public — including secrets you may personally know, which you should recall with query_memory instead.",
+            "parameters": {
+              "additionalProperties": false,
+              "properties": {
+                "fact_id": {
+                  "description": "id of a fact that is public knowledge in the village",
+                  "title": "Fact Id",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "fact_id"
+              ],
+              "type": "object"
+            }
+          }
+        }
+      ],
+      "max_tokens": 600
+    },
+    "model": null,
+    "usage": null,
+    "status": null,
+    "error_type": "ConnectError",
+    "reserved_tokens": 10542,
+    "latency_ms": 13.921
+  }
+]

@@ -1,0 +1,25 @@
+﻿ M README.md
+ M docs/08_Evaluation.md
+ M docs/09_Reference_Scenario.md
+ M docs/16_Guided_Playthrough.md
+ M evals/OVERVIEW.md
+ M evals/README.md
+ M src/ai_native_rpg/agent/expression.py
+ M src/ai_native_rpg/agent/harness.py
+?? evals/TOOL_TASKS.md
+?? evals/answer_evidence.json
+?? evals/reports/2026-09-18-answer-evidence/
+?? evals/reports/2026-09-18-demo-acceptance/
+?? evals/reports/2026-09-18-tools/
+?? evals/tool_tasks.json
+?? prompts/npc_rewrite_evidence.txt
+?? scripts/demo_acceptance.py
+?? scripts/eval_answer_evidence.py
+?? scripts/eval_tools.py
+?? scripts/summarize_answer_evidence.py
+?? scripts/summarize_tools.py
+?? src/ai_native_rpg/tool_evaluation.py
+?? tests/test_answer_evidence_evaluation.py
+?? tests/test_grounded_rewrite.py
+?? tests/test_tool_evaluation.py
+?? tests/test_tool_summary.py

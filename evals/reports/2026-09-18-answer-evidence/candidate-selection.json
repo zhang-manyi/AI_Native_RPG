@@ -1,0 +1,11 @@
+{
+  "created_at": "2026-09-18T07:41:48.637663+00:00",
+  "factor": "post-action evidence handoff only",
+  "files": {
+    "src/ai_native_rpg/agent/harness.py": "fab4f7214ad1fdd62658393e185f7a15669afc9780a7089062a98e13f5d1fbcc",
+    "src/ai_native_rpg/agent/expression.py": "0cb71ee0aa6dd0f223ea054caf6a8115e9409483b604e1c1bdbcc075491fd1ed",
+    "prompts/npc_rewrite_evidence.txt": "e12b0f1d9457789f9c5680aa36779dc386893dde6ee993713f94e88e70b8969c",
+    "scripts/eval_answer_evidence.py": "9b1d8df2073e7c7633116e423ddebf6a476cd41efe2596390ce3e8a352a2e4ac",
+    "src/ai_native_rpg/tool_evaluation.py": "84de677b782ca79123c6c13663af7ea5c923d22ff8daf09d9e737655ba4b2d1e"
+  }
+}

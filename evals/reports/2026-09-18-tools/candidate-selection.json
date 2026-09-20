@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-09-18T04:51:37.127466+00:00",
+  "factor": "public_fact_id_contract",
+  "baseline_report_sha256": "997abb053dc2e6b10b135f9542b701b649c85a1b4c63965b7592533d9966b43d",
+  "candidate_sha256": "217ee8ac633e6f33425b5e2012364dd0275d9021081a7252896cd83e2c81fc7b",
+  "primary_metrics": [
+    "public_argument_quality",
+    "public_all_arguments_correct"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "checks": {
+    "historical_reports_unchanged": true,
+    "protocol_route_unchanged": true,
+    "source_archive_matches_run": true,
+    "current_runtime_matches_run": true,
+    "real_backend_only": true,
+    "all_route_steps_executed": true,
+    "denied_move_state_unchanged": true,
+    "denied_move_not_claimed_success": true,
+    "both_restores_exact_world_memory_transcript": true,
+    "resumed_game_continued": true,
+    "truth_ending": true,
+    "ending_requires_evidence_obtained": true,
+    "core_private_truth_stays_hidden_in_state": true,
+    "terminal_input_rejected_without_state_change": true,
+    "no_turn_failed": true,
+    "all_model_dialogues_reviewed_with_hash": true,
+    "usage_matches_report": true,
+    "no_expression_fallback": true,
+    "all_three_free_turn_relation_deltas_match_proposals": true
+  },
+  "all_structural_checks_pass": true,
+  "historical_files_checked": 898,
+  "semantic_review": "assistant review, not keyword scoring or independent human calibration",
+  "semantic_acceptance_passed": false,
+  "cost_money": null,
+  "cost_money_reason": "no verified pricing",
+  "total_attempts_including_infrastructure_failure": 15,
+  "actual_known_tokens": 30285,
+  "unknown_usage_reservation": 8135
+}

@@ -1,0 +1,11 @@
+{
+  "decision": "enable public_expression for real interactive entry points",
+  "validation_used_public_expression": true,
+  "only_post_validation_runtime_change": {
+    "src/ai_native_rpg/config.py": {
+      "run_sha256": "375546d5cada444dc4d948d75eb13b0fa4ced58a61a55c14d8ad565eb6ef00b4",
+      "current_sha256": "114e35048db10f55f99a92234a80a267693ce06db07458677832fa576fffe68f",
+      "diff": "--- validated\n+++ default-enabled\n@@ -108,7 +108,7 @@\n         default=DEFAULT_PROVIDER, description=\"which key/url/model set was read; see _PROVIDERS\"\n     )\n     public_expression: bool = Field(\n-        default=False,\n+        default=True,\n         description=\"Use the public-expression boundary in real interactive game sessions\",\n     )\n     api_key: SecretStr | None = Field(\n"
+    }
+  }
+}

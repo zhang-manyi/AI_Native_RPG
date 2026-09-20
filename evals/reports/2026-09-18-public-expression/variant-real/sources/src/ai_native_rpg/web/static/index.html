@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Native RPG — 开发者界面</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <!-- No build step (docs/12 §8): one module, no bundler. The server sends whole
+         snapshots, so the page re-renders from the last event rather than keeping a
+         mirror of state it would have to reconcile. -->
+    <div id="app">
+      <main id="stage">
+        <header class="topbar">
+          <h1 id="title">AI Native RPG</h1>
+          <div class="meta" id="backend-meta"></div>
+          <div class="day-progress" id="day-progress" aria-label="今日调查进度" hidden>
+            <span class="day-progress-label" id="day-progress-label"></span>
+            <div class="day-progress-track" id="day-progress-track"></div>
+          </div>
+          <button
+            class="panel-toggle"
+            id="panel-toggle"
+            aria-expanded="false"
+            aria-controls="panel"
+            hidden
+          >
+            开发者面板
+          </button>
+        </header>
+
+        <section id="scene" aria-label="场景">
+          <div class="place">
+            <!-- Day and slot: player-side, from VisibleState. The clock is a cost the
+                 player has to be able to see (docs/13 §4.1). The *budget* (3 / 12) is
+                 deliberately not here — docs/12 §13.1 puts that on the panel. -->
+            <p class="when" id="when"></p>
+            <!-- Marked as where the player *is*: the "出发去" row below lists other place
+                 names, and two bare names on screen read as being in both. -->
+            <h2 id="place-name"><span class="here-mark" aria-hidden="true">◈</span><span id="place-label"></span></h2>
+            <p id="place-desc"></p>
+          </div>
+
+          <!-- aria-live: the NPC's line arrives asynchronously, so a screen reader
+               has to be told about it rather than discovering it on a later focus. -->
+          <div class="cast" id="cast" aria-live="polite" aria-atomic="false"></div>
+          <section id="ending" class="ending" aria-live="polite" hidden>
+            <h2 id="ending-title"></h2>
+            <p id="ending-text"></p>
+          </section>
+
+          <div class="notes" id="notes" hidden>
+            <span class="label">已知</span>
+            <div class="chips"></div>
+          </div>
+
+          <!-- Where the player may go. Every entry comes from the projection; the page
+               never works out reachability itself, and a refused move is explained by
+               the Validator's own words (docs/12 §13.2). -->
+          <nav class="ways" id="ways" aria-label="可去的地点" hidden>
+            <!-- "去" rather than "去哪": the place name above is where the player *is*, and
+                 these are places he could walk to. Two bare place names side by side read
+                 as being in both at once. -->
+            <span class="label">出发去</span>
+            <div class="chips" id="ways-list"></div>
+          </nav>
+
+          <!-- The dialogue box plus "做出结论" beside it: the button is the player's own
+               initiative, not something any NPC offers, so it stays visually apart from
+               the dialogue rather than inside it. -->
+          <div class="dialogue-row">
+            <!-- One dialogue box for every speaker, pinned to the bottom of the scene. The
+                 name is what distinguishes the voices, so the player's own lines are as
+                 legible as the NPC's — a per-speaker bubble made his line an aside by
+                 comparison. aria-live because lines arrive asynchronously.
+
+                 Clickable: advancing is the primary interaction, so the box itself is the
+                 button rather than a separate one to hunt for. -->
+            <div
+              class="dialogue"
+              id="dialogue"
+              role="button"
+              tabindex="0"
+              aria-live="polite"
+              aria-label="对话，点击或按空格继续"
+              hidden
+            >
+              <p class="dialogue-name" id="dialogue-name"></p>
+              <p class="dialogue-text" id="dialogue-text"></p>
+              <!-- Shown only when a line is waiting to be advanced, so it reads as "your
+                   move" rather than as decoration. -->
+              <span class="advance" id="advance" aria-hidden="true" hidden>▼</span>
+            </div>
+
+          </div>
+
+          <!-- The transcript is kept but not shown: on screen the player sees only what is
+               being said right now, and the record is one button away. -->
+          <div class="log-bar">
+            <button
+              type="button"
+              class="log-toggle"
+              id="log-toggle"
+              aria-expanded="false"
+              aria-controls="history"
+            >
+              对话记录
+            </button>
+          </div>
+
+          <div class="history" id="history" aria-label="对话记录" hidden></div>
+        </section>
+
+        <!-- The day's wrap-up (docs/12 §13.3). A different interface form, not a dressed
+             up scene: no NPC, no sprite, no composer. It replaces the scene rather than
+             covering it, because the day is genuinely over. -->
+        <section id="wrapup" aria-label="一天的收束" hidden>
+          <header class="wrap-head">
+            <p class="when" id="wrap-day"></p>
+            <h2 id="wrap-title">今日调查回顾</h2>
+            <p id="wrap-introduction" role="status"></p>
+          </header>
+
+          <div class="wrap-body">
+            <div class="wrap-block"><h3>今天的新收获</h3><ul id="wrap-discovered"></ul></div>
+            <div class="wrap-block"><h3>今天的人际变化</h3><ul id="wrap-relationships"></ul></div>
+            <div class="wrap-block">
+              <h3>已经知道的</h3>
+              <div class="chips" id="wrap-known"></div>
+            </div>
+
+            <!-- Questions the player could have asked himself. Rendered as written: the
+                 page must not add "该去哪查", which would be the system reasoning for him. -->
+            <div class="wrap-block" id="wrap-open-block">
+              <h3>还没有答案的</h3>
+              <ul id="wrap-open"></ul>
+            </div>
+
+
+          </div>
+
+          <button type="button" id="wrap-close" class="wrap-next">睡下，等天亮</button>
+        </section>
+
+        <div class="conclude-control">
+          <button type="button" id="conclude" class="conclude-button" disabled aria-describedby="conclude-reason">整理调查报告</button>
+          <span id="conclude-reason" class="why"></span>
+        </div>
+        <p class="status" id="status" role="status" aria-live="polite"></p>
+        <div class="feedback-toast" id="feedback-toast" role="status" aria-live="polite" hidden></div>
+
+        <!-- Tagged options (docs/12 §13.7, docs/15 §1). Shares one visibility rule with
+             the composer below it — both are the player's voice, and docs/15 §1.1 makes
+             typing and clicking equivalent, so they appear and disappear together rather
+             than one being a side panel and the other a full-width bar. Rendered only
+             once any queued scripted line has actually been said: an option offered
+             before the line it follows has been read would be answering a question the
+             player has not been asked yet. Empty means removed from the DOM — an option
+             appearing is itself the signal that this moment matters. -->
+        <div class="options" id="options" hidden></div>
+
+        <!-- Hidden by default, same rule as `.options` above: it appears only when it is
+             actually the player's move — not while a queued scripted line is still being
+             read, not mid-turn. `renderComposerVisibility()` in app.js owns showing both. -->
+        <form class="composer" id="composer" hidden>
+          <label class="sr-only" for="say">对 NPC 说的话</label>
+          <input
+            id="say"
+            name="say"
+            type="text"
+            autocomplete="off"
+            placeholder="你想说什么……"
+            disabled
+          />
+          <!-- An icon rather than a word: the label would otherwise need translating
+               per pack language, and the pack already decides what language the story
+               is in. The accessible name is carried by aria-label + sr-only text. -->
+          <button type="submit" id="send" class="send" aria-label="发送" title="发送 (Enter)" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path
+                d="M4 12 L20 12 M14 6 L20 12 L14 18"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <span class="sr-only">发送</span>
+          </button>
+        </form>
+
+        <!-- Opening frame: assembled from public state only, so it cannot spoil a
+             hidden clue (docs/12 §4.2). -->
+        <div class="overlay" id="intro" hidden>
+          <div class="card">
+            <h2 id="intro-title"></h2>
+            <p id="intro-premise"></p>
+            <p class="goal" id="intro-goal"></p>
+            <button type="button" id="intro-start">开始</button>
+          </div>
+        </div>
+      </main>
+
+      <aside id="panel" aria-label="开发者面板" hidden>
+        <div class="panel-resizer" id="panel-resizer" role="separator" aria-orientation="vertical" aria-label="拖动调整开发者面板宽度" tabindex="0"></div>
+        <div class="panel-head">
+          <h2>叙事状态</h2>
+          <span class="turn-badge" id="panel-turn"></span>
+          <button type="button" class="panel-view-toggle" id="panel-view-toggle" aria-pressed="false" title="切换参数表盘">◉ 表盘</button>
+        </div>
+        <div class="panel-body" id="panel-body"></div>
+      </aside>
+    </div>
+
+    <script type="module" src="/static/app.js"></script>
+  </body>
+</html>

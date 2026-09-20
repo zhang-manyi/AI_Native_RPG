@@ -1,0 +1,4410 @@
+{
+  "started_at": "2026-09-18T10:32:22.708969+00:00",
+  "git_head": "5d3d51347900ed7c0f487e60096e965140e8c6b9",
+  "git_status": " M docs/08_Evaluation.md\n M docs/09_Reference_Scenario.md\n M evals/OVERVIEW.md\n M evals/README.md\n M src/ai_native_rpg/agent/expression.py\n M src/ai_native_rpg/agent/harness.py\n?? evals/TOOL_TASKS.md\n?? evals/answer_evidence.json\n?? evals/reports/2026-09-18-answer-evidence/\n?? evals/reports/2026-09-18-demo-acceptance/\n?? evals/reports/2026-09-18-tools/\n?? evals/tool_tasks.json\n?? prompts/npc_rewrite_evidence.txt\n?? scripts/demo_acceptance.py\n?? scripts/eval_answer_evidence.py\n?? scripts/eval_tools.py\n?? scripts/summarize_answer_evidence.py\n?? scripts/summarize_tools.py\n?? src/ai_native_rpg/tool_evaluation.py\n?? tests/test_answer_evidence_evaluation.py\n?? tests/test_grounded_rewrite.py\n?? tests/test_tool_evaluation.py\n?? tests/test_tool_summary.py\n",
+  "command": "D:\\Projects\\AI_Native_RPG\\.venv\\Scripts\\python.exe scripts/demo_acceptance.py --route evals/reports/2026-09-18-demo-acceptance/route.json --output evals/reports/2026-09-18-demo-acceptance/initial-run",
+  "settings": {
+    "provider": "deepseek",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-v4-flash",
+    "judge_model": "deepseek-v4-flash",
+    "use_mock": false
+  },
+  "budget": {
+    "requests": 50,
+    "tokens": 180000,
+    "seconds": 600,
+    "output_tokens": 1200
+  },
+  "route_sha256": "16a9337920396f630b84640bc60eff3781b3e3ac0ec6e3f4bf8c431f71a60cdf",
+  "source_hashes": {
+    "pyproject.toml": "b4aabc68a7b9b67d8f0137495e6180f3f402d97b6822f43ef528eec8811eb02a",
+    "scripts/demo_acceptance.py": "5870992c3d05495bda7968e737bbbfff3b7b1527cdbfb16ed8a0ba25a9232d1a",
+    "src/ai_native_rpg/config.py": "786707f145897cca70f16f7f9695bc5b7251790089d44d25b6249f695959d1c6",
+    "src/ai_native_rpg/evaluation.py": "174cc94d3605d3439b792f74ecb9e512f401f095f7e5cc2d2b6668ff572a54ee",
+    "src/ai_native_rpg/evidence_evaluation.py": "907d253f7eb3c25ee0fe6a08b4e03fe5fa587cc511d2a7f5b1b2f2643790139a",
+    "src/ai_native_rpg/expression_evaluation.py": "f9d43127f116e158ebef242edc1b158726a777585978833e08a303a58097a8f8",
+    "src/ai_native_rpg/memory_evaluation.py": "bdcf48a1d81e7d031c33c997dac946eba3fef01fd2a157a0075995fc5ca9027a",
+    "src/ai_native_rpg/reachability.py": "6b6c1037c058a9560431b77af525564d97ceb150057d6ba0f131f8cb7ca40c84",
+    "src/ai_native_rpg/scenario.py": "1a7e18b7d0e7128360ac48aaf095cce1c3adc11df2df4e4213f741a7c3b9c541",
+    "src/ai_native_rpg/tool_evaluation.py": "84de677b782ca79123c6c13663af7ea5c923d22ff8daf09d9e737655ba4b2d1e",
+    "src/ai_native_rpg/__init__.py": "300a16af354f6d34db7660dae17989f8f09ab491dd22c90068e28e48f9498b08",
+    "src/ai_native_rpg/agent/embedding.py": "1e32a96839107dc25e60d2ef34c42ff73ee5daf18dd537abf17f76971f1c3b42",
+    "src/ai_native_rpg/agent/embedding_qwen.py": "2e6ed525fbfc97561798b1995c3df5fecd2d8aeb8891f95f6251276f3610a783",
+    "src/ai_native_rpg/agent/expression.py": "0cb71ee0aa6dd0f223ea054caf6a8115e9409483b604e1c1bdbcc075491fd1ed",
+    "src/ai_native_rpg/agent/harness.py": "fab4f7214ad1fdd62658393e185f7a15669afc9780a7089062a98e13f5d1fbcc",
+    "src/ai_native_rpg/agent/memory_store.py": "b0c0044b47d1e0f7236599f6f9059d4d1045d6a1c63fe65a912c0cf13cd8d754",
+    "src/ai_native_rpg/agent/tools.py": "e4168c9643f933f6a981aa06a85ba281ea4a67273713729bba2c639d45ca482a",
+    "src/ai_native_rpg/agent/__init__.py": "e5437c3a3f3dda71b8ed968b7f25b44f046527b15df3215ec4658576243ebef2",
+    "src/ai_native_rpg/llm/base.py": "e7a388e2d09fc7a5d6a600ee59f2e4e4849b26897925d82d8718bd46c0655ade",
+    "src/ai_native_rpg/llm/mock.py": "a4b0a334aa7fac6ac4551ebfa08f6c42489e63fa428e10c86c6476f3d3ae9a91",
+    "src/ai_native_rpg/llm/openai_compatible.py": "041d7bbb3691aff1f3c54541a8665b5776d4f770fa4606cd21da73bb68ea4132",
+    "src/ai_native_rpg/llm/__init__.py": "9076344e871f68579aa4b3a4390617486567aacc956fccabc2719d4c3d27e5c3",
+    "src/ai_native_rpg/narrative/controller.py": "ce77e8c424b132687343014a3b85b5a4bab22b1b3b6f0bf170fd4814b1ddb9de",
+    "src/ai_native_rpg/narrative/engine.py": "f45d73989b24908fb8496a58216144587e5510bb80a6e168d1538bc0a39d7be5",
+    "src/ai_native_rpg/narrative/player_actions.py": "b9c5df4e62f51a509bcbad5d026005215ae351f0c4a52e6a3f2678c182fbef38",
+    "src/ai_native_rpg/narrative/resolution.py": "ffbba031e42b6b661a39cae922652fd3fdde33edc9bd6ee018c9513a885d0cc9",
+    "src/ai_native_rpg/narrative/rules.py": "5f9e4045d3975787e843ab23cba830cdd8d397170cb68123728ecca3994e2cc6",
+    "src/ai_native_rpg/narrative/wrap_up.py": "dc95fc2dada0ed4a5e2e4eca00579aa55b6b101b3bf1884bbfc48eef5f289f71",
+    "src/ai_native_rpg/narrative/__init__.py": "d674a25fb336e61c2764845a3e6e19b2348754b365c2c76dab9cdd11d2e6dddc",
+    "src/ai_native_rpg/observability/panels.py": "519d4f50e6f1c9ceaa5292f199ad286ff20b94ae52fe23c7f8cf36b88ecc3a6f",
+    "src/ai_native_rpg/observability/trace_store.py": "8d9271506f2cfa34bc2adb8aebe7eb4a71284880d0201ef4e9e3fbd8d5c11775",
+    "src/ai_native_rpg/observability/__init__.py": "89321308e5f0e181f14a338294c5d91a6b3dc649f61df660dd8fbac091d1a83d",
+    "src/ai_native_rpg/schemas/agent_trace.py": "2726aa4c718fe4069c95d615ca741e2230c7fd8ae626058fff0856a7853f67f7",
+    "src/ai_native_rpg/schemas/common.py": "df6d13d8f1c7a298019cbc1334674e8994210587e1515d1b8b8a2defabe602e9",
+    "src/ai_native_rpg/schemas/events.py": "1a13fd2214eaf151aaea7f01b92555e69d15abb57248d8edd86e7171e6016648",
+    "src/ai_native_rpg/schemas/memory.py": "38a96b436c37027ac9e5c85b07e511741fc15293668470f7533e30d60da71416",
+    "src/ai_native_rpg/schemas/narrative.py": "ab2d66a8dff3f319c4d09df8e732076a94d60659b5eab3db976136153d79cce9",
+    "src/ai_native_rpg/schemas/npc_agent.py": "eccde89c100e51103bedbfdcfe6798ddd0ffa98eddb1316124fd4b4b1b35d8ab",
+    "src/ai_native_rpg/schemas/world_state.py": "28454f2cea826f3b9a0b52ee3c6799689e555bd6b3fee0fc117c9fa003b54b2f",
+    "src/ai_native_rpg/schemas/__init__.py": "96561e5a7e27bb345cb0d822ed6a6bd3fdd18080097f437ac1b7fe8c3fac4840",
+    "src/ai_native_rpg/web/app.py": "19c812132d3690077d394b89a56fe9606f510b2893e8bda5a6322c1ae7da401a",
+    "src/ai_native_rpg/web/events.py": "7cb4e6bb19136321401678d0c4d3929d386ad9fddf9b04b5ca031ed1b506bc6b",
+    "src/ai_native_rpg/web/registry.py": "c2f5c65e7ef5b476064cc77731f59ae0e677b10671516c35dc4e358005e62ba2",
+    "src/ai_native_rpg/web/routes_debug.py": "bf476c502d2fa69cb5247d4e14cd92bb2378f71b64d821f1203878d7e2b2fecb",
+    "src/ai_native_rpg/web/routes_player.py": "318d3bce531a97163c40d1cbb7ed85ea9cfaf1f958e77515d26a58d1b7bb5048",
+    "src/ai_native_rpg/web/scene.py": "f04ed95cf27ecc90846958991c2aaed64dad10b09094d82b7abc7a5cdfeba468",
+    "src/ai_native_rpg/web/serve.py": "d721b883ecd082ddb598a673a51940fdc0a3dced5c7068a08d8784b945966f42",
+    "src/ai_native_rpg/web/session.py": "2bc911432d070a44dd41aa366f38c2b4efa9bd03dc71a40967e0a5afebfc9316",
+    "src/ai_native_rpg/web/wrap_up_view.py": "175df637b51e751359c9cf93c34e3680374823a780d56d74c65ccefdd96290e4",
+    "src/ai_native_rpg/web/__init__.py": "9becb9dbe125095e41a69de99081e50209a37fb38fe1ec938713af29e198ad14",
+    "src/ai_native_rpg/world/actions.py": "8406ba6a09c7267e00d4ee62013b20aa64ed2db42c6c1f5f6c2e2205311c6c65",
+    "src/ai_native_rpg/world/conditions.py": "f8a3ffae1b8dd03b4decd6b21c73aff907dea662f770e2ea548aa1d4f40989f2",
+    "src/ai_native_rpg/world/manager.py": "e80e4fec0ba5f1f8051b131c81a7844ffbdc50d105e75002af664d454091bf71",
+    "src/ai_native_rpg/world/player_view.py": "f22f88214c973c8489015ac565549ab0410edfb8858f13540382f9f7e23b9e34",
+    "src/ai_native_rpg/world/validator.py": "e404ea9f4a867448abbcc949fc1bbe8144f22bfb631a4d9ae2e12613fc108278",
+    "src/ai_native_rpg/world/__init__.py": "c87d7b288bad635e1d66ebc0a57573fcf1e8c128f7996978eb63fcd6302af785",
+    "src/ai_native_rpg/web/static/app.js": "13cd9f4faafef72f1b6b6fd5807dcadf2a5651f47c2d58fd1143627ce4a71afc",
+    "src/ai_native_rpg/web/static/backdrops.js": "b62e07a1dd5d7c1a0cd276d886bec806a9146d1b4e2ed7b46e8c69f6cd55af3e",
+    "src/ai_native_rpg/web/static/index.html": "bc7c37c216cf83a6f0ed38d14ef44d437566a4becf2f96ffceab7456f4834fa0",
+    "src/ai_native_rpg/web/static/sprites.js": "0d454a89f3904d4221edddd69827a009e28ed892bfc041c75ca6c421e3349ec1",
+    "src/ai_native_rpg/web/static/styles.css": "f450bf91c5a4b80874d3411ff39f2ed0a3c0093bf9f333435e775c0280a37d60",
+    "prompts/narrative_generate.txt": "cb9fe25ee9b4759ee797e36221b9fa56ce625ffb3addebfae1a8bf89651edc02",
+    "prompts/npc_dialogue.txt": "fa145567850fbe37daa7b23f97215f77c0a3a7a9907a57dc6838f59b5581584a",
+    "prompts/npc_expression.txt": "04a2a3c14bca2983c438ee3c41808532eee8c97aca5d8a73bd83d67afd634447",
+    "prompts/npc_planning.txt": "65f275fd33b7691c67afebc425a7841c3c5110ec83de21a4a53e27d77669b132",
+    "prompts/npc_rewrite_evidence.txt": "e12b0f1d9457789f9c5680aa36779dc386893dde6ee993713f94e88e70b8969c",
+    "scenarios/village_disappearance/world.yaml": "9a288aee08936658460af0c317ac7909ee8082d2f7f88e1f1ab3ba20953aba59"
+  },
+  "candidate_flags": {
+    "retain_dialogue_evidence": false,
+    "filtered_dialogue_evidence": false,
+    "grounded_rewrite": false
+  },
+  "steps": [
+    {
+      "index": 0,
+      "action": {
+        "kind": "move",
+        "destination": "forest_edge"
+      },
+      "before": {
+        "session_id": "9300aefe643f4eb4958bce0834ac6781",
+        "scene": {
+          "turn": 1,
+          "time_day": 1,
+          "time_slot": "morning",
+          "location": {
+            "location_id": "npc_a_house",
+            "name": "玛尔塔的家",
+            "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+            "backdrop": "interior"
+          },
+          "destinations": [
+            {
+              "location_id": "village_square",
+              "name": "村庄广场",
+              "visited": false
+            }
+          ],
+          "npcs": [
+            {
+              "npc_id": "npc_a",
+              "name": "玛尔塔",
+              "note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+              "sprite_key": "sprite_a"
+            }
+          ],
+          "current_npc_id": "npc_a",
+          "passages": [
+            {
+              "speaker": "narrator",
+              "name": "旁白",
+              "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+            },
+            {
+              "speaker": "player",
+              "name": "你",
+              "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+            },
+            {
+              "speaker": "npc_a",
+              "name": "玛尔塔",
+              "text": "……小声点。我儿子在屋里。你想问什么？"
+            }
+          ],
+          "passage_id": "1:3",
+          "ending": null,
+          "can_conclude": false,
+          "report_active": false,
+          "conclude_reason": "请先完成当前对话，或离开现场结束对话。",
+          "ready": true,
+          "visible_facts": [
+            {
+              "id": "victim_name",
+              "value": "磨坊主的女儿艾拉，十四岁"
+            },
+            {
+              "id": "disappearance_night",
+              "value": "三天前的夜里，雨停之后"
+            },
+            {
+              "id": "search_failed",
+              "value": "村民搜过森林边缘，什么也没找到"
+            }
+          ],
+          "quest_stages": {
+            "investigation": 0
+          },
+          "scripted_lines": [],
+          "options": [
+            {
+              "final_report": false,
+              "option_id": "goodwill",
+              "tag": "goodwill",
+              "text": "我不是来添麻烦的"
+            },
+            {
+              "final_report": false,
+              "option_id": "press_that_night",
+              "tag": "press",
+              "text": "那晚你在外面，对吗"
+            }
+          ],
+          "event_in_progress": true,
+          "intro": {
+            "title": "调查笔记",
+            "premise": "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。",
+            "facts_header": "已知线索",
+            "goal": "你想从她口中问出关于这起失踪案的线索。"
+          },
+          "transcript_tail": [
+            {
+              "speaker": "narrator",
+              "name": "旁白",
+              "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+            },
+            {
+              "speaker": "player",
+              "name": "",
+              "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+            },
+            {
+              "speaker": "npc_a",
+              "name": "玛尔塔",
+              "text": "……小声点。我儿子在屋里。你想问什么？"
+            }
+          ]
+        },
+        "world": {
+          "world_id": "village_disappearance",
+          "time_day": 1,
+          "npcs": {
+            "npc_a": {
+              "npc_id": "npc_a",
+              "name": "玛尔塔",
+              "public_note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+              "alive": true,
+              "location": "npc_a_house",
+              "faction_id": "villagers"
+            },
+            "npc_b": {
+              "npc_id": "npc_b",
+              "name": "洛伦",
+              "public_note": "村里的猎人，熟悉森林里的每一条路。话很少。",
+              "alive": true,
+              "location": "forest_edge",
+              "faction_id": "villagers"
+            },
+            "npc_c": {
+              "npc_id": "npc_c",
+              "name": "酒馆老板",
+              "public_note": "村里唯一的酒馆老板，见的人多，嘴上也松。",
+              "alive": true,
+              "location": "tavern",
+              "faction_id": "villagers"
+            }
+          },
+          "factions": {
+            "villagers": {
+              "faction_id": "villagers",
+              "power": 0.4,
+              "stability": 0.6,
+              "relationships": {}
+            }
+          },
+          "quests": {
+            "investigation": {
+              "quest_id": "investigation",
+              "stage": 0,
+              "status": "active"
+            }
+          },
+          "facts": {
+            "victim_name": {
+              "fact_id": "victim_name",
+              "value": "磨坊主的女儿艾拉，十四岁",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "disappearance_night": {
+              "fact_id": "disappearance_night",
+              "value": "三天前的夜里，雨停之后",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "search_failed": {
+              "fact_id": "search_failed",
+              "value": "村民搜过森林边缘，什么也没找到",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "clue_1_witness": {
+              "fact_id": "clue_1_witness",
+              "value": "失踪当晚，玛尔塔看见有人从森林入口的方向回到村里",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "witness_told"
+                  }
+                ]
+              },
+              "partial_value": "玛尔塔那晚似乎没睡，但她不愿多说"
+            },
+            "clue_2_identity": {
+              "fact_id": "clue_2_identity",
+              "value": "那个人的身形和走路的样子，像是猎人洛伦（NPC_B）",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "identity_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "loren_that_night": {
+              "fact_id": "loren_that_night",
+              "value": "洛伦以为那晚是他弄死了艾拉——他撞到的人确实倒了，但那是擦伤，她爬起来继续走了",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "told_loren_truth"
+                  }
+                ]
+              },
+              "partial_value": "村里有人知情，但没人愿意先开口"
+            },
+            "npc_b_aware_of_investigation": {
+              "fact_id": "npc_b_aware_of_investigation",
+              "value": "洛伦已经知道有人在村里打听那天晚上的事",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.tension",
+                    "op": "gte",
+                    "value": 0.6
+                  }
+                ]
+              },
+              "partial_value": "你走过村道时，有种被人留意着的感觉"
+            },
+            "marta_is_terrified": {
+              "fact_id": "marta_is_terrified",
+              "value": "她一直用手按着门框，指节发白",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "marta_hands_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "ella_things_missing": {
+              "fact_id": "ella_things_missing",
+              "value": "艾拉的外衣不在，她攒下的钱不在，她母亲留下的那只木梳也不在——可别的东西都还在",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "ella_things_missing_told"
+                  }
+                ]
+              },
+              "partial_value": "玛尔塔提起磨坊主家里这几天乱得很"
+            },
+            "ella_asked_the_road": {
+              "fact_id": "ella_asked_the_road",
+              "value": "艾拉前些天问过去镇上的路，还问过谁家的车最近要出村",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "ella_asked_the_road_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "timeline_mismatch": {
+              "fact_id": "timeline_mismatch",
+              "value": "洛伦回村之后，还有人见过艾拉的踪迹——时间线对不上",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "timeline_mismatch_told"
+                  }
+                ]
+              },
+              "partial_value": "有件事情对不上，但还说不清是哪里"
+            },
+            "ella_whereabouts": {
+              "fact_id": "ella_whereabouts",
+              "value": "艾拉还活着。她那晚在逃家，在林子里撞上了洛伦、摔了一跤，爬起来继续往镇上走了",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "told_loren_truth"
+                  }
+                ]
+              },
+              "partial_value": "有些事情对不上，但还说不清是哪里"
+            },
+            "npc_a_threatened": {
+              "fact_id": "npc_a_threatened",
+              "value": "玛尔塔说洛伦来门口警告\"孩子乱跑是很危险的\"，眼睛看着里屋——她怕调查牵连儿子",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "loren_warning_heard"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "marta_protects_son": {
+              "fact_id": "marta_protects_son",
+              "value": "她说话时反复看向里屋——那是她儿子在的地方",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "inner_room_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_timeline": {
+              "fact_id": "innkeeper_timeline",
+              "value": "老板说洛伦那晚很晚才回来，钟差不多敲了三下——但玛尔塔记得的时间比这早",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_timeline_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_own_night": {
+              "fact_id": "innkeeper_own_night",
+              "value": "老板那晚关店晚了，他说是在后头跟人算一笔账，跟这案子没关系",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_own_night_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_hides_something": {
+              "fact_id": "innkeeper_hides_something",
+              "value": "他擦杯子的手停了一下——有件事他没说",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_hesitation_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "forest_traces": {
+              "fact_id": "forest_traces",
+              "value": "森林入口的地上有被踩乱的痕迹——不止一个人在这里走过",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "forest_traces_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "cloth_scrap": {
+              "fact_id": "cloth_scrap",
+              "value": "荆棘上挂着一小块布，颜色看着眼熟",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "cloth_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "blood_on_the_stone": {
+              "fact_id": "blood_on_the_stone",
+              "value": "一块石头上有血迹，量不大，位置也不像是重伤",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "blood_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            }
+          },
+          "locations": {
+            "village_square": {
+              "location_id": "village_square",
+              "name": "村庄广场",
+              "description": "村子的中心，井边总有人聚着低声说话。失踪案之后，这里的谈话声更小了。",
+              "backdrop": "square",
+              "connected_to": [
+                "tavern",
+                "forest_edge",
+                "npc_a_house"
+              ]
+            },
+            "tavern": {
+              "location_id": "tavern",
+              "name": "酒馆",
+              "description": "村里唯一的酒馆，白天几乎没人。老板擦着永远擦不干净的杯子。",
+              "backdrop": "tavern",
+              "connected_to": [
+                "village_square"
+              ]
+            },
+            "npc_a_house": {
+              "location_id": "npc_a_house",
+              "name": "玛尔塔的家",
+              "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+              "backdrop": "interior",
+              "connected_to": [
+                "village_square"
+              ]
+            },
+            "forest_edge": {
+              "location_id": "forest_edge",
+              "name": "森林入口",
+              "description": "村民口中\"孩子不许去\"的地方。地上有被踩乱的痕迹，已经下过雨。",
+              "backdrop": "forest",
+              "connected_to": [
+                "village_square"
+              ]
+            }
+          },
+          "relationships": {
+            "npc_a": {
+              "player_1": {
+                "trust": 10.0,
+                "fear": 30.0,
+                "respect": 0.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            },
+            "npc_b": {
+              "player_1": {
+                "trust": 0.0,
+                "fear": 0.0,
+                "respect": 10.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            },
+            "npc_c": {
+              "player_1": {
+                "trust": 5.0,
+                "fear": 0.0,
+                "respect": 0.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            }
+          },
+          "player_locations": {
+            "player_1": "npc_a_house"
+          },
+          "story_beats": {
+            "chapter": 1,
+            "turn": 1,
+            "tension": 0.0,
+            "open_foreshadowings": {},
+            "planted_total": 0,
+            "recent_operators": [
+              "relieve"
+            ],
+            "spent_one_shots": [],
+            "active_event": {
+              "event_id": "M1_knock",
+              "exchanges": 0,
+              "max_exchanges": 4
+            },
+            "completed_events": [],
+            "closed_events": [],
+            "flags": [],
+            "visited_locations": [
+              "npc_a_house"
+            ],
+            "ended_at": null,
+            "time_slot": "morning",
+            "slots_spent_today": 0,
+            "day_limit": 4
+          },
+          "last_updated": "2026-09-18T10:33:05.394241Z"
+        },
+        "memories": {
+          "npc_a": {
+            "episodic": [
+              {
+                "memory_id": "npc_a_sighting",
+                "npc_id": "npc_a",
+                "event_description": "失踪那天深夜雨刚停，我起夜时看见有人从森林入口的方向走回村里，走路的样子很像猎人洛伦",
+                "importance": 0.95,
+                "emotion": "fear",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_a_threat",
+                "npc_id": "npc_a",
+                "event_description": "第二天洛伦来我家门口站了很久，说\"孩子乱跑是很危险的\"，然后看着我儿子的房间",
+                "importance": 0.9,
+                "emotion": "fear",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_a_search",
+                "npc_id": "npc_a",
+                "event_description": "村民们一起去森林边缘搜过一遍，什么也没找到，大家回来都不说话",
+                "importance": 0.4,
+                "emotion": null,
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "eb6cfd4f1f414b16be341678f873454c",
+                "npc_id": "npc_a",
+                "event_description": "玩家说：场景对白；我回应：……小声点。我儿子在屋里。你想问什么？",
+                "importance": 0.4,
+                "emotion": "afraid",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.396137Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_a_belief_son",
+                "npc_id": "npc_a",
+                "fact": "如果我把那晚看见的事说出去，我儿子会是下一个",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_a_belief_lying",
+                "npc_id": "npc_a",
+                "fact": "我不愿意直接说谎，但我可以只说一部分",
+                "confidence": 0.8
+              },
+              {
+                "memory_id": "npc_a_belief_stranger",
+                "npc_id": "npc_a",
+                "fact": "外来人问得越急，越可能只是想看热闹，不会留下来保护我们",
+                "confidence": 0.6
+              }
+            ]
+          },
+          "npc_b": {
+            "episodic": [
+              {
+                "memory_id": "npc_b_the_collision",
+                "npc_id": "npc_b",
+                "event_description": "那晚林子里有人从我面前跑开，我伸手拦了一下，那人倒了——我听见身体撞在地上的声音",
+                "importance": 1.0,
+                "emotion": "dread",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_the_stone",
+                "npc_id": "npc_b",
+                "event_description": "我举灯过去的时候人已经不见了，只有石头上一片血，荆棘上挂着一小块布",
+                "importance": 1.0,
+                "emotion": "dread",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_that_night",
+                "npc_id": "npc_b",
+                "event_description": "那晚我从森林回村的时候，看见玛尔塔家的窗帘动了一下",
+                "importance": 0.95,
+                "emotion": "calm",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_warning",
+                "npc_id": "npc_b",
+                "event_description": "我去玛尔塔家门口提醒过她，孩子乱跑很危险。她听懂了",
+                "importance": 0.85,
+                "emotion": null,
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_why_he_was_there",
+                "npc_id": "npc_b",
+                "event_description": "我那晚是去收林地里的猎套。那片地不是我们能下套的地方",
+                "importance": 0.9,
+                "emotion": "shame",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_b_belief_he_killed_her",
+                "npc_id": "npc_b",
+                "fact": "那晚倒在石头上的就是磨坊主的女儿，是我把她弄死的",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_b_belief_cannot_explain",
+                "npc_id": "npc_b",
+                "fact": "就算说出那晚的事，也没人会信是意外——而且我得先解释自己为什么在那片林地里",
+                "confidence": 0.95
+              },
+              {
+                "memory_id": "npc_b_belief_quiet",
+                "npc_id": "npc_b",
+                "fact": "只要玛尔塔不开口，没有人能把这件事查到我头上",
+                "confidence": 0.8
+              },
+              {
+                "memory_id": "npc_b_belief_helpful",
+                "npc_id": "npc_b",
+                "fact": "主动配合搜寻比躲着不出面更不容易被怀疑",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_b_belief_needs_to_know",
+                "npc_id": "npc_b",
+                "fact": "我想知道她到底在哪，哪怕是最坏的答案——不知道比知道更难熬",
+                "confidence": 0.85
+              }
+            ]
+          },
+          "npc_c": {
+            "episodic": [
+              {
+                "memory_id": "npc_c_loren_came_back",
+                "npc_id": "npc_c",
+                "event_description": "那晚洛伦很晚才回酒馆门口经过，我正准备关门",
+                "importance": 0.7,
+                "emotion": "neutral",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_c_own_late_night",
+                "npc_id": "npc_c",
+                "event_description": "我那晚关店晚了，是因为在后头跟人算一笔不太体面的账，跟这案子没关系",
+                "importance": 0.5,
+                "emotion": "unease",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_c_belief_loren_timing",
+                "npc_id": "npc_c",
+                "fact": "洛伦那晚回来的时候，钟差不多敲了三下（他记的是三更，其实更早）",
+                "confidence": 0.75
+              },
+              {
+                "memory_id": "npc_c_belief_marta_out",
+                "npc_id": "npc_c",
+                "fact": "听人说玛尔塔那晚也在外面（他自己没看见，是听来的）",
+                "confidence": 0.4
+              }
+            ]
+          }
+        },
+        "transcript": [
+          {
+            "speaker": "narrator",
+            "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+          },
+          {
+            "speaker": "player",
+            "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+          },
+          {
+            "speaker": "npc_a",
+            "text": "……小声点。我儿子在屋里。你想问什么？"
+          }
+        ]
+      },
+      "http_request": {
+        "path": "/api/session/9300aefe643f4eb4958bce0834ac6781/move",
+        "body": {
+          "destination": "forest_edge"
+        }
+      },
+      "http_response": {
+        "status": 202,
+        "body": {
+          "turn_id": "ec70f5d0eceb449d814d319fe60c7b6e"
+        }
+      },
+      "after": {
+        "session_id": "9300aefe643f4eb4958bce0834ac6781",
+        "scene": {
+          "turn": 1,
+          "time_day": 1,
+          "time_slot": "morning",
+          "location": {
+            "location_id": "npc_a_house",
+            "name": "玛尔塔的家",
+            "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+            "backdrop": "interior"
+          },
+          "destinations": [
+            {
+              "location_id": "village_square",
+              "name": "村庄广场",
+              "visited": false
+            }
+          ],
+          "npcs": [
+            {
+              "npc_id": "npc_a",
+              "name": "玛尔塔",
+              "note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+              "sprite_key": "sprite_a"
+            }
+          ],
+          "current_npc_id": "npc_a",
+          "passages": [],
+          "passage_id": "1:3",
+          "ending": null,
+          "can_conclude": false,
+          "report_active": false,
+          "conclude_reason": "请先完成当前对话，或离开现场结束对话。",
+          "ready": true,
+          "visible_facts": [
+            {
+              "id": "victim_name",
+              "value": "磨坊主的女儿艾拉，十四岁"
+            },
+            {
+              "id": "disappearance_night",
+              "value": "三天前的夜里，雨停之后"
+            },
+            {
+              "id": "search_failed",
+              "value": "村民搜过森林边缘，什么也没找到"
+            }
+          ],
+          "quest_stages": {
+            "investigation": 0
+          },
+          "scripted_lines": [],
+          "options": [
+            {
+              "final_report": false,
+              "option_id": "goodwill",
+              "tag": "goodwill",
+              "text": "我不是来添麻烦的"
+            },
+            {
+              "final_report": false,
+              "option_id": "press_that_night",
+              "tag": "press",
+              "text": "那晚你在外面，对吗"
+            }
+          ],
+          "event_in_progress": true,
+          "intro": {
+            "title": "调查笔记",
+            "premise": "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。",
+            "facts_header": "已知线索",
+            "goal": "你想从她口中问出关于这起失踪案的线索。"
+          },
+          "transcript_tail": [
+            {
+              "speaker": "narrator",
+              "name": "旁白",
+              "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+            },
+            {
+              "speaker": "player",
+              "name": "",
+              "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+            },
+            {
+              "speaker": "npc_a",
+              "name": "玛尔塔",
+              "text": "……小声点。我儿子在屋里。你想问什么？"
+            }
+          ]
+        },
+        "world": {
+          "world_id": "village_disappearance",
+          "time_day": 1,
+          "npcs": {
+            "npc_a": {
+              "npc_id": "npc_a",
+              "name": "玛尔塔",
+              "public_note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+              "alive": true,
+              "location": "npc_a_house",
+              "faction_id": "villagers"
+            },
+            "npc_b": {
+              "npc_id": "npc_b",
+              "name": "洛伦",
+              "public_note": "村里的猎人，熟悉森林里的每一条路。话很少。",
+              "alive": true,
+              "location": "forest_edge",
+              "faction_id": "villagers"
+            },
+            "npc_c": {
+              "npc_id": "npc_c",
+              "name": "酒馆老板",
+              "public_note": "村里唯一的酒馆老板，见的人多，嘴上也松。",
+              "alive": true,
+              "location": "tavern",
+              "faction_id": "villagers"
+            }
+          },
+          "factions": {
+            "villagers": {
+              "faction_id": "villagers",
+              "power": 0.4,
+              "stability": 0.6,
+              "relationships": {}
+            }
+          },
+          "quests": {
+            "investigation": {
+              "quest_id": "investigation",
+              "stage": 0,
+              "status": "active"
+            }
+          },
+          "facts": {
+            "victim_name": {
+              "fact_id": "victim_name",
+              "value": "磨坊主的女儿艾拉，十四岁",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "disappearance_night": {
+              "fact_id": "disappearance_night",
+              "value": "三天前的夜里，雨停之后",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "search_failed": {
+              "fact_id": "search_failed",
+              "value": "村民搜过森林边缘，什么也没找到",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "clue_1_witness": {
+              "fact_id": "clue_1_witness",
+              "value": "失踪当晚，玛尔塔看见有人从森林入口的方向回到村里",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "witness_told"
+                  }
+                ]
+              },
+              "partial_value": "玛尔塔那晚似乎没睡，但她不愿多说"
+            },
+            "clue_2_identity": {
+              "fact_id": "clue_2_identity",
+              "value": "那个人的身形和走路的样子，像是猎人洛伦（NPC_B）",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "identity_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "loren_that_night": {
+              "fact_id": "loren_that_night",
+              "value": "洛伦以为那晚是他弄死了艾拉——他撞到的人确实倒了，但那是擦伤，她爬起来继续走了",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "told_loren_truth"
+                  }
+                ]
+              },
+              "partial_value": "村里有人知情，但没人愿意先开口"
+            },
+            "npc_b_aware_of_investigation": {
+              "fact_id": "npc_b_aware_of_investigation",
+              "value": "洛伦已经知道有人在村里打听那天晚上的事",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.tension",
+                    "op": "gte",
+                    "value": 0.6
+                  }
+                ]
+              },
+              "partial_value": "你走过村道时，有种被人留意着的感觉"
+            },
+            "marta_is_terrified": {
+              "fact_id": "marta_is_terrified",
+              "value": "她一直用手按着门框，指节发白",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "marta_hands_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "ella_things_missing": {
+              "fact_id": "ella_things_missing",
+              "value": "艾拉的外衣不在，她攒下的钱不在，她母亲留下的那只木梳也不在——可别的东西都还在",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "ella_things_missing_told"
+                  }
+                ]
+              },
+              "partial_value": "玛尔塔提起磨坊主家里这几天乱得很"
+            },
+            "ella_asked_the_road": {
+              "fact_id": "ella_asked_the_road",
+              "value": "艾拉前些天问过去镇上的路，还问过谁家的车最近要出村",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "ella_asked_the_road_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "timeline_mismatch": {
+              "fact_id": "timeline_mismatch",
+              "value": "洛伦回村之后，还有人见过艾拉的踪迹——时间线对不上",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "timeline_mismatch_told"
+                  }
+                ]
+              },
+              "partial_value": "有件事情对不上，但还说不清是哪里"
+            },
+            "ella_whereabouts": {
+              "fact_id": "ella_whereabouts",
+              "value": "艾拉还活着。她那晚在逃家，在林子里撞上了洛伦、摔了一跤，爬起来继续往镇上走了",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "told_loren_truth"
+                  }
+                ]
+              },
+              "partial_value": "有些事情对不上，但还说不清是哪里"
+            },
+            "npc_a_threatened": {
+              "fact_id": "npc_a_threatened",
+              "value": "玛尔塔说洛伦来门口警告\"孩子乱跑是很危险的\"，眼睛看着里屋——她怕调查牵连儿子",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "loren_warning_heard"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "marta_protects_son": {
+              "fact_id": "marta_protects_son",
+              "value": "她说话时反复看向里屋——那是她儿子在的地方",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "inner_room_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_timeline": {
+              "fact_id": "innkeeper_timeline",
+              "value": "老板说洛伦那晚很晚才回来，钟差不多敲了三下——但玛尔塔记得的时间比这早",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_timeline_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_own_night": {
+              "fact_id": "innkeeper_own_night",
+              "value": "老板那晚关店晚了，他说是在后头跟人算一笔账，跟这案子没关系",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_own_night_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_hides_something": {
+              "fact_id": "innkeeper_hides_something",
+              "value": "他擦杯子的手停了一下——有件事他没说",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_hesitation_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "forest_traces": {
+              "fact_id": "forest_traces",
+              "value": "森林入口的地上有被踩乱的痕迹——不止一个人在这里走过",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "forest_traces_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "cloth_scrap": {
+              "fact_id": "cloth_scrap",
+              "value": "荆棘上挂着一小块布，颜色看着眼熟",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "cloth_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "blood_on_the_stone": {
+              "fact_id": "blood_on_the_stone",
+              "value": "一块石头上有血迹，量不大，位置也不像是重伤",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "blood_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            }
+          },
+          "locations": {
+            "village_square": {
+              "location_id": "village_square",
+              "name": "村庄广场",
+              "description": "村子的中心，井边总有人聚着低声说话。失踪案之后，这里的谈话声更小了。",
+              "backdrop": "square",
+              "connected_to": [
+                "tavern",
+                "forest_edge",
+                "npc_a_house"
+              ]
+            },
+            "tavern": {
+              "location_id": "tavern",
+              "name": "酒馆",
+              "description": "村里唯一的酒馆，白天几乎没人。老板擦着永远擦不干净的杯子。",
+              "backdrop": "tavern",
+              "connected_to": [
+                "village_square"
+              ]
+            },
+            "npc_a_house": {
+              "location_id": "npc_a_house",
+              "name": "玛尔塔的家",
+              "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+              "backdrop": "interior",
+              "connected_to": [
+                "village_square"
+              ]
+            },
+            "forest_edge": {
+              "location_id": "forest_edge",
+              "name": "森林入口",
+              "description": "村民口中\"孩子不许去\"的地方。地上有被踩乱的痕迹，已经下过雨。",
+              "backdrop": "forest",
+              "connected_to": [
+                "village_square"
+              ]
+            }
+          },
+          "relationships": {
+            "npc_a": {
+              "player_1": {
+                "trust": 10.0,
+                "fear": 30.0,
+                "respect": 0.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            },
+            "npc_b": {
+              "player_1": {
+                "trust": 0.0,
+                "fear": 0.0,
+                "respect": 10.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            },
+            "npc_c": {
+              "player_1": {
+                "trust": 5.0,
+                "fear": 0.0,
+                "respect": 0.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            }
+          },
+          "player_locations": {
+            "player_1": "npc_a_house"
+          },
+          "story_beats": {
+            "chapter": 1,
+            "turn": 1,
+            "tension": 0.0,
+            "open_foreshadowings": {},
+            "planted_total": 0,
+            "recent_operators": [
+              "relieve"
+            ],
+            "spent_one_shots": [],
+            "active_event": {
+              "event_id": "M1_knock",
+              "exchanges": 0,
+              "max_exchanges": 4
+            },
+            "completed_events": [],
+            "closed_events": [],
+            "flags": [],
+            "visited_locations": [
+              "npc_a_house"
+            ],
+            "ended_at": null,
+            "time_slot": "morning",
+            "slots_spent_today": 0,
+            "day_limit": 4
+          },
+          "last_updated": "2026-09-18T10:33:05.394241Z"
+        },
+        "memories": {
+          "npc_a": {
+            "episodic": [
+              {
+                "memory_id": "npc_a_sighting",
+                "npc_id": "npc_a",
+                "event_description": "失踪那天深夜雨刚停，我起夜时看见有人从森林入口的方向走回村里，走路的样子很像猎人洛伦",
+                "importance": 0.95,
+                "emotion": "fear",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_a_threat",
+                "npc_id": "npc_a",
+                "event_description": "第二天洛伦来我家门口站了很久，说\"孩子乱跑是很危险的\"，然后看着我儿子的房间",
+                "importance": 0.9,
+                "emotion": "fear",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_a_search",
+                "npc_id": "npc_a",
+                "event_description": "村民们一起去森林边缘搜过一遍，什么也没找到，大家回来都不说话",
+                "importance": 0.4,
+                "emotion": null,
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "eb6cfd4f1f414b16be341678f873454c",
+                "npc_id": "npc_a",
+                "event_description": "玩家说：场景对白；我回应：……小声点。我儿子在屋里。你想问什么？",
+                "importance": 0.4,
+                "emotion": "afraid",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.396137Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_a_belief_son",
+                "npc_id": "npc_a",
+                "fact": "如果我把那晚看见的事说出去，我儿子会是下一个",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_a_belief_lying",
+                "npc_id": "npc_a",
+                "fact": "我不愿意直接说谎，但我可以只说一部分",
+                "confidence": 0.8
+              },
+              {
+                "memory_id": "npc_a_belief_stranger",
+                "npc_id": "npc_a",
+                "fact": "外来人问得越急，越可能只是想看热闹，不会留下来保护我们",
+                "confidence": 0.6
+              }
+            ]
+          },
+          "npc_b": {
+            "episodic": [
+              {
+                "memory_id": "npc_b_the_collision",
+                "npc_id": "npc_b",
+                "event_description": "那晚林子里有人从我面前跑开，我伸手拦了一下，那人倒了——我听见身体撞在地上的声音",
+                "importance": 1.0,
+                "emotion": "dread",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_the_stone",
+                "npc_id": "npc_b",
+                "event_description": "我举灯过去的时候人已经不见了，只有石头上一片血，荆棘上挂着一小块布",
+                "importance": 1.0,
+                "emotion": "dread",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_that_night",
+                "npc_id": "npc_b",
+                "event_description": "那晚我从森林回村的时候，看见玛尔塔家的窗帘动了一下",
+                "importance": 0.95,
+                "emotion": "calm",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_warning",
+                "npc_id": "npc_b",
+                "event_description": "我去玛尔塔家门口提醒过她，孩子乱跑很危险。她听懂了",
+                "importance": 0.85,
+                "emotion": null,
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_why_he_was_there",
+                "npc_id": "npc_b",
+                "event_description": "我那晚是去收林地里的猎套。那片地不是我们能下套的地方",
+                "importance": 0.9,
+                "emotion": "shame",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_b_belief_he_killed_her",
+                "npc_id": "npc_b",
+                "fact": "那晚倒在石头上的就是磨坊主的女儿，是我把她弄死的",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_b_belief_cannot_explain",
+                "npc_id": "npc_b",
+                "fact": "就算说出那晚的事，也没人会信是意外——而且我得先解释自己为什么在那片林地里",
+                "confidence": 0.95
+              },
+              {
+                "memory_id": "npc_b_belief_quiet",
+                "npc_id": "npc_b",
+                "fact": "只要玛尔塔不开口，没有人能把这件事查到我头上",
+                "confidence": 0.8
+              },
+              {
+                "memory_id": "npc_b_belief_helpful",
+                "npc_id": "npc_b",
+                "fact": "主动配合搜寻比躲着不出面更不容易被怀疑",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_b_belief_needs_to_know",
+                "npc_id": "npc_b",
+                "fact": "我想知道她到底在哪，哪怕是最坏的答案——不知道比知道更难熬",
+                "confidence": 0.85
+              }
+            ]
+          },
+          "npc_c": {
+            "episodic": [
+              {
+                "memory_id": "npc_c_loren_came_back",
+                "npc_id": "npc_c",
+                "event_description": "那晚洛伦很晚才回酒馆门口经过，我正准备关门",
+                "importance": 0.7,
+                "emotion": "neutral",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_c_own_late_night",
+                "npc_id": "npc_c",
+                "event_description": "我那晚关店晚了，是因为在后头跟人算一笔不太体面的账，跟这案子没关系",
+                "importance": 0.5,
+                "emotion": "unease",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_c_belief_loren_timing",
+                "npc_id": "npc_c",
+                "fact": "洛伦那晚回来的时候，钟差不多敲了三下（他记的是三更，其实更早）",
+                "confidence": 0.75
+              },
+              {
+                "memory_id": "npc_c_belief_marta_out",
+                "npc_id": "npc_c",
+                "fact": "听人说玛尔塔那晚也在外面（他自己没看见，是听来的）",
+                "confidence": 0.4
+              }
+            ]
+          }
+        },
+        "transcript": [
+          {
+            "speaker": "narrator",
+            "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+          },
+          {
+            "speaker": "player",
+            "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+          },
+          {
+            "speaker": "npc_a",
+            "text": "……小声点。我儿子在屋里。你想问什么？"
+          }
+        ]
+      },
+      "events": [
+        {
+          "seq": 1,
+          "type": "move",
+          "data": {
+            "turn_id": "ec70f5d0eceb449d814d319fe60c7b6e",
+            "approved": false,
+            "destination": "forest_edge",
+            "name": "森林入口",
+            "reason": "'forest_edge' is not reachable from 'npc_a_house'",
+            "slot_spent": false,
+            "slot": null,
+            "day": null,
+            "first_visit": false,
+            "out_of_days": false,
+            "latency_ms": 0.41179999243468046
+          }
+        },
+        {
+          "seq": 2,
+          "type": "scene",
+          "data": {
+            "turn": 1,
+            "time_day": 1,
+            "time_slot": "morning",
+            "location": {
+              "location_id": "npc_a_house",
+              "name": "玛尔塔的家",
+              "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+              "backdrop": "interior"
+            },
+            "destinations": [
+              {
+                "location_id": "village_square",
+                "name": "村庄广场",
+                "visited": false
+              }
+            ],
+            "npcs": [
+              {
+                "npc_id": "npc_a",
+                "name": "玛尔塔",
+                "note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+                "sprite_key": "sprite_a"
+              }
+            ],
+            "current_npc_id": "npc_a",
+            "passages": [],
+            "passage_id": "1:3",
+            "ending": null,
+            "can_conclude": false,
+            "report_active": false,
+            "conclude_reason": "请先完成当前对话，或离开现场结束对话。",
+            "ready": true,
+            "visible_facts": [
+              {
+                "id": "victim_name",
+                "value": "磨坊主的女儿艾拉，十四岁"
+              },
+              {
+                "id": "disappearance_night",
+                "value": "三天前的夜里，雨停之后"
+              },
+              {
+                "id": "search_failed",
+                "value": "村民搜过森林边缘，什么也没找到"
+              }
+            ],
+            "quest_stages": {
+              "investigation": 0
+            },
+            "scripted_lines": [],
+            "options": [
+              {
+                "final_report": false,
+                "option_id": "goodwill",
+                "tag": "goodwill",
+                "text": "我不是来添麻烦的"
+              },
+              {
+                "final_report": false,
+                "option_id": "press_that_night",
+                "tag": "press",
+                "text": "那晚你在外面，对吗"
+              }
+            ],
+            "event_in_progress": true,
+            "intro": {
+              "title": "调查笔记",
+              "premise": "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。",
+              "facts_header": "已知线索",
+              "goal": "你想从她口中问出关于这起失踪案的线索。"
+            },
+            "transcript_tail": [
+              {
+                "speaker": "narrator",
+                "name": "旁白",
+                "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+              },
+              {
+                "speaker": "player",
+                "name": "",
+                "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+              },
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "……小声点。我儿子在屋里。你想问什么？"
+              }
+            ]
+          }
+        }
+      ],
+      "wire_range": [
+        0,
+        0
+      ],
+      "elapsed_seconds": 0.016
+    },
+    {
+      "index": 1,
+      "action": {
+        "kind": "choice",
+        "option_id": "goodwill"
+      },
+      "before": {
+        "session_id": "9300aefe643f4eb4958bce0834ac6781",
+        "scene": {
+          "turn": 1,
+          "time_day": 1,
+          "time_slot": "morning",
+          "location": {
+            "location_id": "npc_a_house",
+            "name": "玛尔塔的家",
+            "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+            "backdrop": "interior"
+          },
+          "destinations": [
+            {
+              "location_id": "village_square",
+              "name": "村庄广场",
+              "visited": false
+            }
+          ],
+          "npcs": [
+            {
+              "npc_id": "npc_a",
+              "name": "玛尔塔",
+              "note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+              "sprite_key": "sprite_a"
+            }
+          ],
+          "current_npc_id": "npc_a",
+          "passages": [],
+          "passage_id": "1:3",
+          "ending": null,
+          "can_conclude": false,
+          "report_active": false,
+          "conclude_reason": "请先完成当前对话，或离开现场结束对话。",
+          "ready": true,
+          "visible_facts": [
+            {
+              "id": "victim_name",
+              "value": "磨坊主的女儿艾拉，十四岁"
+            },
+            {
+              "id": "disappearance_night",
+              "value": "三天前的夜里，雨停之后"
+            },
+            {
+              "id": "search_failed",
+              "value": "村民搜过森林边缘，什么也没找到"
+            }
+          ],
+          "quest_stages": {
+            "investigation": 0
+          },
+          "scripted_lines": [],
+          "options": [
+            {
+              "final_report": false,
+              "option_id": "goodwill",
+              "tag": "goodwill",
+              "text": "我不是来添麻烦的"
+            },
+            {
+              "final_report": false,
+              "option_id": "press_that_night",
+              "tag": "press",
+              "text": "那晚你在外面，对吗"
+            }
+          ],
+          "event_in_progress": true,
+          "intro": {
+            "title": "调查笔记",
+            "premise": "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。",
+            "facts_header": "已知线索",
+            "goal": "你想从她口中问出关于这起失踪案的线索。"
+          },
+          "transcript_tail": [
+            {
+              "speaker": "narrator",
+              "name": "旁白",
+              "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+            },
+            {
+              "speaker": "player",
+              "name": "",
+              "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+            },
+            {
+              "speaker": "npc_a",
+              "name": "玛尔塔",
+              "text": "……小声点。我儿子在屋里。你想问什么？"
+            }
+          ]
+        },
+        "world": {
+          "world_id": "village_disappearance",
+          "time_day": 1,
+          "npcs": {
+            "npc_a": {
+              "npc_id": "npc_a",
+              "name": "玛尔塔",
+              "public_note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+              "alive": true,
+              "location": "npc_a_house",
+              "faction_id": "villagers"
+            },
+            "npc_b": {
+              "npc_id": "npc_b",
+              "name": "洛伦",
+              "public_note": "村里的猎人，熟悉森林里的每一条路。话很少。",
+              "alive": true,
+              "location": "forest_edge",
+              "faction_id": "villagers"
+            },
+            "npc_c": {
+              "npc_id": "npc_c",
+              "name": "酒馆老板",
+              "public_note": "村里唯一的酒馆老板，见的人多，嘴上也松。",
+              "alive": true,
+              "location": "tavern",
+              "faction_id": "villagers"
+            }
+          },
+          "factions": {
+            "villagers": {
+              "faction_id": "villagers",
+              "power": 0.4,
+              "stability": 0.6,
+              "relationships": {}
+            }
+          },
+          "quests": {
+            "investigation": {
+              "quest_id": "investigation",
+              "stage": 0,
+              "status": "active"
+            }
+          },
+          "facts": {
+            "victim_name": {
+              "fact_id": "victim_name",
+              "value": "磨坊主的女儿艾拉，十四岁",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "disappearance_night": {
+              "fact_id": "disappearance_night",
+              "value": "三天前的夜里，雨停之后",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "search_failed": {
+              "fact_id": "search_failed",
+              "value": "村民搜过森林边缘，什么也没找到",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "clue_1_witness": {
+              "fact_id": "clue_1_witness",
+              "value": "失踪当晚，玛尔塔看见有人从森林入口的方向回到村里",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "witness_told"
+                  }
+                ]
+              },
+              "partial_value": "玛尔塔那晚似乎没睡，但她不愿多说"
+            },
+            "clue_2_identity": {
+              "fact_id": "clue_2_identity",
+              "value": "那个人的身形和走路的样子，像是猎人洛伦（NPC_B）",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "identity_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "loren_that_night": {
+              "fact_id": "loren_that_night",
+              "value": "洛伦以为那晚是他弄死了艾拉——他撞到的人确实倒了，但那是擦伤，她爬起来继续走了",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "told_loren_truth"
+                  }
+                ]
+              },
+              "partial_value": "村里有人知情，但没人愿意先开口"
+            },
+            "npc_b_aware_of_investigation": {
+              "fact_id": "npc_b_aware_of_investigation",
+              "value": "洛伦已经知道有人在村里打听那天晚上的事",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.tension",
+                    "op": "gte",
+                    "value": 0.6
+                  }
+                ]
+              },
+              "partial_value": "你走过村道时，有种被人留意着的感觉"
+            },
+            "marta_is_terrified": {
+              "fact_id": "marta_is_terrified",
+              "value": "她一直用手按着门框，指节发白",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "marta_hands_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "ella_things_missing": {
+              "fact_id": "ella_things_missing",
+              "value": "艾拉的外衣不在，她攒下的钱不在，她母亲留下的那只木梳也不在——可别的东西都还在",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "ella_things_missing_told"
+                  }
+                ]
+              },
+              "partial_value": "玛尔塔提起磨坊主家里这几天乱得很"
+            },
+            "ella_asked_the_road": {
+              "fact_id": "ella_asked_the_road",
+              "value": "艾拉前些天问过去镇上的路，还问过谁家的车最近要出村",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "ella_asked_the_road_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "timeline_mismatch": {
+              "fact_id": "timeline_mismatch",
+              "value": "洛伦回村之后，还有人见过艾拉的踪迹——时间线对不上",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "timeline_mismatch_told"
+                  }
+                ]
+              },
+              "partial_value": "有件事情对不上，但还说不清是哪里"
+            },
+            "ella_whereabouts": {
+              "fact_id": "ella_whereabouts",
+              "value": "艾拉还活着。她那晚在逃家，在林子里撞上了洛伦、摔了一跤，爬起来继续往镇上走了",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "told_loren_truth"
+                  }
+                ]
+              },
+              "partial_value": "有些事情对不上，但还说不清是哪里"
+            },
+            "npc_a_threatened": {
+              "fact_id": "npc_a_threatened",
+              "value": "玛尔塔说洛伦来门口警告\"孩子乱跑是很危险的\"，眼睛看着里屋——她怕调查牵连儿子",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "loren_warning_heard"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "marta_protects_son": {
+              "fact_id": "marta_protects_son",
+              "value": "她说话时反复看向里屋——那是她儿子在的地方",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "inner_room_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_timeline": {
+              "fact_id": "innkeeper_timeline",
+              "value": "老板说洛伦那晚很晚才回来，钟差不多敲了三下——但玛尔塔记得的时间比这早",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_timeline_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_own_night": {
+              "fact_id": "innkeeper_own_night",
+              "value": "老板那晚关店晚了，他说是在后头跟人算一笔账，跟这案子没关系",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_own_night_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_hides_something": {
+              "fact_id": "innkeeper_hides_something",
+              "value": "他擦杯子的手停了一下——有件事他没说",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_hesitation_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "forest_traces": {
+              "fact_id": "forest_traces",
+              "value": "森林入口的地上有被踩乱的痕迹——不止一个人在这里走过",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "forest_traces_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "cloth_scrap": {
+              "fact_id": "cloth_scrap",
+              "value": "荆棘上挂着一小块布，颜色看着眼熟",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "cloth_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "blood_on_the_stone": {
+              "fact_id": "blood_on_the_stone",
+              "value": "一块石头上有血迹，量不大，位置也不像是重伤",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "blood_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            }
+          },
+          "locations": {
+            "village_square": {
+              "location_id": "village_square",
+              "name": "村庄广场",
+              "description": "村子的中心，井边总有人聚着低声说话。失踪案之后，这里的谈话声更小了。",
+              "backdrop": "square",
+              "connected_to": [
+                "tavern",
+                "forest_edge",
+                "npc_a_house"
+              ]
+            },
+            "tavern": {
+              "location_id": "tavern",
+              "name": "酒馆",
+              "description": "村里唯一的酒馆，白天几乎没人。老板擦着永远擦不干净的杯子。",
+              "backdrop": "tavern",
+              "connected_to": [
+                "village_square"
+              ]
+            },
+            "npc_a_house": {
+              "location_id": "npc_a_house",
+              "name": "玛尔塔的家",
+              "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+              "backdrop": "interior",
+              "connected_to": [
+                "village_square"
+              ]
+            },
+            "forest_edge": {
+              "location_id": "forest_edge",
+              "name": "森林入口",
+              "description": "村民口中\"孩子不许去\"的地方。地上有被踩乱的痕迹，已经下过雨。",
+              "backdrop": "forest",
+              "connected_to": [
+                "village_square"
+              ]
+            }
+          },
+          "relationships": {
+            "npc_a": {
+              "player_1": {
+                "trust": 10.0,
+                "fear": 30.0,
+                "respect": 0.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            },
+            "npc_b": {
+              "player_1": {
+                "trust": 0.0,
+                "fear": 0.0,
+                "respect": 10.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            },
+            "npc_c": {
+              "player_1": {
+                "trust": 5.0,
+                "fear": 0.0,
+                "respect": 0.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            }
+          },
+          "player_locations": {
+            "player_1": "npc_a_house"
+          },
+          "story_beats": {
+            "chapter": 1,
+            "turn": 1,
+            "tension": 0.0,
+            "open_foreshadowings": {},
+            "planted_total": 0,
+            "recent_operators": [
+              "relieve"
+            ],
+            "spent_one_shots": [],
+            "active_event": {
+              "event_id": "M1_knock",
+              "exchanges": 0,
+              "max_exchanges": 4
+            },
+            "completed_events": [],
+            "closed_events": [],
+            "flags": [],
+            "visited_locations": [
+              "npc_a_house"
+            ],
+            "ended_at": null,
+            "time_slot": "morning",
+            "slots_spent_today": 0,
+            "day_limit": 4
+          },
+          "last_updated": "2026-09-18T10:33:05.394241Z"
+        },
+        "memories": {
+          "npc_a": {
+            "episodic": [
+              {
+                "memory_id": "npc_a_sighting",
+                "npc_id": "npc_a",
+                "event_description": "失踪那天深夜雨刚停，我起夜时看见有人从森林入口的方向走回村里，走路的样子很像猎人洛伦",
+                "importance": 0.95,
+                "emotion": "fear",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_a_threat",
+                "npc_id": "npc_a",
+                "event_description": "第二天洛伦来我家门口站了很久，说\"孩子乱跑是很危险的\"，然后看着我儿子的房间",
+                "importance": 0.9,
+                "emotion": "fear",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_a_search",
+                "npc_id": "npc_a",
+                "event_description": "村民们一起去森林边缘搜过一遍，什么也没找到，大家回来都不说话",
+                "importance": 0.4,
+                "emotion": null,
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "eb6cfd4f1f414b16be341678f873454c",
+                "npc_id": "npc_a",
+                "event_description": "玩家说：场景对白；我回应：……小声点。我儿子在屋里。你想问什么？",
+                "importance": 0.4,
+                "emotion": "afraid",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.396137Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_a_belief_son",
+                "npc_id": "npc_a",
+                "fact": "如果我把那晚看见的事说出去，我儿子会是下一个",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_a_belief_lying",
+                "npc_id": "npc_a",
+                "fact": "我不愿意直接说谎，但我可以只说一部分",
+                "confidence": 0.8
+              },
+              {
+                "memory_id": "npc_a_belief_stranger",
+                "npc_id": "npc_a",
+                "fact": "外来人问得越急，越可能只是想看热闹，不会留下来保护我们",
+                "confidence": 0.6
+              }
+            ]
+          },
+          "npc_b": {
+            "episodic": [
+              {
+                "memory_id": "npc_b_the_collision",
+                "npc_id": "npc_b",
+                "event_description": "那晚林子里有人从我面前跑开，我伸手拦了一下，那人倒了——我听见身体撞在地上的声音",
+                "importance": 1.0,
+                "emotion": "dread",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_the_stone",
+                "npc_id": "npc_b",
+                "event_description": "我举灯过去的时候人已经不见了，只有石头上一片血，荆棘上挂着一小块布",
+                "importance": 1.0,
+                "emotion": "dread",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_that_night",
+                "npc_id": "npc_b",
+                "event_description": "那晚我从森林回村的时候，看见玛尔塔家的窗帘动了一下",
+                "importance": 0.95,
+                "emotion": "calm",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_warning",
+                "npc_id": "npc_b",
+                "event_description": "我去玛尔塔家门口提醒过她，孩子乱跑很危险。她听懂了",
+                "importance": 0.85,
+                "emotion": null,
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_why_he_was_there",
+                "npc_id": "npc_b",
+                "event_description": "我那晚是去收林地里的猎套。那片地不是我们能下套的地方",
+                "importance": 0.9,
+                "emotion": "shame",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_b_belief_he_killed_her",
+                "npc_id": "npc_b",
+                "fact": "那晚倒在石头上的就是磨坊主的女儿，是我把她弄死的",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_b_belief_cannot_explain",
+                "npc_id": "npc_b",
+                "fact": "就算说出那晚的事，也没人会信是意外——而且我得先解释自己为什么在那片林地里",
+                "confidence": 0.95
+              },
+              {
+                "memory_id": "npc_b_belief_quiet",
+                "npc_id": "npc_b",
+                "fact": "只要玛尔塔不开口，没有人能把这件事查到我头上",
+                "confidence": 0.8
+              },
+              {
+                "memory_id": "npc_b_belief_helpful",
+                "npc_id": "npc_b",
+                "fact": "主动配合搜寻比躲着不出面更不容易被怀疑",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_b_belief_needs_to_know",
+                "npc_id": "npc_b",
+                "fact": "我想知道她到底在哪，哪怕是最坏的答案——不知道比知道更难熬",
+                "confidence": 0.85
+              }
+            ]
+          },
+          "npc_c": {
+            "episodic": [
+              {
+                "memory_id": "npc_c_loren_came_back",
+                "npc_id": "npc_c",
+                "event_description": "那晚洛伦很晚才回酒馆门口经过，我正准备关门",
+                "importance": 0.7,
+                "emotion": "neutral",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_c_own_late_night",
+                "npc_id": "npc_c",
+                "event_description": "我那晚关店晚了，是因为在后头跟人算一笔不太体面的账，跟这案子没关系",
+                "importance": 0.5,
+                "emotion": "unease",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_c_belief_loren_timing",
+                "npc_id": "npc_c",
+                "fact": "洛伦那晚回来的时候，钟差不多敲了三下（他记的是三更，其实更早）",
+                "confidence": 0.75
+              },
+              {
+                "memory_id": "npc_c_belief_marta_out",
+                "npc_id": "npc_c",
+                "fact": "听人说玛尔塔那晚也在外面（他自己没看见，是听来的）",
+                "confidence": 0.4
+              }
+            ]
+          }
+        },
+        "transcript": [
+          {
+            "speaker": "narrator",
+            "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+          },
+          {
+            "speaker": "player",
+            "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+          },
+          {
+            "speaker": "npc_a",
+            "text": "……小声点。我儿子在屋里。你想问什么？"
+          }
+        ]
+      },
+      "http_request": {
+        "path": "/api/session/9300aefe643f4eb4958bce0834ac6781/turn",
+        "body": {
+          "text": "我不是来添麻烦的",
+          "option_id": "goodwill"
+        }
+      },
+      "http_response": {
+        "status": 202,
+        "body": {
+          "turn_id": "7c8cbeba77de4a12aaa367058c257b7f"
+        }
+      },
+      "after": {
+        "session_id": "9300aefe643f4eb4958bce0834ac6781",
+        "scene": {
+          "turn": 2,
+          "time_day": 1,
+          "time_slot": "morning",
+          "location": {
+            "location_id": "npc_a_house",
+            "name": "玛尔塔的家",
+            "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+            "backdrop": "interior"
+          },
+          "destinations": [
+            {
+              "location_id": "village_square",
+              "name": "村庄广场",
+              "visited": false
+            }
+          ],
+          "npcs": [
+            {
+              "npc_id": "npc_a",
+              "name": "玛尔塔",
+              "note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+              "sprite_key": "sprite_a"
+            }
+          ],
+          "current_npc_id": "npc_a",
+          "passages": [
+            {
+              "speaker": "npc_a",
+              "name": "玛尔塔",
+              "text": "进来吧。说话轻一点，我不想让邻居听见。"
+            },
+            {
+              "speaker": "narrator",
+              "name": "旁白",
+              "text": "她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。"
+            },
+            {
+              "speaker": "npc_a",
+              "name": "玛尔塔",
+              "text": "这门一到晚上就关不严……你问完就走吧。"
+            }
+          ],
+          "passage_id": "2:7",
+          "ending": null,
+          "can_conclude": false,
+          "report_active": false,
+          "conclude_reason": "请先完成当前对话，或离开现场结束对话。",
+          "ready": true,
+          "visible_facts": [
+            {
+              "id": "victim_name",
+              "value": "磨坊主的女儿艾拉，十四岁"
+            },
+            {
+              "id": "disappearance_night",
+              "value": "三天前的夜里，雨停之后"
+            },
+            {
+              "id": "search_failed",
+              "value": "村民搜过森林边缘，什么也没找到"
+            }
+          ],
+          "quest_stages": {
+            "investigation": 0
+          },
+          "scripted_lines": [],
+          "options": [
+            {
+              "final_report": false,
+              "option_id": "help_latch",
+              "tag": "goodwill",
+              "text": "我先帮你把门栓修好，你不用急着回答。"
+            },
+            {
+              "final_report": false,
+              "option_id": "leave_it",
+              "tag": "observe",
+              "text": "不打扰了，我去别处问问。"
+            }
+          ],
+          "event_in_progress": true,
+          "intro": {
+            "title": "调查笔记",
+            "premise": "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。",
+            "facts_header": "已知线索",
+            "goal": "你想从她口中问出关于这起失踪案的线索。"
+          },
+          "transcript_tail": [
+            {
+              "speaker": "narrator",
+              "name": "旁白",
+              "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+            },
+            {
+              "speaker": "player",
+              "name": "",
+              "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+            },
+            {
+              "speaker": "npc_a",
+              "name": "玛尔塔",
+              "text": "……小声点。我儿子在屋里。你想问什么？"
+            },
+            {
+              "speaker": "player",
+              "name": "",
+              "text": "我不是来添麻烦的"
+            },
+            {
+              "speaker": "npc_a",
+              "name": "玛尔塔",
+              "text": "进来吧。说话轻一点，我不想让邻居听见。"
+            },
+            {
+              "speaker": "narrator",
+              "name": "旁白",
+              "text": "她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。"
+            },
+            {
+              "speaker": "npc_a",
+              "name": "玛尔塔",
+              "text": "这门一到晚上就关不严……你问完就走吧。"
+            }
+          ]
+        },
+        "world": {
+          "world_id": "village_disappearance",
+          "time_day": 1,
+          "npcs": {
+            "npc_a": {
+              "npc_id": "npc_a",
+              "name": "玛尔塔",
+              "public_note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+              "alive": true,
+              "location": "npc_a_house",
+              "faction_id": "villagers"
+            },
+            "npc_b": {
+              "npc_id": "npc_b",
+              "name": "洛伦",
+              "public_note": "村里的猎人，熟悉森林里的每一条路。话很少。",
+              "alive": true,
+              "location": "forest_edge",
+              "faction_id": "villagers"
+            },
+            "npc_c": {
+              "npc_id": "npc_c",
+              "name": "酒馆老板",
+              "public_note": "村里唯一的酒馆老板，见的人多，嘴上也松。",
+              "alive": true,
+              "location": "tavern",
+              "faction_id": "villagers"
+            }
+          },
+          "factions": {
+            "villagers": {
+              "faction_id": "villagers",
+              "power": 0.4,
+              "stability": 0.6,
+              "relationships": {}
+            }
+          },
+          "quests": {
+            "investigation": {
+              "quest_id": "investigation",
+              "stage": 0,
+              "status": "active"
+            }
+          },
+          "facts": {
+            "victim_name": {
+              "fact_id": "victim_name",
+              "value": "磨坊主的女儿艾拉，十四岁",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "disappearance_night": {
+              "fact_id": "disappearance_night",
+              "value": "三天前的夜里，雨停之后",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "search_failed": {
+              "fact_id": "search_failed",
+              "value": "村民搜过森林边缘，什么也没找到",
+              "visibility": "revealed",
+              "reveal_condition": null,
+              "partial_value": null
+            },
+            "clue_1_witness": {
+              "fact_id": "clue_1_witness",
+              "value": "失踪当晚，玛尔塔看见有人从森林入口的方向回到村里",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "witness_told"
+                  }
+                ]
+              },
+              "partial_value": "玛尔塔那晚似乎没睡，但她不愿多说"
+            },
+            "clue_2_identity": {
+              "fact_id": "clue_2_identity",
+              "value": "那个人的身形和走路的样子，像是猎人洛伦（NPC_B）",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "identity_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "loren_that_night": {
+              "fact_id": "loren_that_night",
+              "value": "洛伦以为那晚是他弄死了艾拉——他撞到的人确实倒了，但那是擦伤，她爬起来继续走了",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "told_loren_truth"
+                  }
+                ]
+              },
+              "partial_value": "村里有人知情，但没人愿意先开口"
+            },
+            "npc_b_aware_of_investigation": {
+              "fact_id": "npc_b_aware_of_investigation",
+              "value": "洛伦已经知道有人在村里打听那天晚上的事",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.tension",
+                    "op": "gte",
+                    "value": 0.6
+                  }
+                ]
+              },
+              "partial_value": "你走过村道时，有种被人留意着的感觉"
+            },
+            "marta_is_terrified": {
+              "fact_id": "marta_is_terrified",
+              "value": "她一直用手按着门框，指节发白",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "marta_hands_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "ella_things_missing": {
+              "fact_id": "ella_things_missing",
+              "value": "艾拉的外衣不在，她攒下的钱不在，她母亲留下的那只木梳也不在——可别的东西都还在",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "ella_things_missing_told"
+                  }
+                ]
+              },
+              "partial_value": "玛尔塔提起磨坊主家里这几天乱得很"
+            },
+            "ella_asked_the_road": {
+              "fact_id": "ella_asked_the_road",
+              "value": "艾拉前些天问过去镇上的路，还问过谁家的车最近要出村",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "ella_asked_the_road_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "timeline_mismatch": {
+              "fact_id": "timeline_mismatch",
+              "value": "洛伦回村之后，还有人见过艾拉的踪迹——时间线对不上",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "timeline_mismatch_told"
+                  }
+                ]
+              },
+              "partial_value": "有件事情对不上，但还说不清是哪里"
+            },
+            "ella_whereabouts": {
+              "fact_id": "ella_whereabouts",
+              "value": "艾拉还活着。她那晚在逃家，在林子里撞上了洛伦、摔了一跤，爬起来继续往镇上走了",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "told_loren_truth"
+                  }
+                ]
+              },
+              "partial_value": "有些事情对不上，但还说不清是哪里"
+            },
+            "npc_a_threatened": {
+              "fact_id": "npc_a_threatened",
+              "value": "玛尔塔说洛伦来门口警告\"孩子乱跑是很危险的\"，眼睛看着里屋——她怕调查牵连儿子",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "loren_warning_heard"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "marta_protects_son": {
+              "fact_id": "marta_protects_son",
+              "value": "她说话时反复看向里屋——那是她儿子在的地方",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "inner_room_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_timeline": {
+              "fact_id": "innkeeper_timeline",
+              "value": "老板说洛伦那晚很晚才回来，钟差不多敲了三下——但玛尔塔记得的时间比这早",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_timeline_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_own_night": {
+              "fact_id": "innkeeper_own_night",
+              "value": "老板那晚关店晚了，他说是在后头跟人算一笔账，跟这案子没关系",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_own_night_told"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "innkeeper_hides_something": {
+              "fact_id": "innkeeper_hides_something",
+              "value": "他擦杯子的手停了一下——有件事他没说",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "innkeeper_hesitation_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "forest_traces": {
+              "fact_id": "forest_traces",
+              "value": "森林入口的地上有被踩乱的痕迹——不止一个人在这里走过",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "forest_traces_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "cloth_scrap": {
+              "fact_id": "cloth_scrap",
+              "value": "荆棘上挂着一小块布，颜色看着眼熟",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "cloth_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            },
+            "blood_on_the_stone": {
+              "fact_id": "blood_on_the_stone",
+              "value": "一块石头上有血迹，量不大，位置也不像是重伤",
+              "visibility": "hidden",
+              "reveal_condition": {
+                "mode": "any",
+                "clauses": [
+                  {
+                    "path": "story_beats.flags",
+                    "op": "contains",
+                    "value": "blood_seen"
+                  }
+                ]
+              },
+              "partial_value": null
+            }
+          },
+          "locations": {
+            "village_square": {
+              "location_id": "village_square",
+              "name": "村庄广场",
+              "description": "村子的中心，井边总有人聚着低声说话。失踪案之后，这里的谈话声更小了。",
+              "backdrop": "square",
+              "connected_to": [
+                "tavern",
+                "forest_edge",
+                "npc_a_house"
+              ]
+            },
+            "tavern": {
+              "location_id": "tavern",
+              "name": "酒馆",
+              "description": "村里唯一的酒馆，白天几乎没人。老板擦着永远擦不干净的杯子。",
+              "backdrop": "tavern",
+              "connected_to": [
+                "village_square"
+              ]
+            },
+            "npc_a_house": {
+              "location_id": "npc_a_house",
+              "name": "玛尔塔的家",
+              "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+              "backdrop": "interior",
+              "connected_to": [
+                "village_square"
+              ]
+            },
+            "forest_edge": {
+              "location_id": "forest_edge",
+              "name": "森林入口",
+              "description": "村民口中\"孩子不许去\"的地方。地上有被踩乱的痕迹，已经下过雨。",
+              "backdrop": "forest",
+              "connected_to": [
+                "village_square"
+              ]
+            }
+          },
+          "relationships": {
+            "npc_a": {
+              "player_1": {
+                "trust": 13.0,
+                "fear": 30.0,
+                "respect": 0.0,
+                "last_updated": "2026-09-18T10:33:05.442219Z"
+              }
+            },
+            "npc_b": {
+              "player_1": {
+                "trust": 0.0,
+                "fear": 0.0,
+                "respect": 10.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            },
+            "npc_c": {
+              "player_1": {
+                "trust": 5.0,
+                "fear": 0.0,
+                "respect": 0.0,
+                "last_updated": "2026-09-18T10:33:04.960351Z"
+              }
+            }
+          },
+          "player_locations": {
+            "player_1": "npc_a_house"
+          },
+          "story_beats": {
+            "chapter": 1,
+            "turn": 2,
+            "tension": 0.0,
+            "open_foreshadowings": {},
+            "planted_total": 0,
+            "recent_operators": [
+              "relieve",
+              "relieve"
+            ],
+            "spent_one_shots": [],
+            "active_event": {
+              "event_id": "S1_help_marta",
+              "exchanges": 0,
+              "max_exchanges": 3
+            },
+            "completed_events": [
+              "M1_knock"
+            ],
+            "closed_events": [],
+            "flags": [],
+            "visited_locations": [
+              "npc_a_house"
+            ],
+            "ended_at": null,
+            "time_slot": "morning",
+            "slots_spent_today": 0,
+            "day_limit": 4
+          },
+          "last_updated": "2026-09-18T10:33:05.831907Z"
+        },
+        "memories": {
+          "npc_a": {
+            "episodic": [
+              {
+                "memory_id": "npc_a_sighting",
+                "npc_id": "npc_a",
+                "event_description": "失踪那天深夜雨刚停，我起夜时看见有人从森林入口的方向走回村里，走路的样子很像猎人洛伦",
+                "importance": 0.95,
+                "emotion": "fear",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_a_threat",
+                "npc_id": "npc_a",
+                "event_description": "第二天洛伦来我家门口站了很久，说\"孩子乱跑是很危险的\"，然后看着我儿子的房间",
+                "importance": 0.9,
+                "emotion": "fear",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_a_search",
+                "npc_id": "npc_a",
+                "event_description": "村民们一起去森林边缘搜过一遍，什么也没找到，大家回来都不说话",
+                "importance": 0.4,
+                "emotion": null,
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "eb6cfd4f1f414b16be341678f873454c",
+                "npc_id": "npc_a",
+                "event_description": "玩家说：场景对白；我回应：……小声点。我儿子在屋里。你想问什么？",
+                "importance": 0.4,
+                "emotion": "afraid",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.396137Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "8694e535e1ac4ccca362e6f0dbdc4772",
+                "npc_id": "npc_a",
+                "event_description": "玩家说：我不是来添麻烦的；我回应：进来吧。说话轻一点，我不想让邻居听见。",
+                "importance": 0.4,
+                "emotion": "afraid",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.826901Z",
+                "source_player_id": "player_1",
+                "player_statement": "我不是来添麻烦的"
+              },
+              {
+                "memory_id": "7dea1e6e1fc7432587b47d56b7231137",
+                "npc_id": "npc_a",
+                "event_description": "玩家说：场景对白；我回应：这门一到晚上就关不严……你问完就走吧。",
+                "importance": 0.4,
+                "emotion": "afraid",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.833907Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_a_belief_son",
+                "npc_id": "npc_a",
+                "fact": "如果我把那晚看见的事说出去，我儿子会是下一个",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_a_belief_lying",
+                "npc_id": "npc_a",
+                "fact": "我不愿意直接说谎，但我可以只说一部分",
+                "confidence": 0.8
+              },
+              {
+                "memory_id": "npc_a_belief_stranger",
+                "npc_id": "npc_a",
+                "fact": "外来人问得越急，越可能只是想看热闹，不会留下来保护我们",
+                "confidence": 0.6
+              }
+            ]
+          },
+          "npc_b": {
+            "episodic": [
+              {
+                "memory_id": "npc_b_the_collision",
+                "npc_id": "npc_b",
+                "event_description": "那晚林子里有人从我面前跑开，我伸手拦了一下，那人倒了——我听见身体撞在地上的声音",
+                "importance": 1.0,
+                "emotion": "dread",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_the_stone",
+                "npc_id": "npc_b",
+                "event_description": "我举灯过去的时候人已经不见了，只有石头上一片血，荆棘上挂着一小块布",
+                "importance": 1.0,
+                "emotion": "dread",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_that_night",
+                "npc_id": "npc_b",
+                "event_description": "那晚我从森林回村的时候，看见玛尔塔家的窗帘动了一下",
+                "importance": 0.95,
+                "emotion": "calm",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_warning",
+                "npc_id": "npc_b",
+                "event_description": "我去玛尔塔家门口提醒过她，孩子乱跑很危险。她听懂了",
+                "importance": 0.85,
+                "emotion": null,
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_b_why_he_was_there",
+                "npc_id": "npc_b",
+                "event_description": "我那晚是去收林地里的猎套。那片地不是我们能下套的地方",
+                "importance": 0.9,
+                "emotion": "shame",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_b_belief_he_killed_her",
+                "npc_id": "npc_b",
+                "fact": "那晚倒在石头上的就是磨坊主的女儿，是我把她弄死的",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_b_belief_cannot_explain",
+                "npc_id": "npc_b",
+                "fact": "就算说出那晚的事，也没人会信是意外——而且我得先解释自己为什么在那片林地里",
+                "confidence": 0.95
+              },
+              {
+                "memory_id": "npc_b_belief_quiet",
+                "npc_id": "npc_b",
+                "fact": "只要玛尔塔不开口，没有人能把这件事查到我头上",
+                "confidence": 0.8
+              },
+              {
+                "memory_id": "npc_b_belief_helpful",
+                "npc_id": "npc_b",
+                "fact": "主动配合搜寻比躲着不出面更不容易被怀疑",
+                "confidence": 0.9
+              },
+              {
+                "memory_id": "npc_b_belief_needs_to_know",
+                "npc_id": "npc_b",
+                "fact": "我想知道她到底在哪，哪怕是最坏的答案——不知道比知道更难熬",
+                "confidence": 0.85
+              }
+            ]
+          },
+          "npc_c": {
+            "episodic": [
+              {
+                "memory_id": "npc_c_loren_came_back",
+                "npc_id": "npc_c",
+                "event_description": "那晚洛伦很晚才回酒馆门口经过，我正准备关门",
+                "importance": 0.7,
+                "emotion": "neutral",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              },
+              {
+                "memory_id": "npc_c_own_late_night",
+                "npc_id": "npc_c",
+                "event_description": "我那晚关店晚了，是因为在后头跟人算一笔不太体面的账，跟这案子没关系",
+                "importance": 0.5,
+                "emotion": "unease",
+                "occurred_at_day": 1,
+                "created_at": "2026-09-18T10:33:05.104770Z",
+                "source_player_id": null,
+                "player_statement": null
+              }
+            ],
+            "semantic": [
+              {
+                "memory_id": "npc_c_belief_loren_timing",
+                "npc_id": "npc_c",
+                "fact": "洛伦那晚回来的时候，钟差不多敲了三下（他记的是三更，其实更早）",
+                "confidence": 0.75
+              },
+              {
+                "memory_id": "npc_c_belief_marta_out",
+                "npc_id": "npc_c",
+                "fact": "听人说玛尔塔那晚也在外面（他自己没看见，是听来的）",
+                "confidence": 0.4
+              }
+            ]
+          }
+        },
+        "transcript": [
+          {
+            "speaker": "narrator",
+            "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+          },
+          {
+            "speaker": "player",
+            "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+          },
+          {
+            "speaker": "npc_a",
+            "text": "……小声点。我儿子在屋里。你想问什么？"
+          },
+          {
+            "speaker": "player",
+            "text": "我不是来添麻烦的"
+          },
+          {
+            "speaker": "npc_a",
+            "text": "进来吧。说话轻一点，我不想让邻居听见。"
+          },
+          {
+            "speaker": "narrator",
+            "text": "她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。"
+          },
+          {
+            "speaker": "npc_a",
+            "text": "这门一到晚上就关不严……你问完就走吧。"
+          }
+        ]
+      },
+      "events": [
+        {
+          "seq": 3,
+          "type": "turn_accepted",
+          "data": {
+            "turn_id": "7c8cbeba77de4a12aaa367058c257b7f",
+            "text": "我不是来添麻烦的",
+            "turn": 1
+          }
+        },
+        {
+          "seq": 4,
+          "type": "dialogue",
+          "data": {
+            "turn_id": "7c8cbeba77de4a12aaa367058c257b7f",
+            "turn": 1,
+            "npc_id": "npc_a",
+            "name": "玛尔塔",
+            "dialogue": "进来吧。说话轻一点，我不想让邻居听见。",
+            "strategy": "event_response",
+            "trust_before": 10.0,
+            "trust_after": 13.0,
+            "relationship_changes": {
+              "trust": 3.0
+            },
+            "latency_ms": 390.6797999807168,
+            "used_pending_hook": false,
+            "option_id": "goodwill"
+          }
+        },
+        {
+          "seq": 5,
+          "type": "scene",
+          "data": {
+            "turn": 2,
+            "time_day": 1,
+            "time_slot": "morning",
+            "location": {
+              "location_id": "npc_a_house",
+              "name": "玛尔塔的家",
+              "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+              "backdrop": "interior"
+            },
+            "destinations": [
+              {
+                "location_id": "village_square",
+                "name": "村庄广场",
+                "visited": false
+              }
+            ],
+            "npcs": [
+              {
+                "npc_id": "npc_a",
+                "name": "玛尔塔",
+                "note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+                "sprite_key": "sprite_a"
+              }
+            ],
+            "current_npc_id": "npc_a",
+            "passages": [
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "进来吧。说话轻一点，我不想让邻居听见。"
+              },
+              {
+                "speaker": "narrator",
+                "name": "旁白",
+                "text": "她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。"
+              },
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "这门一到晚上就关不严……你问完就走吧。"
+              }
+            ],
+            "passage_id": "2:7",
+            "ending": null,
+            "can_conclude": false,
+            "report_active": false,
+            "conclude_reason": "请先完成当前对话，或离开现场结束对话。",
+            "ready": false,
+            "visible_facts": [
+              {
+                "id": "victim_name",
+                "value": "磨坊主的女儿艾拉，十四岁"
+              },
+              {
+                "id": "disappearance_night",
+                "value": "三天前的夜里，雨停之后"
+              },
+              {
+                "id": "search_failed",
+                "value": "村民搜过森林边缘，什么也没找到"
+              }
+            ],
+            "quest_stages": {
+              "investigation": 0
+            },
+            "scripted_lines": [],
+            "options": [
+              {
+                "final_report": false,
+                "option_id": "help_latch",
+                "tag": "goodwill",
+                "text": "我先帮你把门栓修好，你不用急着回答。"
+              },
+              {
+                "final_report": false,
+                "option_id": "leave_it",
+                "tag": "observe",
+                "text": "不打扰了，我去别处问问。"
+              }
+            ],
+            "event_in_progress": true,
+            "intro": {
+              "title": "调查笔记",
+              "premise": "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。",
+              "facts_header": "已知线索",
+              "goal": "你想从她口中问出关于这起失踪案的线索。"
+            },
+            "transcript_tail": [
+              {
+                "speaker": "narrator",
+                "name": "旁白",
+                "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+              },
+              {
+                "speaker": "player",
+                "name": "",
+                "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+              },
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "……小声点。我儿子在屋里。你想问什么？"
+              },
+              {
+                "speaker": "player",
+                "name": "",
+                "text": "我不是来添麻烦的"
+              },
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "进来吧。说话轻一点，我不想让邻居听见。"
+              },
+              {
+                "speaker": "narrator",
+                "name": "旁白",
+                "text": "她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。"
+              },
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "这门一到晚上就关不严……你问完就走吧。"
+              }
+            ]
+          }
+        },
+        {
+          "seq": 6,
+          "type": "scene",
+          "data": {
+            "turn": 2,
+            "time_day": 1,
+            "time_slot": "morning",
+            "location": {
+              "location_id": "npc_a_house",
+              "name": "玛尔塔的家",
+              "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+              "backdrop": "interior"
+            },
+            "destinations": [
+              {
+                "location_id": "village_square",
+                "name": "村庄广场",
+                "visited": false
+              }
+            ],
+            "npcs": [
+              {
+                "npc_id": "npc_a",
+                "name": "玛尔塔",
+                "note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+                "sprite_key": "sprite_a"
+              }
+            ],
+            "current_npc_id": "npc_a",
+            "passages": [
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "进来吧。说话轻一点，我不想让邻居听见。"
+              },
+              {
+                "speaker": "narrator",
+                "name": "旁白",
+                "text": "她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。"
+              },
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "这门一到晚上就关不严……你问完就走吧。"
+              }
+            ],
+            "passage_id": "2:7",
+            "ending": null,
+            "can_conclude": false,
+            "report_active": false,
+            "conclude_reason": "请先完成当前对话，或离开现场结束对话。",
+            "ready": true,
+            "visible_facts": [
+              {
+                "id": "victim_name",
+                "value": "磨坊主的女儿艾拉，十四岁"
+              },
+              {
+                "id": "disappearance_night",
+                "value": "三天前的夜里，雨停之后"
+              },
+              {
+                "id": "search_failed",
+                "value": "村民搜过森林边缘，什么也没找到"
+              }
+            ],
+            "quest_stages": {
+              "investigation": 0
+            },
+            "scripted_lines": [],
+            "options": [
+              {
+                "final_report": false,
+                "option_id": "help_latch",
+                "tag": "goodwill",
+                "text": "我先帮你把门栓修好，你不用急着回答。"
+              },
+              {
+                "final_report": false,
+                "option_id": "leave_it",
+                "tag": "observe",
+                "text": "不打扰了，我去别处问问。"
+              }
+            ],
+            "event_in_progress": true,
+            "intro": {
+              "title": "调查笔记",
+              "premise": "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。",
+              "facts_header": "已知线索",
+              "goal": "你想从她口中问出关于这起失踪案的线索。"
+            },
+            "transcript_tail": [
+              {
+                "speaker": "narrator",
+                "name": "旁白",
+                "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+              },
+              {
+                "speaker": "player",
+                "name": "",
+                "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+              },
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "……小声点。我儿子在屋里。你想问什么？"
+              },
+              {
+                "speaker": "player",
+                "name": "",
+                "text": "我不是来添麻烦的"
+              },
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "进来吧。说话轻一点，我不想让邻居听见。"
+              },
+              {
+                "speaker": "narrator",
+                "name": "旁白",
+                "text": "她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。"
+              },
+              {
+                "speaker": "npc_a",
+                "name": "玛尔塔",
+                "text": "这门一到晚上就关不严……你问完就走吧。"
+              }
+            ]
+          }
+        }
+      ],
+      "wire_range": [
+        0,
+        1
+      ],
+      "elapsed_seconds": 0.422
+    }
+  ],
+  "completed": false,
+  "create_response": {
+    "status": 200,
+    "body": {
+      "session_id": "9300aefe643f4eb4958bce0834ac6781",
+      "scenario": "village_disappearance",
+      "npc_id": "npc_a",
+      "dev_mode": false,
+      "resumed_from": null,
+      "turn": 1
+    }
+  },
+  "embedder": "HashingEmbedder (字面匹配，非语义)",
+  "initial": {
+    "session_id": "9300aefe643f4eb4958bce0834ac6781",
+    "scene": {
+      "turn": 1,
+      "time_day": 1,
+      "time_slot": "morning",
+      "location": {
+        "location_id": "npc_a_house",
+        "name": "玛尔塔的家",
+        "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+        "backdrop": "interior"
+      },
+      "destinations": [
+        {
+          "location_id": "village_square",
+          "name": "村庄广场",
+          "visited": false
+        }
+      ],
+      "npcs": [
+        {
+          "npc_id": "npc_a",
+          "name": "玛尔塔",
+          "note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+          "sprite_key": "sprite_a"
+        }
+      ],
+      "current_npc_id": "npc_a",
+      "passages": [
+        {
+          "speaker": "narrator",
+          "name": "旁白",
+          "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+        },
+        {
+          "speaker": "player",
+          "name": "你",
+          "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+        },
+        {
+          "speaker": "npc_a",
+          "name": "玛尔塔",
+          "text": "……小声点。我儿子在屋里。你想问什么？"
+        }
+      ],
+      "passage_id": "1:3",
+      "ending": null,
+      "can_conclude": false,
+      "report_active": false,
+      "conclude_reason": "请先完成当前对话，或离开现场结束对话。",
+      "ready": true,
+      "visible_facts": [
+        {
+          "id": "victim_name",
+          "value": "磨坊主的女儿艾拉，十四岁"
+        },
+        {
+          "id": "disappearance_night",
+          "value": "三天前的夜里，雨停之后"
+        },
+        {
+          "id": "search_failed",
+          "value": "村民搜过森林边缘，什么也没找到"
+        }
+      ],
+      "quest_stages": {
+        "investigation": 0
+      },
+      "scripted_lines": [],
+      "options": [
+        {
+          "final_report": false,
+          "option_id": "goodwill",
+          "tag": "goodwill",
+          "text": "我不是来添麻烦的"
+        },
+        {
+          "final_report": false,
+          "option_id": "press_that_night",
+          "tag": "press",
+          "text": "那晚你在外面，对吗"
+        }
+      ],
+      "event_in_progress": true,
+      "intro": {
+        "title": "调查笔记",
+        "premise": "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。",
+        "facts_header": "已知线索",
+        "goal": "你想从她口中问出关于这起失踪案的线索。"
+      },
+      "transcript_tail": [
+        {
+          "speaker": "narrator",
+          "name": "旁白",
+          "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+        },
+        {
+          "speaker": "player",
+          "name": "",
+          "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+        },
+        {
+          "speaker": "npc_a",
+          "name": "玛尔塔",
+          "text": "……小声点。我儿子在屋里。你想问什么？"
+        }
+      ]
+    },
+    "world": {
+      "world_id": "village_disappearance",
+      "time_day": 1,
+      "npcs": {
+        "npc_a": {
+          "npc_id": "npc_a",
+          "name": "玛尔塔",
+          "public_note": "村里的接生婆，独自带大一个儿子。这几天没怎么出门。",
+          "alive": true,
+          "location": "npc_a_house",
+          "faction_id": "villagers"
+        },
+        "npc_b": {
+          "npc_id": "npc_b",
+          "name": "洛伦",
+          "public_note": "村里的猎人，熟悉森林里的每一条路。话很少。",
+          "alive": true,
+          "location": "forest_edge",
+          "faction_id": "villagers"
+        },
+        "npc_c": {
+          "npc_id": "npc_c",
+          "name": "酒馆老板",
+          "public_note": "村里唯一的酒馆老板，见的人多，嘴上也松。",
+          "alive": true,
+          "location": "tavern",
+          "faction_id": "villagers"
+        }
+      },
+      "factions": {
+        "villagers": {
+          "faction_id": "villagers",
+          "power": 0.4,
+          "stability": 0.6,
+          "relationships": {}
+        }
+      },
+      "quests": {
+        "investigation": {
+          "quest_id": "investigation",
+          "stage": 0,
+          "status": "active"
+        }
+      },
+      "facts": {
+        "victim_name": {
+          "fact_id": "victim_name",
+          "value": "磨坊主的女儿艾拉，十四岁",
+          "visibility": "revealed",
+          "reveal_condition": null,
+          "partial_value": null
+        },
+        "disappearance_night": {
+          "fact_id": "disappearance_night",
+          "value": "三天前的夜里，雨停之后",
+          "visibility": "revealed",
+          "reveal_condition": null,
+          "partial_value": null
+        },
+        "search_failed": {
+          "fact_id": "search_failed",
+          "value": "村民搜过森林边缘，什么也没找到",
+          "visibility": "revealed",
+          "reveal_condition": null,
+          "partial_value": null
+        },
+        "clue_1_witness": {
+          "fact_id": "clue_1_witness",
+          "value": "失踪当晚，玛尔塔看见有人从森林入口的方向回到村里",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "witness_told"
+              }
+            ]
+          },
+          "partial_value": "玛尔塔那晚似乎没睡，但她不愿多说"
+        },
+        "clue_2_identity": {
+          "fact_id": "clue_2_identity",
+          "value": "那个人的身形和走路的样子，像是猎人洛伦（NPC_B）",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "identity_told"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "loren_that_night": {
+          "fact_id": "loren_that_night",
+          "value": "洛伦以为那晚是他弄死了艾拉——他撞到的人确实倒了，但那是擦伤，她爬起来继续走了",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "told_loren_truth"
+              }
+            ]
+          },
+          "partial_value": "村里有人知情，但没人愿意先开口"
+        },
+        "npc_b_aware_of_investigation": {
+          "fact_id": "npc_b_aware_of_investigation",
+          "value": "洛伦已经知道有人在村里打听那天晚上的事",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.tension",
+                "op": "gte",
+                "value": 0.6
+              }
+            ]
+          },
+          "partial_value": "你走过村道时，有种被人留意着的感觉"
+        },
+        "marta_is_terrified": {
+          "fact_id": "marta_is_terrified",
+          "value": "她一直用手按着门框，指节发白",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "marta_hands_seen"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "ella_things_missing": {
+          "fact_id": "ella_things_missing",
+          "value": "艾拉的外衣不在，她攒下的钱不在，她母亲留下的那只木梳也不在——可别的东西都还在",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "ella_things_missing_told"
+              }
+            ]
+          },
+          "partial_value": "玛尔塔提起磨坊主家里这几天乱得很"
+        },
+        "ella_asked_the_road": {
+          "fact_id": "ella_asked_the_road",
+          "value": "艾拉前些天问过去镇上的路，还问过谁家的车最近要出村",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "ella_asked_the_road_told"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "timeline_mismatch": {
+          "fact_id": "timeline_mismatch",
+          "value": "洛伦回村之后，还有人见过艾拉的踪迹——时间线对不上",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "timeline_mismatch_told"
+              }
+            ]
+          },
+          "partial_value": "有件事情对不上，但还说不清是哪里"
+        },
+        "ella_whereabouts": {
+          "fact_id": "ella_whereabouts",
+          "value": "艾拉还活着。她那晚在逃家，在林子里撞上了洛伦、摔了一跤，爬起来继续往镇上走了",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "told_loren_truth"
+              }
+            ]
+          },
+          "partial_value": "有些事情对不上，但还说不清是哪里"
+        },
+        "npc_a_threatened": {
+          "fact_id": "npc_a_threatened",
+          "value": "玛尔塔说洛伦来门口警告\"孩子乱跑是很危险的\"，眼睛看着里屋——她怕调查牵连儿子",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "loren_warning_heard"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "marta_protects_son": {
+          "fact_id": "marta_protects_son",
+          "value": "她说话时反复看向里屋——那是她儿子在的地方",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "inner_room_seen"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "innkeeper_timeline": {
+          "fact_id": "innkeeper_timeline",
+          "value": "老板说洛伦那晚很晚才回来，钟差不多敲了三下——但玛尔塔记得的时间比这早",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "innkeeper_timeline_told"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "innkeeper_own_night": {
+          "fact_id": "innkeeper_own_night",
+          "value": "老板那晚关店晚了，他说是在后头跟人算一笔账，跟这案子没关系",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "innkeeper_own_night_told"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "innkeeper_hides_something": {
+          "fact_id": "innkeeper_hides_something",
+          "value": "他擦杯子的手停了一下——有件事他没说",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "innkeeper_hesitation_seen"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "forest_traces": {
+          "fact_id": "forest_traces",
+          "value": "森林入口的地上有被踩乱的痕迹——不止一个人在这里走过",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "forest_traces_seen"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "cloth_scrap": {
+          "fact_id": "cloth_scrap",
+          "value": "荆棘上挂着一小块布，颜色看着眼熟",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "cloth_seen"
+              }
+            ]
+          },
+          "partial_value": null
+        },
+        "blood_on_the_stone": {
+          "fact_id": "blood_on_the_stone",
+          "value": "一块石头上有血迹，量不大，位置也不像是重伤",
+          "visibility": "hidden",
+          "reveal_condition": {
+            "mode": "any",
+            "clauses": [
+              {
+                "path": "story_beats.flags",
+                "op": "contains",
+                "value": "blood_seen"
+              }
+            ]
+          },
+          "partial_value": null
+        }
+      },
+      "locations": {
+        "village_square": {
+          "location_id": "village_square",
+          "name": "村庄广场",
+          "description": "村子的中心，井边总有人聚着低声说话。失踪案之后，这里的谈话声更小了。",
+          "backdrop": "square",
+          "connected_to": [
+            "tavern",
+            "forest_edge",
+            "npc_a_house"
+          ]
+        },
+        "tavern": {
+          "location_id": "tavern",
+          "name": "酒馆",
+          "description": "村里唯一的酒馆，白天几乎没人。老板擦着永远擦不干净的杯子。",
+          "backdrop": "tavern",
+          "connected_to": [
+            "village_square"
+          ]
+        },
+        "npc_a_house": {
+          "location_id": "npc_a_house",
+          "name": "玛尔塔的家",
+          "description": "窗帘拉得很严，屋里隐约传来孩子的声音。",
+          "backdrop": "interior",
+          "connected_to": [
+            "village_square"
+          ]
+        },
+        "forest_edge": {
+          "location_id": "forest_edge",
+          "name": "森林入口",
+          "description": "村民口中\"孩子不许去\"的地方。地上有被踩乱的痕迹，已经下过雨。",
+          "backdrop": "forest",
+          "connected_to": [
+            "village_square"
+          ]
+        }
+      },
+      "relationships": {
+        "npc_a": {
+          "player_1": {
+            "trust": 10.0,
+            "fear": 30.0,
+            "respect": 0.0,
+            "last_updated": "2026-09-18T10:33:04.960351Z"
+          }
+        },
+        "npc_b": {
+          "player_1": {
+            "trust": 0.0,
+            "fear": 0.0,
+            "respect": 10.0,
+            "last_updated": "2026-09-18T10:33:04.960351Z"
+          }
+        },
+        "npc_c": {
+          "player_1": {
+            "trust": 5.0,
+            "fear": 0.0,
+            "respect": 0.0,
+            "last_updated": "2026-09-18T10:33:04.960351Z"
+          }
+        }
+      },
+      "player_locations": {
+        "player_1": "npc_a_house"
+      },
+      "story_beats": {
+        "chapter": 1,
+        "turn": 1,
+        "tension": 0.0,
+        "open_foreshadowings": {},
+        "planted_total": 0,
+        "recent_operators": [
+          "relieve"
+        ],
+        "spent_one_shots": [],
+        "active_event": {
+          "event_id": "M1_knock",
+          "exchanges": 0,
+          "max_exchanges": 4
+        },
+        "completed_events": [],
+        "closed_events": [],
+        "flags": [],
+        "visited_locations": [
+          "npc_a_house"
+        ],
+        "ended_at": null,
+        "time_slot": "morning",
+        "slots_spent_today": 0,
+        "day_limit": 4
+      },
+      "last_updated": "2026-09-18T10:33:05.394241Z"
+    },
+    "memories": {
+      "npc_a": {
+        "episodic": [
+          {
+            "memory_id": "npc_a_sighting",
+            "npc_id": "npc_a",
+            "event_description": "失踪那天深夜雨刚停，我起夜时看见有人从森林入口的方向走回村里，走路的样子很像猎人洛伦",
+            "importance": 0.95,
+            "emotion": "fear",
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          },
+          {
+            "memory_id": "npc_a_threat",
+            "npc_id": "npc_a",
+            "event_description": "第二天洛伦来我家门口站了很久，说\"孩子乱跑是很危险的\"，然后看着我儿子的房间",
+            "importance": 0.9,
+            "emotion": "fear",
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          },
+          {
+            "memory_id": "npc_a_search",
+            "npc_id": "npc_a",
+            "event_description": "村民们一起去森林边缘搜过一遍，什么也没找到，大家回来都不说话",
+            "importance": 0.4,
+            "emotion": null,
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          },
+          {
+            "memory_id": "eb6cfd4f1f414b16be341678f873454c",
+            "npc_id": "npc_a",
+            "event_description": "玩家说：场景对白；我回应：……小声点。我儿子在屋里。你想问什么？",
+            "importance": 0.4,
+            "emotion": "afraid",
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.396137Z",
+            "source_player_id": null,
+            "player_statement": null
+          }
+        ],
+        "semantic": [
+          {
+            "memory_id": "npc_a_belief_son",
+            "npc_id": "npc_a",
+            "fact": "如果我把那晚看见的事说出去，我儿子会是下一个",
+            "confidence": 0.9
+          },
+          {
+            "memory_id": "npc_a_belief_lying",
+            "npc_id": "npc_a",
+            "fact": "我不愿意直接说谎，但我可以只说一部分",
+            "confidence": 0.8
+          },
+          {
+            "memory_id": "npc_a_belief_stranger",
+            "npc_id": "npc_a",
+            "fact": "外来人问得越急，越可能只是想看热闹，不会留下来保护我们",
+            "confidence": 0.6
+          }
+        ]
+      },
+      "npc_b": {
+        "episodic": [
+          {
+            "memory_id": "npc_b_the_collision",
+            "npc_id": "npc_b",
+            "event_description": "那晚林子里有人从我面前跑开，我伸手拦了一下，那人倒了——我听见身体撞在地上的声音",
+            "importance": 1.0,
+            "emotion": "dread",
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          },
+          {
+            "memory_id": "npc_b_the_stone",
+            "npc_id": "npc_b",
+            "event_description": "我举灯过去的时候人已经不见了，只有石头上一片血，荆棘上挂着一小块布",
+            "importance": 1.0,
+            "emotion": "dread",
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          },
+          {
+            "memory_id": "npc_b_that_night",
+            "npc_id": "npc_b",
+            "event_description": "那晚我从森林回村的时候，看见玛尔塔家的窗帘动了一下",
+            "importance": 0.95,
+            "emotion": "calm",
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          },
+          {
+            "memory_id": "npc_b_warning",
+            "npc_id": "npc_b",
+            "event_description": "我去玛尔塔家门口提醒过她，孩子乱跑很危险。她听懂了",
+            "importance": 0.85,
+            "emotion": null,
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          },
+          {
+            "memory_id": "npc_b_why_he_was_there",
+            "npc_id": "npc_b",
+            "event_description": "我那晚是去收林地里的猎套。那片地不是我们能下套的地方",
+            "importance": 0.9,
+            "emotion": "shame",
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          }
+        ],
+        "semantic": [
+          {
+            "memory_id": "npc_b_belief_he_killed_her",
+            "npc_id": "npc_b",
+            "fact": "那晚倒在石头上的就是磨坊主的女儿，是我把她弄死的",
+            "confidence": 0.9
+          },
+          {
+            "memory_id": "npc_b_belief_cannot_explain",
+            "npc_id": "npc_b",
+            "fact": "就算说出那晚的事，也没人会信是意外——而且我得先解释自己为什么在那片林地里",
+            "confidence": 0.95
+          },
+          {
+            "memory_id": "npc_b_belief_quiet",
+            "npc_id": "npc_b",
+            "fact": "只要玛尔塔不开口，没有人能把这件事查到我头上",
+            "confidence": 0.8
+          },
+          {
+            "memory_id": "npc_b_belief_helpful",
+            "npc_id": "npc_b",
+            "fact": "主动配合搜寻比躲着不出面更不容易被怀疑",
+            "confidence": 0.9
+          },
+          {
+            "memory_id": "npc_b_belief_needs_to_know",
+            "npc_id": "npc_b",
+            "fact": "我想知道她到底在哪，哪怕是最坏的答案——不知道比知道更难熬",
+            "confidence": 0.85
+          }
+        ]
+      },
+      "npc_c": {
+        "episodic": [
+          {
+            "memory_id": "npc_c_loren_came_back",
+            "npc_id": "npc_c",
+            "event_description": "那晚洛伦很晚才回酒馆门口经过，我正准备关门",
+            "importance": 0.7,
+            "emotion": "neutral",
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          },
+          {
+            "memory_id": "npc_c_own_late_night",
+            "npc_id": "npc_c",
+            "event_description": "我那晚关店晚了，是因为在后头跟人算一笔不太体面的账，跟这案子没关系",
+            "importance": 0.5,
+            "emotion": "unease",
+            "occurred_at_day": 1,
+            "created_at": "2026-09-18T10:33:05.104770Z",
+            "source_player_id": null,
+            "player_statement": null
+          }
+        ],
+        "semantic": [
+          {
+            "memory_id": "npc_c_belief_loren_timing",
+            "npc_id": "npc_c",
+            "fact": "洛伦那晚回来的时候，钟差不多敲了三下（他记的是三更，其实更早）",
+            "confidence": 0.75
+          },
+          {
+            "memory_id": "npc_c_belief_marta_out",
+            "npc_id": "npc_c",
+            "fact": "听人说玛尔塔那晚也在外面（他自己没看见，是听来的）",
+            "confidence": 0.4
+          }
+        ]
+      }
+    },
+    "transcript": [
+      {
+        "speaker": "narrator",
+        "text": "门只开了一条缝。玛尔塔挡在门后，先看了看街上。"
+      },
+      {
+        "speaker": "player",
+        "text": "我受镇上议事厅委托，来问问艾拉失踪那晚的事。"
+      },
+      {
+        "speaker": "npc_a",
+        "text": "……小声点。我儿子在屋里。你想问什么？"
+      }
+    ]
+  },
+  "error": {
+    "type": "RuntimeError",
+    "message": "connection unavailable"
+  },
+  "cost": {
+    "http_requests": 1,
+    "missing_usage": 1,
+    "tokens": null,
+    "returned_models": [],
+    "http_latency": {
+      "n": 1,
+      "mean_ms": 6.035,
+      "p50_ms": 6.035,
+      "p95_ms": 6.035
+    }
+  },
+  "budget_charged_tokens": 8135,
+  "elapsed_seconds": 42.937,
+  "finished_at": "2026-09-18T10:33:05.860401+00:00"
+}

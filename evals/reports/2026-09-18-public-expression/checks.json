@@ -1,0 +1,27 @@
+{
+  "ruff_check": "passed, 8 files",
+  "ruff_format": "passed, 8 files",
+  "diff_check": "passed, existing CRLF warnings only",
+  "credential_scan": "passed, actual key absent",
+  "test_counts": {
+    "pytest.xml": {
+      "tests": 271,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 2
+    },
+    "pytest-default.xml": {
+      "tests": 36,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "frontend_tests": {
+    "passed": 8,
+    "failed": 0
+  },
+  "head": "5d3d51347900ed7c0f487e60096e965140e8c6b9",
+  "historical_files_preserved": 1112,
+  "default_public_expression": true
+}

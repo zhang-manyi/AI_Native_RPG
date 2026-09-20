@@ -18,7 +18,8 @@
 | Agent | 记忆检索、规划、工具调用、对话生成 | 依赖 LLM，输出不确定，需要 Eval |
 | Observability | Trace、叙事状态面板、Eval | 消费前两者的产出，不在主流程 |
 
-一次玩家交互只触发 1-2 次 LLM 调用（p50 ~1.5-3s）。若把状态管理、校验、排序也交给 LLM，延迟和成本都不现实。
+引导选项通常只需一次表达调用；自由对话还可能包含分类、工具续轮、行动后重写和重解析。
+调用数与耗时以 Trace 和 HTTP 记录为准，世界状态、检定和排序由确定性代码处理。
 
 三条由此展开的具体结论：
 
@@ -37,7 +38,7 @@ uv venv && uv pip install -e ".[dev]"
 python -m pytest        # 全部测试，不需要 API key，零网络请求
 ```
 
-跑一轮真实对话（这是唯一会联网的入口）：
+跑一轮真实终端对话（Web 和真实验收脚本也会联网）：
 
 ```bash
 cp .env.example .env                   # 填入 DEEPSEEK_API_KEY
@@ -54,6 +55,26 @@ python scripts/web.py                  # http://127.0.0.1:8000
 python scripts/web.py --mock           # 离线
 python scripts/web.py --no-dev         # 只有玩家视图，/debug 不挂载
 ```
+
+Windows 已有 `.venv` 时的最短真实启动：
+
+```powershell
+# .env: LLM_PROVIDER=deepseek, DEEPSEEK_API_KEY=<实际密钥>
+# DEEPSEEK_MODEL=deepseek-v4-flash, USE_MOCK_LLM=0
+.venv\Scripts\python.exe scripts/web.py --no-dev
+```
+
+打开 `http://127.0.0.1:8000`，新建村庄失踪案会话；有存档可选择继续。
+启动横幅必须显示真实供应商与模型；缺少可用密钥时普通 Web 会使用离线模式。
+验收脚本则拒绝缺少真实配置的运行。可选 embedding 的实际后端以页头/验收记录为准；
+安装了语义检索依赖但未指定本地权重时，首次启动可能下载权重，不能保证离线。
+
+2026-09-18 修复私有规划到公开台词的输入边界后，原路线和事先冻结的变体均经真实
+玩家接口到达 `truth_uncovered`，通过本轮有限演示验收。真实Web和终端入口默认使用
+新边界；无行动也独立生成公开台词，不再直接展示私有规划草稿。
+共28次真实请求、55,423 token；保留措辞生硬、时间线解释含混及一次重解析的限制。
+这不是全部自由对话安全性的保证。见[修复与完整证据](evals/reports/2026-09-18-public-expression/review.md)，
+此前[失败实录](evals/reports/2026-09-18-demo-acceptance/review.md)原样保留。
 
 场景页面支持固定对白、自动旁白、关键选项和可选的自由对话，右侧是开发者面板。
 无需自由打字即可走完整个调查；操作路线、结局条件和当前范围见

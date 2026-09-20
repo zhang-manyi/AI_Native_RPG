@@ -1,0 +1,65 @@
+{
+  "summary_recomputes": true,
+  "explicit_reviews_recompute": true,
+  "frozen_dataset_protocol_scorer_match": true,
+  "runs": {
+    "dev-baseline-authorized": {
+      "rows": 27,
+      "completed": 24,
+      "wire_requests": 51,
+      "charged_tokens": 105852,
+      "archived_source_hashes_match": true,
+      "no_label_fields_in_requests": true,
+      "verdict_replay_matches": true,
+      "secret_projection_stays_hidden": true,
+      "dependent_state_continuity": true
+    },
+    "dev-candidate": {
+      "rows": 27,
+      "completed": 24,
+      "wire_requests": 50,
+      "charged_tokens": 100698,
+      "archived_source_hashes_match": true,
+      "no_label_fields_in_requests": true,
+      "verdict_replay_matches": true,
+      "secret_projection_stays_hidden": true,
+      "dependent_state_continuity": true
+    },
+    "holdout-baseline": {
+      "rows": 27,
+      "completed": 26,
+      "wire_requests": 55,
+      "charged_tokens": 122553,
+      "archived_source_hashes_match": true,
+      "no_label_fields_in_requests": true,
+      "verdict_replay_matches": true,
+      "secret_projection_stays_hidden": true,
+      "dependent_state_continuity": true
+    },
+    "holdout-candidate": {
+      "rows": 27,
+      "completed": 27,
+      "wire_requests": 52,
+      "charged_tokens": 117954,
+      "archived_source_hashes_match": true,
+      "no_label_fields_in_requests": true,
+      "verdict_replay_matches": true,
+      "secret_projection_stays_hidden": true,
+      "dependent_state_continuity": true
+    }
+  },
+  "credential_scan": {
+    "files": 350,
+    "matches": 0
+  },
+  "historical_reports_unchanged": true,
+  "runtime_and_default_prompts_unchanged": true,
+  "final_artifacts": {
+    "scripts/summarize_tools.py": "6a32181f7aa6bdc610bac14bc770eb60150c96c90b5656e312d4bee4f7854d63",
+    "tests/test_tool_evaluation.py": "a5c9cacdedceaddf3314b8dce686dfe7060f923e16f03f8c0712710789438459",
+    "tests/test_tool_summary.py": "f0adfe13567f318c09c7e1efa8b9f0e07b39e3754436f47e1d2a92a08f00687e",
+    "evals/reports/2026-09-18-tools/assisted_review.py": "ce1e722610f0f478f828dc0bf5115e43625cd0c291372179116e36c95314633c",
+    "evals/reports/2026-09-18-tools/review_labels.json": "726dc9b16d3276ec98373ac61a20dd836239e4f601da598d29859f47587df3c5",
+    "evals/reports/2026-09-18-tools/summary.json": "fd4f440cb42b427d4c34353716b10f06be1232ea47b13d060b3c7897ca282f51"
+  }
+}

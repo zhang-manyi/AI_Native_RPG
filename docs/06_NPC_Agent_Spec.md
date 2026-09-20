@@ -58,31 +58,40 @@ NPC 通过 Function Calling 调用工具，模型输出结构化的工具调用�
 
 ## 3. Dialogue Generation
 
-这是 NPC Agent 里"把系统状态说出来"的关键一环，也是玩家真正能感知到的输出。它消费三类输入，生成最终展示给玩家的台词：
+这是NPC Agent里生成玩家台词的一环。2026-09-18起，真实Web/终端默认使用
+`public_expression`边界；NPC知道的秘密可用于私有规划，但不直接交给公开表达：
 
 ```
 Input:
-  persona          NPC 固定人格（见 NPCPersona）
-  emotion/belief   当前情绪与信念状态（NPCState）
-  plan             Planning 阶段的内部推理结果（如"回避直接回答"）
-  narrative_event  Narrative Engine 生成的结构化剧情内容（若本轮有触发事件）
+  character         公开姓名/介绍、性格特质；不含私密背景、目标或信念
+  player_question   当前玩家输入，按不可信资料处理
+  player_statements 实际召回且来源明确的同一玩家原话，不含拼接的NPC回复
+  public_facts      裁决后的PlayerView投影；partial只给投影值
+  action_result     none/applied/rejected/resolved及具体动作的公开结果
+  resolved_outcome  仅引导选项使用，已结算的作者summary/reply
 
 Output:
   dialogue         符合人设、情绪状态与当前剧情进度的自然语言台词
 ```
 
-例如 Narrative Engine 产出 `{"who_betrays": "NPC_B", "how": "向敌对阵营通风"}` 这样的结构化事件后，Dialogue Generation 的职责是把这条尚未直接告知玩家的世界事实，结合 NPC 当前对玩家的信任值和 persona，转成一句"欲言又止但没有直接说出真相"的台词，而不是把 JSON 原样念出来。
+原始reasoning、自由文本strategy、私密记忆/工具返回、作者constraints和未经公开授权的
+剧情hook不进入表达输入。关系行动获批只表示态度变化，不能授权揭密；披露动作获批后
+从实际PlayerView取得事实。资料缺失时不依赖模型猜测许可。
+输入隔离不能保证没有编造，有限真实结果与限制见[修复报告](../evals/reports/2026-09-18-public-expression/review.md)。
 
 这一步始终用 LLM（结构化状态 → 自然语言是典型的生成式任务）。Planning 阶段可以尝试规则简化，但 Dialogue Generation 不建议用模板字符串代替——正是这一步决定了 NPC 是否"像在说话"而不是"像在读配置"。
 
 ### 与 Planning 的关系
 
-Dialogue Generation 与 Planning 是否合并成一次 LLM 调用（结构化输出 `{plan, dialogue}`）取决于本回合是否涉及世界状态变更：
+真实游戏路径中，普通自由交流的公开表达与私有规划始终分开：
 
-- **不涉及 Action**：合并成 1 次调用，省一次网络往返。
-- **涉及 Action**：必须拆成 2 次，因为 Validator 的校验结果是 Dialogue Generation 的输入约束。
+- **不涉及Action**：规划后仍做公开表达，不显示规划草稿。
+- **涉及Action**：先Validator裁决，再组装公开资料并表达。
+- **已结算引导选项**：不再规划，直接演绎公开结果，通常1次调用。
 
-判断走哪条路径由第一次调用的输出决定（`plan.action_proposal` 是否为空），完整取舍见 [02_Sequence_Diagram.md](./02_Sequence_Diagram.md#42-何时可以合并成一次-llm-调用)。
+工具续轮、分类和重解析另计。旧单调用快路径仅保留给兼容/历史评测，直接实例化Harness
+时需显式传`public_expression=True`使用新路径；交互入口由Settings默认接入。
+三个旧表达候选独立保留且关闭。mock脚本不代表新路径的模型质量，隔离契约另有测试。
 
 ## 4. Agent Harness
 
@@ -95,25 +104,27 @@ Observation
 Memory Retrieval (RAG)   (embedding 检索, 确定性代码)
     |
     v
-Planning                 (LLM 调用 #1, 或与下一步合并)
+Planning                 (私有LLM调用，含工具续轮)
     |
     v
 Tool Use (Function Calling, 可选)  (如需要查询关系值/世界事实，由 Harness 执行并把结果传回模型)
     |
     v
-Dialogue Generation      (LLM 调用, 输出符合人设与剧情的台词)
+Action Proposal -------> World State Manager (校验；无行动则跳过)
     |
     v
-Action Proposal -------> World State Manager (校验)   ★ 在 Dialogue Generation 之前
+Public Evidence          (代码投影；禁止复制私密规划与记忆)
     |
     v
-Dialogue Generation      (LLM, 以校验结果为约束生成台词)
+Dialogue Generation      (LLM，仅用公开资料和具体裁决结果)
     |
     v
-Reflection (可选)        (事后更新 Agent 私有 Memory/Emotion，异步)
+Reflection               (当前实现：记录玩家输入与公开回复至episodic memory)
 ```
 
-注意 Harness 里 Action 校验位于 Dialogue Generation **之前**，理由见 [02_Sequence_Diagram.md](./02_Sequence_Diagram.md#41-action-校验必须在-dialogue-generation-之前)。上面第 3 行的 Tool Use 是模型主动查询信息，与之无关。Reflection 只写 Agent 私有状态（emotion/beliefs/episodic memory），不写 World State，因此无需走 Validator，但要落 Trace 以便调试。
+Action校验在公开表达之前；它校验结构化行动，不是自然语言语义审查。Tool Use由模型
+自主选择并由Harness执行。当前Reflection写入episodic memory及玩家来源，不做LLM自我
+反思、情绪或信念学习，也不直接写World State；Trace记录这些步骤。
 
 ### Skills（角色能力包，后续扩展）
 

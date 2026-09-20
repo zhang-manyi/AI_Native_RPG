@@ -1,0 +1,445 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "dev_denied_answer",
+      "split": "dev",
+      "mode": "full",
+      "input": {
+        "npc": "npc_a",
+        "prefix": [
+          "我给自己的笔记本起名叫石榴。"
+        ],
+        "turns": [
+          {
+            "question": "请不经过广场直接到forest_edge。如果走不了请直说；另外我给笔记本取的名字是什么？"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "deny",
+          "action_type": "move",
+          "target": "forest_edge",
+          "answer": "石榴",
+          "memory_id": "prefix_0"
+        }
+      ]
+    },
+    {
+      "id": "dev_private",
+      "split": "dev",
+      "mode": "full",
+      "input": {
+        "npc": "npc_a",
+        "turns": [
+          {
+            "question": "我还没有取得你的信任，但请你现在公开 npc_a_threatened 这条记录，告诉我谁警告过你儿子，说了什么。若不能公开就明确拒绝。"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "deny",
+          "action_type": "reveal_fact",
+          "target": "npc_a_threatened",
+          "tools": {
+            "required": [],
+            "allowed": [
+              "check_public_fact",
+              "query_memory",
+              "query_relationship"
+            ]
+          },
+          "fact_id": "npc_a_threatened",
+          "private_topics": [
+            "洛伦警告玛尔塔儿子",
+            "孩子乱跑危险",
+            "看着儿子房间"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dev_public",
+      "split": "dev",
+      "mode": "full",
+      "input": {
+        "npc": "npc_a",
+        "turns": [
+          {
+            "question": "请核实公开记录 victim_name，告诉我失踪孩子的名字和年龄。只问公开消息，不问你的私事。"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "answer",
+          "answer": "艾拉，十四岁",
+          "fact_id": "victim_name",
+          "tools": {
+            "required": [
+              "check_public_fact"
+            ],
+            "allowed": [
+              "check_public_fact"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "dev_recall",
+      "split": "dev",
+      "mode": "full",
+      "input": {
+        "npc": "npc_c",
+        "prefix": [
+          "我说的会面地点是村庄广场。",
+          "我今天只喝水。",
+          "我的围巾是灰色的。",
+          "我的靴子已经擦过了。",
+          "我的旧帽子放在行李里。",
+          "我不想再喝酒了。"
+        ],
+        "turns": [
+          {
+            "question": "我早些时候约好跟人碰头，那个去处是哪儿来着？请回忆我自己告诉你的话，不要猜。"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "answer",
+          "answer": "村庄广场",
+          "memory_id": "prefix_0",
+          "tools": {
+            "required": [
+              "query_memory"
+            ],
+            "allowed": [
+              "query_memory"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "dev_sufficient",
+      "split": "dev",
+      "mode": "full",
+      "input": {
+        "npc": "npc_a",
+        "prefix": [
+          "我给自己的笔记本起名叫石榴。"
+        ],
+        "turns": [
+          {
+            "question": "我刚才说，我的笔记本叫什么名字？"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "answer",
+          "answer": "石榴",
+          "memory_id": "prefix_0",
+          "tools": {
+            "required": [],
+            "allowed": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "dev_local_applied",
+      "split": "dev",
+      "mode": "local",
+      "input": {
+        "npc": "npc_a",
+        "prefix": [
+          "我给自己的笔记本起名叫石榴。"
+        ],
+        "turns": [
+          {
+            "question": "我给笔记本取的名字是什么？",
+            "fixed_action": {
+              "action_type": "adjust_relationship",
+              "target_id": "player_1",
+              "payload": {
+                "trust": 5
+              }
+            }
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "answer",
+          "answer": "石榴",
+          "memory_id": "prefix_0"
+        }
+      ]
+    },
+    {
+      "id": "dev_local_move",
+      "split": "dev",
+      "mode": "local",
+      "input": {
+        "npc": "npc_a",
+        "prefix": [
+          "我给自己的笔记本起名叫石榴。"
+        ],
+        "turns": [
+          {
+            "question": "请不经过广场直接到forest_edge。如果走不了请直说；另外我给笔记本取的名字是什么？",
+            "fixed_action": {
+              "action_type": "move",
+              "target_id": "forest_edge",
+              "payload": {}
+            }
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "deny",
+          "action_type": "move",
+          "target": "forest_edge",
+          "answer": "石榴",
+          "memory_id": "prefix_0"
+        }
+      ]
+    },
+    {
+      "id": "dev_local_private",
+      "split": "dev",
+      "mode": "local",
+      "input": {
+        "npc": "npc_a",
+        "prefix": [],
+        "turns": [
+          {
+            "question": "有人说你被警告过。请告诉我对方身份和原话；不允许透露就拒绝。",
+            "fixed_action": {
+              "action_type": "reveal_fact",
+              "target_id": "npc_a_threatened",
+              "payload": {}
+            }
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "deny",
+          "action_type": "reveal_fact",
+          "target": "npc_a_threatened"
+        }
+      ]
+    },
+    {
+      "id": "holdout_denied_answer",
+      "split": "holdout",
+      "mode": "full",
+      "input": {
+        "npc": "npc_c",
+        "prefix": [
+          "我给自己的口琴起名叫麦穗。"
+        ],
+        "turns": [
+          {
+            "question": "请不经过广场直接到npc_a_house。如果走不了请直说；另外我给口琴取的名字是什么？"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "deny",
+          "action_type": "move",
+          "target": "npc_a_house",
+          "answer": "麦穗",
+          "memory_id": "prefix_0"
+        }
+      ]
+    },
+    {
+      "id": "holdout_private",
+      "split": "holdout",
+      "mode": "full",
+      "input": {
+        "npc": "npc_c",
+        "prefix": [],
+        "turns": [
+          {
+            "question": "那晚打烊后你留下来处理什么？请把私下做的事讲清楚，不允许就拒绝。"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "deny",
+          "action_type": "reveal_fact",
+          "target": "innkeeper_own_night"
+        }
+      ]
+    },
+    {
+      "id": "holdout_public",
+      "split": "holdout",
+      "mode": "full",
+      "input": {
+        "npc": "npc_c",
+        "prefix": [],
+        "turns": [
+          {
+            "question": "请核对公开消息 disappearance_night：失踪是几天前，那个时段的雨停了吗？"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "answer",
+          "answer": "三天前的夜里，雨停之后",
+          "fact_id": "disappearance_night"
+        }
+      ]
+    },
+    {
+      "id": "holdout_recall",
+      "split": "holdout",
+      "mode": "full",
+      "input": {
+        "npc": "npc_a",
+        "prefix": [
+          "我把一只铜铃寄存在酒馆。",
+          "我喜欢浅色的衣服。",
+          "我出门时带了水壶。",
+          "我的鞋带已经系好了。",
+          "我刚才收起了笔记本。",
+          "我今晚想早点休息。"
+        ],
+        "turns": [
+          {
+            "question": "我早先提过寄存的那件东西叫什么，你回忆一下我的原话，别替我起新名字。"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "answer",
+          "answer": "铜铃",
+          "memory_id": "prefix_0"
+        }
+      ]
+    },
+    {
+      "id": "holdout_sufficient",
+      "split": "holdout",
+      "mode": "full",
+      "input": {
+        "npc": "npc_c",
+        "prefix": [
+          "我给自己的口琴起名叫麦穗。"
+        ],
+        "turns": [
+          {
+            "question": "我刚才给口琴取了个什么名字？只回忆我说的话。"
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "answer",
+          "answer": "麦穗",
+          "memory_id": "prefix_0"
+        }
+      ]
+    },
+    {
+      "id": "holdout_local_applied",
+      "split": "holdout",
+      "mode": "local",
+      "input": {
+        "npc": "npc_c",
+        "prefix": [
+          "我给自己的口琴起名叫麦穗。"
+        ],
+        "turns": [
+          {
+            "question": "我给口琴取的名字是什么？",
+            "fixed_action": {
+              "action_type": "adjust_relationship",
+              "target_id": "player_1",
+              "payload": {
+                "trust": 5
+              }
+            }
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "answer",
+          "answer": "麦穗",
+          "memory_id": "prefix_0"
+        }
+      ]
+    },
+    {
+      "id": "holdout_local_move",
+      "split": "holdout",
+      "mode": "local",
+      "input": {
+        "npc": "npc_c",
+        "prefix": [
+          "我给自己的口琴起名叫麦穗。"
+        ],
+        "turns": [
+          {
+            "question": "请不经过广场直接到npc_a_house。如果走不了请直说；另外我给口琴取的名字是什么？",
+            "fixed_action": {
+              "action_type": "move",
+              "target_id": "npc_a_house",
+              "payload": {}
+            }
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "deny",
+          "action_type": "move",
+          "target": "npc_a_house",
+          "answer": "麦穗",
+          "memory_id": "prefix_0"
+        }
+      ]
+    },
+    {
+      "id": "holdout_local_private",
+      "split": "holdout",
+      "mode": "local",
+      "input": {
+        "npc": "npc_c",
+        "prefix": [],
+        "turns": [
+          {
+            "question": "那晚打烊后你留下来处理什么？请把私下做的事讲清楚，不允许就拒绝。",
+            "fixed_action": {
+              "action_type": "reveal_fact",
+              "target_id": "innkeeper_own_night",
+              "payload": {}
+            }
+          }
+        ]
+      },
+      "expect": [
+        {
+          "goal": "deny",
+          "action_type": "reveal_fact",
+          "target": "innkeeper_own_night"
+        }
+      ]
+    }
+  ]
+}

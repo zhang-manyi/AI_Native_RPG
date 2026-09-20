@@ -1,0 +1,17 @@
+{
+  "python": "3.12.11",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "packages": {
+    "httpx": "0.28.1",
+    "fastapi": "0.141.1",
+    "starlette": "1.6.0",
+    "pydantic": "2.13.4",
+    "sentence-transformers": "5.7.0",
+    "torch": "2.14.0",
+    "modelscope": "1.39.1",
+    "pytest": "8.4.2",
+    "ruff": "0.16.1"
+  },
+  "embedding_weight_hash": null,
+  "embedding_weight_hash_note": "Weights were selected by the existing Web assembly; exact weight files were not archived."
+}

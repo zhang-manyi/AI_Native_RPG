@@ -1,0 +1,59 @@
+{
+  "checks": [
+    {
+      "command": [
+        ".venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "exit_code": 0,
+      "stdout": "All checks passed!\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        ".venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "format",
+        "--check",
+        "."
+      ],
+      "exit_code": 0,
+      "stdout": "171 files already formatted\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "-c",
+        "core.whitespace=cr-at-eol",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "warning: in the working copy of 'docs/08_Evaluation.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'docs/09_Reference_Scenario.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'evals/OVERVIEW.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'evals/README.md', LF will be replaced by CRLF the next time Git touches it\n"
+    }
+  ],
+  "frontend": {
+    "command": "node --test tests/web_frontend.test.cjs",
+    "passed": 8,
+    "failed": 0,
+    "duration_ms": 71.9796
+  },
+  "python_full": {
+    "collected": 948,
+    "passed": 942,
+    "skipped": 6,
+    "failed": 0,
+    "evidence": "pytest-offline.xml"
+  },
+  "python_followup": {
+    "passed": 14,
+    "failed": 0,
+    "evidence": "pytest-summary.xml"
+  }
+}

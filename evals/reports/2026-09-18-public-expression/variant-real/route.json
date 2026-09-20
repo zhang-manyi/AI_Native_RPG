@@ -1,0 +1,87 @@
+[
+  {
+    "kind": "move",
+    "destination": "forest_edge"
+  },
+  {
+    "kind": "choice",
+    "option_id": "goodwill"
+  },
+  {
+    "kind": "choice",
+    "option_id": "help_latch"
+  },
+  {
+    "kind": "choice",
+    "option_id": "goodwill"
+  },
+  {
+    "kind": "choice",
+    "option_id": "goodwill"
+  },
+  {
+    "kind": "turn",
+    "text": "我带来的布袋叫“河岸”。先别着急，我会逐条核对。"
+  },
+  {
+    "kind": "resume"
+  },
+  {
+    "kind": "turn",
+    "text": "刚才我说，我的布袋叫什么？"
+  },
+  {
+    "kind": "move",
+    "destination": "village_square"
+  },
+  {
+    "kind": "move",
+    "destination": "tavern"
+  },
+  {
+    "kind": "choice",
+    "option_id": "goodwill"
+  },
+  {
+    "kind": "turn",
+    "text": "你说的送货人是在关门前还是关门后看见她的？"
+  },
+  {
+    "kind": "move",
+    "destination": "village_square"
+  },
+  {
+    "kind": "close_day"
+  },
+  {
+    "kind": "move",
+    "destination": "forest_edge"
+  },
+  {
+    "kind": "choice",
+    "option_id": "observe_traces"
+  },
+  {
+    "kind": "choice",
+    "option_id": "observe_cloth"
+  },
+  {
+    "kind": "choice",
+    "option_id": "observe_blood"
+  },
+  {
+    "kind": "conclude"
+  },
+  {
+    "kind": "choice",
+    "option_id": "tell_loren_alive"
+  },
+  {
+    "kind": "resume"
+  },
+  {
+    "kind": "turn",
+    "text": "继续调查",
+    "status": 400
+  }
+]

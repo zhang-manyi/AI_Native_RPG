@@ -1,0 +1,36 @@
+{
+  "dataset_frozen": true,
+  "protocol_frozen": true,
+  "historical_files_unchanged": true,
+  "historical_file_count": 542,
+  "candidate_current_hashes_match": true,
+  "offline_summary_exact": true,
+  "source_snapshots_valid": true,
+  "candidate_frozen_across_runs": true,
+  "no_score_fields_in_requests": true,
+  "planned_rows_and_completion": true,
+  "within_budgets": true,
+  "no_configured_credential_in_archive": true,
+  "all_attempts_cost": {
+    "http_requests": 175,
+    "missing_usage": 1,
+    "tokens": {
+      "prompt_tokens": 307260,
+      "completion_tokens": 42846,
+      "total_tokens": 350106
+    },
+    "returned_models": [
+      "deepseek-flash"
+    ],
+    "http_latency": {
+      "n": 175,
+      "mean_ms": 1968.4576685714285,
+      "p50_ms": 1679.579,
+      "p95_ms": 3802.538
+    }
+  },
+  "infrastructure_attempt_reserved_tokens": 10542,
+  "review_count": 96,
+  "currency_cost": null,
+  "currency_cost_reason": "No verified tariff"
+}

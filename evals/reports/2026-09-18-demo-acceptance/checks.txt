@@ -1,0 +1,9 @@
+ruff check: passed (2 new Python files)
+ruff format --check: passed (2 files)
+git -c core.whitespace=cr-at-eol diff --check: passed; existing CRLF conversion warnings only
+verify.py: 19/19 structural checks true; semantic_acceptance_passed=false
+pytest: 190 passed, 2 skipped; collection confirmed 192
+node frontend: 8 passed
+credential literal absent from all new report artifacts
+review reasons and dialogue hashes absent from every recorded model request
+HEAD: 5d3d51347900ed7c0f487e60096e965140e8c6b9

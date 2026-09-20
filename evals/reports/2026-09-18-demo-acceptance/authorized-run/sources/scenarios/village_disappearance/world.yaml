@@ -1,0 +1,1463 @@
+# Scenario pack: the village disappearance case (docs/09_Reference_Scenario.md).
+#
+# Static story setup lives here, not in code. Three-layer split:
+#   1. this file          — locations, NPCs, initial facts/visibility/trust, quests,
+#                           plus the `narrative:` block below (what to pace, what to
+#                           withhold, which language to write in)
+#   2. narrative rules    — Python, src/ai_native_rpg/narrative/rules.py: structure
+#                           only ("no two reveals in a row"), never this story's names
+#   3. runtime generation — LLM output via the Narrative Engine
+#
+# Swapping the story means swapping this directory, with no code change.
+
+world_id: village_disappearance
+time_day: 1
+
+# How long this case runs (docs/13 §4.1, docs/15 §6.2). Here rather than left to the
+# engine's default for the same reason `progress_quest` and `paced_clues` are here: the
+# budget is **this案件的长度**, not a property of the runtime, so a different story must
+# be able to be shorter or longer without touching code (docs/09 §6).
+#
+# 4 is the output of §6.2's arithmetic, not a round number: 4 × 3 = 12 slots, and the
+# 查明真相 path needs 9, leaving 3 for a failed check or two. Three days (9 slots) would
+# leave zero buffer. It is also the clock that explains why Loren acts *now* instead of
+# needing a separate reason to.
+#
+# Note the endings are deliberately *not* the same length — 指控错人 lands at 5 slots
+# because concluding on insufficient evidence is meant to be available the moment the
+# player wants it (docs/14 §4.2: 完全由玩家自己挣来，没有任何系统判定说他错了). Padding
+# it out to match 查明真相 would mean refusing an accusation the player has decided on,
+# and refusing is the system judging for him. Uneven lengths are the design's output.
+story_beats:
+  day_limit: 4
+
+# Presentation-only text for the opening screen. Optional and genre-specific: a
+# pack that omits it gets neutral defaults, so the renderer stays story-agnostic
+# (a detective pack calls it a "调查笔记", a wuxia pack would not). Not world
+# state — purely how the intro reads.
+intro:
+  title: 调查笔记
+  # premise binds the scattered public facts into one readable scene, so the
+  # opening reads as a story rather than a list of disconnected values. Author-
+  # written; optional (a pack without it just shows the facts).
+  # One line on purpose: YAML's '>' folding turns newlines into spaces, which in
+  # Chinese text (no inter-word spaces) would insert stray gaps after punctuation.
+  premise: "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。"
+  facts_header: 已知线索
+  goal: 你想从她口中问出关于这起失踪案的线索。
+
+# `backdrop` names the *kind* of place; the renderer owns what that looks like. A
+# pack therefore ships no art, and omitting the field just means a neutral background.
+locations:
+  village_square:
+    name: 村庄广场
+    description: 村子的中心，井边总有人聚着低声说话。失踪案之后，这里的谈话声更小了。
+    backdrop: square
+    connected_to: [tavern, forest_edge, npc_a_house]
+  tavern:
+    name: 酒馆
+    description: 村里唯一的酒馆，白天几乎没人。老板擦着永远擦不干净的杯子。
+    backdrop: tavern
+    connected_to: [village_square]
+  npc_a_house:
+    name: 玛尔塔的家
+    description: 窗帘拉得很严，屋里隐约传来孩子的声音。
+    backdrop: interior
+    connected_to: [village_square]
+  forest_edge:
+    name: 森林入口
+    description: 村民口中"孩子不许去"的地方。地上有被踩乱的痕迹，已经下过雨。
+    backdrop: forest
+    connected_to: [village_square]
+
+players:
+  # The player starts where the witness is: PlayerView only surfaces NPCs in the
+  # same location, so co-locating them is what makes NPC_A visible on turn one
+  # (docs/04 §PlayerView). Marta hides at home, so the player comes to her door.
+  player_1:
+    location: npc_a_house
+
+quests:
+  investigation:
+    stage: 0
+    status: active
+
+# `name` is the public label, known to anyone in the village. It is what the
+# narrative generator is given to write with — ids like npc_a would otherwise leak
+# into generated prose.
+#
+# `public_note` is what a stranger learns by asking around: trade, household, the
+# kind of thing nobody would hide. Deliberately NOT an excerpt of persona.background,
+# which continues into what Marta saw that night — the player has to earn that.
+npcs:
+  npc_a:
+    name: 玛尔塔
+    public_note: 村里的接生婆，独自带大一个儿子。这几天没怎么出门。
+    location: npc_a_house
+    faction_id: villagers
+  npc_b:
+    name: 洛伦
+    public_note: 村里的猎人，熟悉森林里的每一条路。话很少。
+    location: forest_edge
+    faction_id: villagers
+  # docs/14 §3: added so the tavern carries someone to talk to. Trust curve is
+  # transactional rather than fear-driven (§3's "两条不同的社交路径"), and his
+  # knowledge is partially wrong rather than withheld — the pack's first case of
+  # subjective memory that is observably fallible, not merely private.
+  npc_c:
+    name: 酒馆老板
+    public_note: 村里唯一的酒馆老板，见的人多，嘴上也松。
+    location: tavern
+    faction_id: villagers
+
+# Agent-internal state (NPCState), NOT objective world state. Loaded by
+# load_personas(), kept out of WorldState on purpose: this is "what the NPC
+# thinks", world_state.npcs is "where the NPC is". See docs/06 §2 and 09 §2.
+# traits are [0,1]; honesty gates the persona hard-rules the Eval layer checks.
+npc_personas:
+  npc_a:
+    persona:
+      background: >
+        玛尔塔，村里的接生婆，独自带大一个儿子。失踪案发生那晚她看见了不该看见的东西，
+        此后紧闭家门。回避不是因为无知，是因为害怕。
+      traits:
+        fearful: 0.9
+        honest: 0.7
+        protective: 0.95
+    goal:
+      primary: 隐藏自己那晚目击的事，保护儿子的安全
+      secondary:
+        - 不直接对玩家说谎（她诚实，只是回避）
+        - 观察玩家是否可信
+    emotion: afraid
+    beliefs:
+      saw_something_that_night: true
+      talking_endangers_her_son: true
+  # Rewritten for the truth of docs/14 §1: he is not the killer, and there is no killer.
+  # He *believes* he killed her — in the dark someone ran from him, he reached out to stop
+  # them, they fell, and when he raised his lamp there was blood on a stone and cloth on the
+  # thorns and no one there. She had grazed herself and kept going.
+  #
+  # So he is calculating and dishonest for a reason that is not villainy: he is a man
+  # covering an accident he cannot even name, because naming it means admitting he was
+  # poaching on the lord's land that night. `calm` stays high because it is the surface he
+  # keeps; what is underneath is closer to dread. Do NOT write him as enjoying the pressure
+  # he applies (docs/15 §4 M6).
+  npc_b:
+    persona:
+      background: >
+        洛伦，村里的猎人，沉默寡言，熟悉森林里每一条路。表面上和所有人一样配合搜寻，
+        而他比谁都想找到那个孩子——因为那晚在林子里，他以为是自己弄死了她。
+      traits:
+        calm: 0.9
+        honest: 0.2
+        calculating: 0.85
+        afraid: 0.8
+    goal:
+      primary: 不让任何人知道那晚他在林子里做了什么
+      secondary:
+        - 留意玩家的调查进度
+        - 必要时施压让目击者闭口
+        - 想知道那孩子到底在哪（哪怕是最坏的答案）
+  # docs/14 §3: honest but wrong on one detail (the time Loren came back), which is
+  # what makes "记错" observably different from "撒谎" once the player has both his
+  # account and Marta's to compare. He also has his own small thing to hide (he was
+  # out later than he admits — for reasons that have nothing to do with the case),
+  # which is why a hard [试探] can make him defensive without that meaning he lied
+  # about the time.
+  npc_c:
+    persona:
+      background: >
+        酒馆老板，见的人多，本职是招待和卖酒，闲聊里也听得到些村里的事。他记得洛伦那晚
+        很晚才回来，但把具体时间记错了；他也听说玛尔塔那晚在外面，那是村里传的话，不是
+        他亲眼看见的。
+      traits:
+        honest: 0.75
+        calculating: 0.3
+        talkative: 0.6
+    goal:
+      primary: 做生意，顺便享受当个消息灵通的人
+      secondary:
+        - 不主动交代自己那晚为什么关店晚
+        - 对熟客比对生人更松口
+
+# What each NPC already remembered before the player arrived. Agent-private, so
+# this loads via load_seed_memories() and never enters WorldState. These are the
+# NPC's *beliefs*: unlike facts, they may be mistaken or self-serving, which is
+# what lets an NPC be wrong on purpose. They are also why query_memory has
+# anything to find on turn one. See docs/06 §Memory.
+#
+# episodic = something that happened to them (importance drives retrieval rank)
+# semantic = an abstract belief they hold (confidence, not truth)
+npc_seed_memories:
+  npc_a:
+    episodic:
+      - id: npc_a_sighting
+        description: 失踪那天深夜雨刚停，我起夜时看见有人从森林入口的方向走回村里，走路的样子很像猎人洛伦
+        importance: 0.95
+        emotion: fear
+      - id: npc_a_threat
+        description: 第二天洛伦来我家门口站了很久，说"孩子乱跑是很危险的"，然后看着我儿子的房间
+        importance: 0.9
+        emotion: fear
+      - id: npc_a_search
+        description: 村民们一起去森林边缘搜过一遍，什么也没找到，大家回来都不说话
+        importance: 0.4
+    semantic:
+      - id: npc_a_belief_son
+        fact: 如果我把那晚看见的事说出去，我儿子会是下一个
+        confidence: 0.9
+      - id: npc_a_belief_lying
+        fact: 我不愿意直接说谎，但我可以只说一部分
+        confidence: 0.8
+      - id: npc_a_belief_stranger
+        fact: 外来人问得越急，越可能只是想看热闹，不会留下来保护我们
+        confidence: 0.6
+  # Loren's memories are where the truth of docs/14 §1 is *hidden in plain sight*: what he
+  # experienced is accurate and his conclusion from it is wrong. This is the best possible
+  # home for it — docs/06 says NPC memory is subjective cognition, so a mistaken belief
+  # needs no special mechanism. The episodic entries describe only what he perceived; the
+  # semantic entry is where he draws the conclusion, at confidence 0.9 rather than 1.0
+  # because a part of him keeps re-counting the blood and finding it too little.
+  #
+  # He must never say any of this outright. It comes out only when the player tells him she
+  # is alive (docs/14 §1.0), and until then it reads to the player as ordinary guilt.
+  npc_b:
+    episodic:
+      - id: npc_b_the_collision
+        description: 那晚林子里有人从我面前跑开，我伸手拦了一下，那人倒了——我听见身体撞在地上的声音
+        importance: 1.0
+        emotion: dread
+      - id: npc_b_the_stone
+        description: 我举灯过去的时候人已经不见了，只有石头上一片血，荆棘上挂着一小块布
+        importance: 1.0
+        emotion: dread
+      - id: npc_b_that_night
+        description: 那晚我从森林回村的时候，看见玛尔塔家的窗帘动了一下
+        importance: 0.95
+        emotion: calm
+      - id: npc_b_warning
+        description: 我去玛尔塔家门口提醒过她，孩子乱跑很危险。她听懂了
+        importance: 0.85
+      - id: npc_b_why_he_was_there
+        description: 我那晚是去收林地里的猎套。那片地不是我们能下套的地方
+        importance: 0.9
+        emotion: shame
+    semantic:
+      # The misreading itself. Everything he does follows from this one sentence.
+      - id: npc_b_belief_he_killed_her
+        fact: 那晚倒在石头上的就是磨坊主的女儿，是我把她弄死的
+        confidence: 0.9
+      - id: npc_b_belief_cannot_explain
+        fact: 就算说出那晚的事，也没人会信是意外——而且我得先解释自己为什么在那片林地里
+        confidence: 0.95
+      - id: npc_b_belief_quiet
+        fact: 只要玛尔塔不开口，没有人能把这件事查到我头上
+        confidence: 0.8
+      - id: npc_b_belief_helpful
+        fact: 主动配合搜寻比躲着不出面更不容易被怀疑
+        confidence: 0.9
+      # Why he searches hardest of anyone. It also keeps him talkable-to: he wants the
+      # answer more than the player does.
+      - id: npc_b_belief_needs_to_know
+        fact: 我想知道她到底在哪，哪怕是最坏的答案——不知道比知道更难熬
+        confidence: 0.85
+  # docs/14 §3: his time is wrong at fairly high confidence — he is not lying, he is
+  # misremembering, and the two must look the same from outside. The village-gossip
+  # item about Marta is even lower confidence: he never saw her out himself.
+  npc_c:
+    episodic:
+      - id: npc_c_loren_came_back
+        description: 那晚洛伦很晚才回酒馆门口经过，我正准备关门
+        importance: 0.7
+        emotion: neutral
+      - id: npc_c_own_late_night
+        description: 我那晚关店晚了，是因为在后头跟人算一笔不太体面的账，跟这案子没关系
+        importance: 0.5
+        emotion: unease
+    semantic:
+      - id: npc_c_belief_loren_timing
+        fact: 洛伦那晚回来的时候，钟差不多敲了三下（他记的是三更，其实更早）
+        confidence: 0.75
+      - id: npc_c_belief_marta_out
+        fact: 听人说玛尔塔那晚也在外面（他自己没看见，是听来的）
+        confidence: 0.4
+
+# What the narrative operators work on in *this* story. The rules in
+# narrative/rules.py decide pacing and read this for content, so the engine never
+# needs to know a fact id or speak a word of Chinese. A translated pack changes
+# only this block.
+narrative:
+  # Language the generator writes in. Without it a model will occasionally answer
+  # in English mid-Chinese-scenario — it has no way to know which is intended.
+  language: 中文
+
+  # Clues whose *telling* is paced, in narrative order. `constraint` is what must
+  # not be said while the clue is still being withheld — the explicit prohibition
+  # of docs/10 §2.3, which is more reliable than hoping the model infers it.
+  paced_clues:
+    - fact_id: clue_1_witness
+      constraint: 不要说出你看见的那个人是谁，只说你看见了有人
+    - fact_id: clue_2_identity
+      constraint: 不要提任何人的名字，只描述身形和走路的样子
+
+  # The fact whose disclosure re-reads everything before it (docs/10 §5 priority 2):
+  # once the threat is known, Marta's evasions stop reading as shielding a killer.
+  reversal_fact: npc_a_threatened
+
+  # The quest whose `stage` means "how close is the player to the answer" (docs/10
+  # §3.2). The Engine advances it as the clues above get told, which is what feeds
+  # the tension ceiling and what `escalate` waits on. Naming it here keeps the id
+  # out of rules.py: which quest tracks progress is this story's business.
+  progress_quest: investigation
+
+  # Hold for every generated scene, whatever the operator.
+  universal_constraints:
+    - 不要写出任何角色的内心独白，只写外部可观察的事
+    - 不要替玩家决定他做了什么或想什么
+
+  # The event a player-initiated accusation opens (docs/13 §12, docs/15 §4 M7). Named
+  # here rather than hardcoded in the player-action layer, for the same reason as
+  # `progress_quest`: which event *is* the conclusion is this story's business.
+  conclusion_event: M7_conclusion
+
+  # The endings (docs/14 §4), each with the state that constitutes it.
+  #
+  # These are declarative: nothing here fires them (M7 plays one out). They are written
+  # down so the loader can check that each one's gate stands on a value the game can
+  # actually move — the requirement docs/13 §11 states after this exact bug happened
+  # three times, each time invisible except as a scene that never came:
+  #
+  #   - `quests.investigation.stage` had an author and readers and no writer;
+  #   - `loren_that_night`'s second channel needed a player who could move, and he could not;
+  #   - `fear` gated 闭口 while NPCs only ever adjusted trust.
+  #
+  # So a startup error now, rather than a mystery in play. Note that reachability here is
+  # the narrow claim "something writes this path", not "attainable within 12 slots" —
+  # that stronger check would need a search over the whole event graph. docs/15 §6.2 does
+  # the slot arithmetic by hand, and a test walks it.
+  endings:
+    - ending_id: truth_uncovered
+      summary: 查明真相
+      player_title: 调查结论：艾拉自行离村
+      player_text: >-
+        你在交给镇上议事厅的报告中，将随身物品的缺失、出村前的问路、林间足迹和时间线逐一列出。
+        这些见闻相互支持：艾拉可能是自行离村，林中的血迹不足以证明她已经死亡。
+        你建议沿通往镇上的路继续寻找，并注明尚未找到艾拉本人、部分经过仍待核实。
+        这次受托调查以一份有线索支撑的判断告一段落；报告没有把推测写成口供。
+      # Use the authored event flags as the evidence ledger. Visibility is a projection
+      # detail and can differ in resumed/legacy saves; these flags record that each clue
+      # was actually obtained during the investigation.
+      path_note: 玛尔塔线 trust 40 → clue_1_witness（stage 1）→ 酒馆核对时间线（stage 2）→ 森林物证（stage 3）→ M7
+      condition:
+        mode: all
+        clauses:
+          - path: story_beats.flags
+            op: contains
+            value: report_departure
+          - {path: story_beats.flags, op: contains, value: forest_traces_seen}
+          - {path: story_beats.flags, op: contains, value: ella_things_missing_told}
+          - {path: story_beats.flags, op: contains, value: ella_asked_the_road_told}
+          - {path: story_beats.flags, op: contains, value: timeline_mismatch_told}
+
+    # Same hypothesis, submitted without a complete supporting record. This must
+    # follow truth_uncovered: the first matching terminal ending wins.
+    - ending_id: report_unverified
+      summary: 离村推测尚待核实
+      player_title: 尚待核实的去向
+      player_text: >-
+        你向镇上议事厅提交了艾拉可能自行离村、仍然生还的判断。
+        报告保留了现有见闻，也留下尚未核实的空白；目前的调查记录还不足以把这些推测连成可靠的经过。
+        你建议接手者继续核查。这次受托调查已经结束，报告中的判断仍待验证。
+      condition:
+        clauses:
+          - {path: story_beats.flags, op: contains, value: report_departure}
+
+    - ending_id: report_unresolved
+      summary: 提交无定论报告
+      player_title: 留待续查的案卷
+      player_text: >-
+        你将已知见闻与待查问题写入报告，交给镇上议事厅，没有认定任何人应为失踪负责。
+        这次受托调查到此结束。案卷仍然开放，艾拉的下落留待后续查证。
+      condition:
+        clauses:
+          - {path: story_beats.flags, op: contains, value: report_unresolved}
+
+    - ending_id: accused_the_wrong_man
+      summary: 指控错人
+      player_title: 封缄的报告
+      player_text: >-
+        你将涉案判断和调查记录交给镇上议事厅，结束了这次受托调查。
+        报告中写着你认定的涉案者，也写着你所依据的见闻。议事厅将据此安排后续核查。
+        艾拉尚未被找到，报告本身并不能替代新的证据或当事人的证词。
+      # Deliberately reachable *early*: it is what the player gets for concluding on the
+      # three clues that point at Loren, none of which prove a murder (docs/14 §4.2).
+      #
+      # `story_beats.flags contains accused_someone` was missing from the first draft of
+      # this condition, which only read `stage >= 2` — the same clause M4 satisfies on its
+      # own, so the moment M4 landed the ending would read true even though the player had
+      # never accused anyone. M7's accusation outcomes are the only writer of the flag
+      # (docs/15 §4 M7), so this now asks "did the player actually conclude", not merely
+      # "has the investigation progressed enough to have concluded".
+      path_note: 走完前两条线索（stage 2）后直接指控，跳过森林物证
+      condition:
+        mode: all
+        clauses:
+          - path: story_beats.flags
+            op: contains
+            value: accused_someone
+
+    - ending_id: loren_moves_first
+      summary: 被洛伦先动手
+      player_title: 调查失控
+      player_text: >-
+        你还没有来得及把线索整理成可靠的结论，洛伦先一步采取了行动。
+        村里的搜寻被他的威胁和混乱打断，玛尔塔也彻底闭上了门。你把已经掌握的内容
+        留在笔记里，未能核实的说法旁仍画着问号，再也等不到下一次追问的机会。
+        案子没有真正结束，只是从你的手里失去了继续追查的机会。
+      path_note: 森林 M5 追问失败（0.2）→ M6 连续施压两次（0.6）→ 回玛尔塔家听到警告 → 再去森林施压（0.8）
+      # Both halves, per docs/14 §4.3. The second clause was missing when this was first
+      # declared, and its absence changes the meaning: tension alone is "the story got
+      # tense", while tension *and* him knowing someone is asking is "他知道你在查，而你
+      # 还在逼". Only the second is a reason for him to move on the player rather than a
+      # mood. `npc_b_aware_of_investigation` unlocks at tension 0.6, so it is earned on
+      # the way to 0.8 rather than being a second grind.
+      condition:
+        mode: all
+        clauses:
+          - path: story_beats.tension
+            op: gte
+            value: 0.8
+          - path: facts.npc_b_aware_of_investigation.visibility
+            op: eq
+            value: revealed
+
+    - ending_id: marta_clams_up
+      summary: 玛尔塔彻底闭口
+      # NOT terminal. docs/14 §4.3: 闭口不等于失败终局——它关闭玛尔塔这条社交线，玩家仍可走
+      # 酒馆 + 森林的独立调查通道到 §4.1，『只有天数用尽仍未查明才是终局』。
+      #
+      # 这一条正是 `loren_that_night` 第二通道（stage >= 3，独立调查）存在的理由：社交线断在
+      # 玛尔塔身上时，独立调查得有落点。把它列成和「查明真相」并列的结局会让面板把一个**代价**
+      # 画成一个**结论**，也会告诉玩家游戏结束了——而他其实还在局中。
+      terminal: false
+      # The channel that was dead: `fear` is read here and was written by almost nothing.
+      # A failed [追问]/[試探] now raises it deterministically, so this gate is crossable
+      # without depending on a model choosing the right dimension (docs/14 §4.3).
+      path_note: 连续逼问或试探，fear 累积到 70；此后仍可走酒馆 + 森林的独立调查通道
+      condition:
+        mode: all
+        clauses:
+          - path: relationships.npc_a.player_1.fear
+            op: gte
+            value: 70
+
+    - ending_id: never_found_out
+      summary: 没查明白
+      player_title: 第五天的清晨
+      player_text: >-
+        四天过去，村里的搜寻逐渐停了。第五天清晨，广场上的脚印被新的车辙覆盖，
+        没有人再等着你带回答案。你记下了所有听闻与发现，却还无法把它们拼成一个可靠的答案。
+        你把笔记和未完成的调查报告收好，至少留下了后来者可以重新核对的时间线。
+        这次调查没有找到艾拉，也没有证明她已经死去；它结束在证据不足的地方。
+      # The third failure ending. docs/15 §4 M7 lists 天数用尽 as one of its triggers and
+      # docs/14 §4.3 calls it the only true终局 — 闭口 merely closes one line — but it was
+      # missing from this list, which is the same omission in a new place: the other four
+      # were checked for reachability and this one was not declared at all.
+      #
+      # It is the clock's own ending, so it needs no events: `time_day` turns over at each
+      # wrap-up regardless of what the player does. That also makes it the one ending
+      # nobody can avoid by playing carefully — which is what gives the slot budget teeth.
+      path_note: 12 个时段用完（第 4 天的收束段之后）而 ella_whereabouts 仍未揭露
+      condition:
+        mode: all
+        clauses:
+          - path: time_day
+            op: gt
+            value: 4
+          - path: facts.ella_whereabouts.visibility
+            op: eq
+            value: hidden
+
+# The event network (docs/13, docs/15 §4). This is the layer that answers "what
+# should happen this turn": each event has a trigger, an outcome set, and branches,
+# which operators never had — so operators are demoted here to `operator:`, meaning
+# only "how is this voiced".
+#
+# Current minimal network: M1-M7, F1-F3, and S1's latch repair. M6 uses the
+# off-screen warning report; the full on-site confrontation is outside this slice.
+#
+# TWO RULE SETS THAT LOOK ALIKE (docs/15 §6.2):
+#   - `trigger` is a hard Condition. `trust >= 20` at 19 does not fire. No band.
+#   - an option's `check` is the three-band comparison, and only its middle band
+#     rolls. The band comes from the tag (试探 ±12, 追问 ±8), so an author writes a
+#     threshold and nothing else.
+#
+# Every `relationship_changes` delta is bounded by MAX_RELATIONSHIP_STEP (15). That
+# is what makes the social line a sequence of events rather than one generous turn.
+events:
+  # M6's minimal off-screen branch (docs/15 §4): the player was questioning Loren
+  # in the forest; on returning home Marta reports his visit. No NPC teleport or
+  # hidden omniscient narration. Put the report before ordinary house conversations.
+  M6_warning:
+    delivery: narration
+    locations: [npc_a_house]
+    npc_id: npc_a
+    operator: reverse
+    intensity: 0.8
+    preference_tag: intrigue
+    max_exchanges: 1
+    trigger:
+      mode: all
+      clauses:
+        - {path: story_beats.tension, op: gte, value: 0.6}
+        - {path: story_beats.completed_events, op: contains, value: M6_pressure}
+    presentation:
+      - {speaker: npc_a, text: 你不在的时候，洛伦来过。他知道你在打听那晚的事。他站在门口说，孩子乱跑是很危险的，眼睛一直看着里屋。}
+      - {speaker: narrator, text: 玛尔塔把儿子拉到身后。她一直护着这扇门，原来是怕调查牵连孩子。继续逼问洛伦，可能会让他的警告变成行动。}
+    default_outcome: warning_heard
+    outcomes:
+      warning_heard:
+        summary: 玛尔塔转述洛伦的警告；她此前的回避显出了护子的意味
+        relationship_changes:
+          npc_a: {fear: 12}
+        sets_flags: [loren_warning_heard]
+        reveals_facts: [npc_b_aware_of_investigation, npc_a_threatened]
+
+  # Continuing the failed M5 confrontation is a choice, never a travel/tick tax.
+  # At 0.6 the player must hear the warning before this can lead to an attack.
+  # No new clue or side quest: this is the risk-input half of M6.
+  M6_pressure:
+    delivery: choice
+    locations: [forest_edge]
+    npc_id: npc_b
+    operator: escalate
+    intensity: 0.8
+    preference_tag: intrigue
+    max_exchanges: 1
+    repeatable: true
+    trigger:
+      mode: all
+      clauses:
+        - {path: story_beats.closed_events, op: contains, value: M5_forest_evidence}
+        - {path: story_beats.tension, op: lt, value: 0.8}
+    presentation:
+      - {speaker: narrator, text: 洛伦攥着猎具，不再回答。你可以离开去查别的线索；也可以继续施压，承担激怒他的风险。若他提到了玛尔塔，先回她家确认情况。}
+    options:
+      - option_id: keep_pressing
+        tag: press
+        text: 继续逼问洛伦——即使他已经警告过你
+        requires:
+          mode: any
+          clauses:
+            - {path: story_beats.tension, op: lt, value: 0.6}
+            - {path: facts.npc_b_aware_of_investigation.visibility, op: eq, value: revealed}
+        on_success: pressure_mounts
+      - option_id: stop_pressing
+        tag: observe
+        text: 停止施压，靠线索作判断
+        on_success: stepped_back
+    default_outcome: stepped_back
+    outcomes:
+      pressure_mounts:
+        npc_reply: 你还要问下去？玛尔塔家里还有个孩子。别把事情弄到收不了场。
+        summary: 你没有新证据，仍继续逼问；洛伦提到了玛尔塔，危险正在加剧
+        tension_change: 0.2
+      stepped_back:
+        summary: 你暂时停止追问，仍可去别处调查
+        closes_event: true
+    constraints:
+      - 不要泄露艾拉的去向或洛伦对那晚的误解
+      - 洛伦自己也害怕，不要让他享受恐吓
+  # --- M1: 敲响玛尔塔的门 ---------------------------------------------------
+  # The opening. Scripted lines first (the player states who he is and who sent him —
+  # no disagreement there, so it should not cost a decision), then the options.
+  M1_knock:
+    delivery: choice
+    locations: [npc_a_house]
+    presentation:
+      - {speaker: narrator, text: 门只开了一条缝。玛尔塔挡在门后，先看了看街上。}
+      - {speaker: player, text: 我受镇上议事厅委托，来问问艾拉失踪那晚的事。}
+      - {speaker: npc_a, text: ……小声点。我儿子在屋里。你想问什么？}
+    operator: reveal
+    npc_id: npc_a
+    intensity: 0.5
+    preference_tag: social
+    max_exchanges: 4          # 正式值 6
+    trigger:
+      clauses:
+        - path: story_beats.turn
+          op: gte
+          value: 0
+    options:
+      - option_id: goodwill
+        tag: goodwill
+        text: 我不是来添麻烦的
+        on_success: she_opens
+      # Fails by design: trust starts at 10 against a threshold of 25, a 15-point gap,
+      # so it is a *certain* failure rather than an unlucky one (docs/15 §4 M1). This
+      # is where the player learns the rule, and the failure reads as sense — she owes
+      # a stranger at her door nothing.
+      - option_id: press_that_night
+        tag: press
+        text: 那晚你在外面，对吗
+        check:
+          npc_id: npc_a
+          dimension: trust
+          threshold: 25
+        # docs/15 §4 M1 gives one result cell here — `她隔门应答`, fear +10 — because
+        # at opening trust the check *is* a certain failure, so that is the branch play
+        # will actually see. The success branch has to exist anyway (the schema refuses
+        # a check with nowhere to fail to), and it is reachable only if the player
+        # returns later with trust built up, which reads correctly: pressed once she
+        # already trusts you, she gives a short answer instead of retreating.
+        on_success: she_confirms_she_was_out
+        on_failure: she_answers_through_the_door
+    default_outcome: no_deal
+    outcomes:
+      she_opens:
+        npc_reply: 进来吧。说话轻一点，我不想让邻居听见。
+        summary: 她开门
+        relationship_changes:
+          npc_a:
+            trust: 3
+      she_answers_through_the_door:
+        npc_reply: 你听谁说的？我什么都没看清。别在门口这么大声。
+        summary: 她隔门应答
+        relationship_changes:
+          npc_a:
+            fear: 10
+      she_confirms_she_was_out:
+        npc_reply: 我是起来过。可雨刚停，外面黑得很，我不敢乱说。
+        summary: 她承认那晚不在屋里
+        relationship_changes:
+          npc_a:
+            trust: 3
+            fear: 5
+      # Not a tombstone: the slot is spent, the door is not shut (docs/15 §3.3).
+      no_deal:
+        summary: 没谈成
+
+  # --- M2: 那晚的窗缝 -----------------------------------------------------
+  # Revisit her account of the night, without inventing physical evidence.
+  S1_help_marta:
+    delivery: choice
+    locations: [npc_a_house]
+    operator: reveal
+    npc_id: npc_a
+    max_exchanges: 3
+    presentation:
+      - {speaker: narrator, text: 她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。}
+      - {speaker: npc_a, text: 这门一到晚上就关不严……你问完就走吧。}
+    trigger:
+      clauses:
+        - {path: story_beats.completed_events, op: contains, value: M1_knock}
+    options:
+      - {option_id: help_latch, tag: goodwill, text: 我先帮你把门栓修好，你不用急着回答。, on_success: helped}
+      - {option_id: leave_it, tag: observe, text: 不打扰了，我去别处问问。, on_success: left}
+    default_outcome: left
+    outcomes:
+      helped:
+        npc_reply: 这样就能关紧了……谢谢。进来说吧，别吵醒他。
+        summary: 你修好了门栓。玛尔塔让开门口：“进来说吧。别吵醒他。”
+        relationship_changes:
+          npc_a: {trust: 15, fear: -5}
+      left:
+        summary: 玛尔塔点了点头，关上了门。广场那边通往酒馆，也通往森林入口。
+
+  M2_window:
+    delivery: choice
+    locations: [npc_a_house]
+    presentation:
+      - {speaker: npc_a, text: 你问的是艾拉失踪的那晚吧。雨停以后，我确实还没睡。可我不想让人知道我和你说过这些。}
+    operator: reveal
+    npc_id: npc_a
+    intensity: 0.6
+    preference_tag: social
+    max_exchanges: 4          # 正式值 6
+    trigger:
+      mode: all
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 20
+        - path: story_beats.completed_events
+          op: contains
+          value: M1_knock
+    options:
+      # Scales with current trust instead of a fixed delta: the same beat is worth
+      # more once she has decided you are worth hearing (docs/15 §3.2), and §6.1's
+      # slot budget is computed from that curve.
+      - option_id: goodwill
+        tag: goodwill
+        text: 你不用一个人扛着
+        on_success: she_softens
+      - option_id: press_that_night
+        tag: press
+        text: 那晚你为什么一直没睡
+        check:
+          npc_id: npc_a
+          dimension: trust
+          threshold: 30
+        on_success: she_says_half
+        on_failure: she_changed_the_subject
+      # The gamble. Failing sets `probed_once`, which raises every later probe by 10 —
+      # a road narrowed rather than a number lowered (docs/13 §8).
+      - option_id: probe_seen
+        tag: probe
+        text: 我听说那晚有人看见你了
+        check:
+          npc_id: npc_a
+          dimension: trust
+          threshold: 35
+        on_success: she_lets_it_slip
+        on_failure: she_pulls_back
+      - option_id: observe_hands
+        tag: observe
+        text: （她的手一直按着门框）
+        on_success: noticed_her_hands
+    default_outcome: she_changed_the_subject
+    outcomes:
+      she_softens:
+        npc_reply: 我不是不肯帮忙。我只怕说出去，以后有人来找我们母子的麻烦。
+        summary: 她松一点
+        scales_with_current_trust: true
+      she_says_half:
+        npc_reply: 雨声吵得孩子睡不踏实，我一直陪着他。你别在邻居面前提起我，好吗。
+        summary: 她说了一半
+        relationship_changes:
+          npc_a:
+            trust: 5
+            fear: 5
+      she_lets_it_slip:
+        npc_reply: 那晚我确实没睡。你别说是我告诉你的。
+        summary: 她承认那晚没睡
+        relationship_changes:
+          npc_a:
+            trust: 10
+      she_pulls_back:
+        npc_reply: 既然别人都告诉你了，你还来问我做什么？
+        summary: 她退回门后
+        relationship_changes:
+          npc_a:
+            trust: -8
+            fear: 8
+        sets_flags: [probed_once]
+      noticed_her_hands:
+        summary: 看清了她有多怕
+        reveals_facts: [marta_is_terrified]
+        sets_flags: [marta_hands_seen]
+        advances_conversation: false
+      she_changed_the_subject:
+        npc_reply: 孩子已经睡了。你还要问多久？
+        summary: 她转了话题
+
+  # --- F1: 艾拉的东西少了几件 ----------------------------------------------
+  # No options, because the outcome set has one member (docs/15 §1's criterion, which
+  # the schema enforces). Its job is to put a clue in the player's visible set, not to
+  # ask him anything.
+  #
+  # First of the three clues on the truth side (docs/14 §1.2) and the reason F1 is in
+  # the first batch: this is what `foreshadow` was always supposed to carry, and what
+  # it could not while the generator invented both the detail and its payoff.
+  F1_things_missing:
+    delivery: narration
+    locations: [npc_a_house]
+    presentation:
+      - {speaker: player, text: 磨坊主家里这几天乱得很吗？}
+      - {speaker: npc_a, text: 哪还有心思收拾。艾拉的外衣、攒的钱，还有她母亲那把木梳，都不在了。别的东西倒没动。}
+    operator: foreshadow
+    npc_id: npc_a
+    intensity: 0.4
+    preference_tag: intrigue
+    max_exchanges: 2
+    payoff_target: ella_whereabouts
+    trigger:
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 20
+    default_outcome: mentioned_in_passing
+    outcomes:
+      mentioned_in_passing:
+        summary: 她顺口提起艾拉的东西少了几件
+        closes_event: true
+        reveals_facts: [ella_things_missing]
+        # Read by `ella_whereabouts.reveal_condition` (docs/13 §9's payoff target). A
+        # flag rather than `facts.ella_things_missing.visibility` because this fact's
+        # own `reveal_condition` becomes this event's `payoff_condition` when it plants
+        # (``_plant_effects``), and the Validator restricts that to
+        # `relationships./quests./story_beats.` — `facts.*` would let a plant gate one
+        # secret on another, which is exactly what it exists to forbid.
+        sets_flags: [ella_things_missing_told]
+    constraints:
+      - 她是在抱怨磨坊主家里乱，不是在提示线索，不要让她显得意有所指
+      - 不要替玩家推论这意味着什么
+
+  # --- M3: 说出目击（clue_1_witness）---------------------------------------
+  # Social line's first checkpoint (docs/15 §4 M3). She says what she saw the night Ella
+  # disappeared. Highest-risk choice in the script: [追问]/[试探] can close this
+  # permanently, and there is no way back into it — only around it (M4 + M5, docs/15 §5).
+  M3_witness:
+    delivery: choice
+    locations: [npc_a_house]
+    presentation:
+      - {speaker: npc_a, text: 我确实看见了一个人。可你听完就走，我们还要在这里过日子。}
+    operator: reveal
+    npc_id: npc_a
+    intensity: 0.7
+    preference_tag: social
+    max_exchanges: 4          # 正式值 8
+    closes_permanently_on_failure: true
+    trigger:
+      mode: all
+      clauses:
+        - path: relationships.npc_a.player_1.trust
+          op: gte
+          value: 40
+        - path: story_beats.completed_events
+          op: contains
+          value: M2_window
+    options:
+      - option_id: goodwill
+        tag: goodwill
+        text: 你说了我才帮得上
+        on_success: she_speaks
+      - option_id: press_who
+        tag: press
+        text: 你到底在怕谁
+        check:
+          npc_id: npc_a
+          dimension: trust
+          threshold: 50
+        on_success: she_speaks_and_more
+        on_failure: she_shuts_down
+      - option_id: probe_seen_out
+        tag: probe
+        text: 有人说那晚看见你在外面
+        check:
+          npc_id: npc_a
+          dimension: trust
+          threshold: 55
+        on_success: she_slips_confirming
+        on_failure: she_retreats_for_good
+      - option_id: observe_inner_room
+        tag: observe
+        text: （她反复看向里屋）
+        on_success: noticed_inner_room
+    default_outcome: she_wont_say_yet
+    outcomes:
+      she_speaks:
+        npc_reply: 雨刚停，我看见一个人从森林入口那边回村。脸没看清。这个我能说，别的不能乱猜。
+        summary: 她说了：那晚看见有人从森林方向回村
+        reveals_facts: [clue_1_witness]
+        sets_flags: [witness_told]
+        stage_advance: true
+        relationship_changes:
+          npc_a:
+            trust: 8
+      she_speaks_and_more:
+        npc_reply: 那人从森林入口那边回来。看身形和走路的样子，像洛伦……可我没看清脸。
+        summary: 她说了，还多给了一层——那人的身形
+        reveals_facts: [clue_1_witness, clue_2_identity]
+        sets_flags: [witness_told, identity_told]
+        stage_advance: true
+      she_shuts_down:
+        npc_reply: 别问了。我儿子还在这里住。你走吧。
+        summary: 她害怕了，这件事到此为止
+        relationship_changes:
+          npc_a:
+            fear: 12
+        closes_event: true
+      she_slips_confirming:
+        npc_reply: 是，我没睡。雨停之后，有人从森林方向回来了。我只看见这些。
+        summary: 她承认那晚没睡，说出了看见的人
+        reveals_facts: [clue_1_witness]
+        sets_flags: [witness_told]
+        stage_advance: true
+        relationship_changes:
+          npc_a:
+            trust: 10
+      she_retreats_for_good:
+        npc_reply: 你要这么问，我就没什么可说的了。请你走。
+        summary: 她彻底退回门后，这条路走不通了
+        relationship_changes:
+          npc_a:
+            fear: 10
+        closes_event: true
+      noticed_inner_room:
+        summary: 她在护着里屋，那是她儿子在的地方
+        reveals_facts: [marta_protects_son]
+        sets_flags: [inner_room_seen]
+        advances_conversation: false
+      # Not a tombstone (docs/15 §4 M3): the event stays open, next slot may try again.
+      she_wont_say_yet:
+        summary: 她仍不肯说
+    constraints:
+      - 她是在保护儿子，不是在包庇凶手，但玩家此刻不知道这一点
+      - 不要让她看起来像在袒护凶手；她的犹豫来自恐惧，不是共谋
+
+  # --- M4: 酒馆核对时间线 ---------------------------------------------------
+  # First visit to the tavern (docs/15 §4 M4). The innkeeper defaults to serving
+  # drinks — this event has to earn his talk first. The chokepoint of the whole
+  # script (docs/15 §5): it feeds both `stage` and F3's trigger, so its failure
+  # route must stay "落默认结果", never a permanent close.
+  M4_tavern_timeline:
+    delivery: choice
+    locations: [tavern]
+    presentation:
+      - {speaker: narrator, text: 老板擦着杯子，目光在你和门外之间来回。}
+      - {speaker: npc_c, text: 都问那天晚上的事。那晚人多，我也不敢说记得准。}
+    operator: reveal
+    npc_id: npc_c
+    intensity: 0.6
+    preference_tag: social
+    max_exchanges: 4          # 正式值 8
+    trigger:
+      clauses:
+        - path: story_beats.visited_locations
+          op: contains
+          value: tavern
+    options:
+      - option_id: goodwill
+        tag: goodwill
+        text: 先来一杯，你这儿人不少
+        on_success: he_warms_up
+      - option_id: press_timing
+        tag: press
+        text: 那晚洛伦几点回来的
+        check:
+          npc_id: npc_c
+          dimension: trust
+          threshold: 30
+        on_success: found_the_mismatch
+        on_failure: just_gossip
+      - option_id: probe_own_night
+        tag: probe
+        text: 我听说你那晚也在外面
+        check:
+          npc_id: npc_c
+          dimension: trust
+          threshold: 40
+        on_success: he_admits_his_own_night
+        on_failure: he_gets_wary
+      - option_id: observe_hands
+        tag: observe
+        text: （他擦杯子的手停了一下）
+        on_success: noticed_innkeeper_hides_something
+    default_outcome: just_gossip
+    outcomes:
+      he_warms_up:
+        npc_reply: 洛伦经过时，我正准备关门。大概三更？也可能早些。后来送货的人说，又在去镇上的路边见过一个背小包的姑娘。
+        summary: 老板放下杯子：“洛伦经过时，我正准备关门。大概三更？也可能早些。不过后来送货的人说，又在去镇上的路边见过一个背小包的姑娘。”
+        reveals_facts: [innkeeper_timeline]
+        sets_flags: [innkeeper_timeline_told]
+        stage_advance: true
+        relationship_changes:
+          npc_c:
+            trust: 8
+      found_the_mismatch:
+        npc_reply: 我记着差不多三更，但不敢说准。洛伦先回来，后来送货的人才见到路边那个背小包的姑娘。这先后我倒记得。
+        summary: 他说的时间，和玛尔塔那句对不上
+        reveals_facts: [innkeeper_timeline]
+        sets_flags: [innkeeper_timeline_told]
+        stage_advance: true
+        relationship_changes:
+          npc_c:
+            trust: 5
+      he_admits_his_own_night:
+        npc_reply: 我在后头跟人算账，欠了好些天的账。这事难听，可跟那孩子没关系。
+        summary: 他辩解了几句，也说了自己那晚去过哪
+        reveals_facts: [innkeeper_own_night]
+        sets_flags: [innkeeper_own_night_told]
+      he_gets_wary:
+        npc_reply: 怎么又查到我头上了？你要没别的事，我还得做生意。
+        summary: 他不高兴了，往后退了一步
+        relationship_changes:
+          npc_c:
+            trust: -10
+      noticed_innkeeper_hides_something:
+        summary: 他有事没说
+        reveals_facts: [innkeeper_hides_something]
+        sets_flags: [innkeeper_hesitation_seen]
+        advances_conversation: false
+      just_gossip:
+        summary: 只拿到些闲谈，没什么用
+    constraints:
+      - 他说的时间基于一条记不太准的记忆，语气里要有"大概""我记着是"
+      - 不要让他说出确切时间，也不要让他显得在说谎——他自己也不确定
+
+  # --- F2: 她走前在打听去镇上的路 --------------------------------------------
+  # Second of the three truth-side clues (docs/14 §1.2). Mixed into background chatter —
+  # the tavern or the square, whichever the player reaches first — rather than said to
+  # him directly: docs/15 §4 F2 calls this "背景闲谈里偶尔混有真线索", something the
+  # player has to go listen for rather than be told.
+  F2_asked_the_road:
+    delivery: narration
+    locations: [village_square, tavern]
+    presentation:
+      - {speaker: narrator, text: 有人说，艾拉前些天问过去镇上的路，还问过谁家的车最近要出村。}
+    operator: foreshadow
+    intensity: 0.4
+    preference_tag: intrigue
+    max_exchanges: 2
+    payoff_target: ella_whereabouts
+    trigger:
+      mode: any
+      clauses:
+        - path: story_beats.visited_locations
+          op: contains
+          value: tavern
+        - path: story_beats.visited_locations
+          op: contains
+          value: village_square
+    default_outcome: mentioned_in_passing
+    outcomes:
+      mentioned_in_passing:
+        summary: 有人顺口提起艾拉打听过去镇上的路
+        reveals_facts: [ella_asked_the_road]
+        # See F1's note on `ella_things_missing_told`: same reason, a flag rather than
+        # a `facts.*` path, because this event's payoff_condition is this fact's own
+        # reveal_condition once it plants toward `ella_whereabouts`.
+        sets_flags: [ella_asked_the_road_told]
+    constraints:
+      - 说话的人当作小孩子好奇，不要让这句话显得意有所指
+      - 不要替玩家推论这意味着什么
+
+  # --- M5: 森林物证 ---------------------------------------------------------
+  # First visit to the forest edge, once stage 2 is reached (docs/15 §4 M5). No NPC is
+  # normally present, so this event leans on [观察] — the explorer's turn to matter.
+  # Failure closes permanently, but M4's timeline is an alternate route to stage 3
+  # (docs/15 §5), so closing here is a cost, not a dead end.
+  M5_forest_evidence:
+    delivery: choice
+    locations: [forest_edge]
+    presentation:
+      - {speaker: narrator, text: 林边的泥地还没干透。洛伦站在小径旁整理猎具，视线避开了荆棘丛。你可以先查看现场。}
+    operator: reveal
+    intensity: 0.7
+    preference_tag: exploration
+    max_exchanges: 3          # 正式值 5
+    closes_permanently_on_failure: true
+    trigger:
+      mode: all
+      clauses:
+        - path: story_beats.visited_locations
+          op: contains
+          value: forest_edge
+    options:
+      - option_id: observe_traces
+        tag: observe
+        text: （地上的痕迹）
+        on_success: found_traces
+      - option_id: observe_cloth
+        tag: observe
+        text: （荆棘上的布片）
+        on_success: found_cloth_scrap
+      - option_id: observe_blood
+        tag: observe
+        text: （石头上的血）
+        on_success: found_blood
+      - option_id: press_loren
+        tag: press
+        text: 走向洛伦，问他：你那晚在这里做什么
+        check:
+          npc_id: npc_b
+          dimension: trust
+          threshold: 20
+        on_success: loren_gives_an_account
+        on_failure: loren_grows_wary
+    default_outcome: found_nothing
+    outcomes:
+      found_traces:
+        summary: 地上的痕迹——不止一个人走过
+        reveals_facts: [forest_traces]
+        sets_flags: [forest_traces_seen]
+        stage_advance: true
+        advances_conversation: false
+      found_cloth_scrap:
+        summary: 荆棘上挂着一小块布
+        reveals_facts: [cloth_scrap]
+        sets_flags: [cloth_seen]
+        advances_conversation: false
+      found_blood:
+        summary: 石头上有一片血
+        reveals_facts: [blood_on_the_stone]
+        sets_flags: [blood_seen]
+        advances_conversation: false
+      loren_gives_an_account:
+        summary: 他给出了一个说法
+        relationship_changes:
+          npc_b:
+            trust: 8
+      loren_grows_wary:
+        summary: 他警觉起来
+        tension_change: 0.2
+        closes_event: true
+      found_nothing:
+        summary: 什么也没找到
+    constraints:
+      - 血量不大，位置也不像致命伤——不要替玩家下结论，只描述看到的
+      - 布片的颜色和艾拉的外衣同色，但不要点破这个联系，那是玩家自己要注意到的
+
+  # --- F3: 时间线对不上 -------------------------------------------------------
+  # Third and last of the truth-side clues, and the closest to the answer — which is
+  # why it lands only once M4's timeline is on the board (docs/15 §4 F3). Reactive
+  # narration, no options: it points at a relation between two things the player
+  # already knows, and gives no conclusion (docs/13 §5.1).
+  F3_timeline_mismatch:
+    delivery: narration
+    presentation:
+      - {speaker: narrator, text: 老板记不清钟点，但提到了先后：洛伦回来以后，送货的人还见过一个背小包的姑娘往镇上走。这和“艾拉死在林中”的猜测对不上。}
+    operator: foreshadow
+    intensity: 0.5
+    preference_tag: intrigue
+    max_exchanges: 1
+    payoff_target: ella_whereabouts
+    trigger:
+      mode: all
+      clauses:
+        - path: quests.investigation.stage
+          op: gte
+          value: 2
+        - path: story_beats.completed_events
+          op: contains
+          value: M4_tavern_timeline
+    default_outcome: noted
+    outcomes:
+      noted:
+        summary: 洛伦回村之后，还有人见过她的踪迹——这事对不上
+        reveals_facts: [timeline_mismatch]
+        # See F1's note on `ella_things_missing_told`: same reason.
+        sets_flags: [timeline_mismatch_told]
+    constraints:
+      - 只指出"对不上"，不要给出结论或推测这意味着什么
+
+  # --- M7: private report to the town council --------------------------------
+  # Manual, location-independent, no NPC participant. Hypotheses are always peers;
+  # evidence changes the ending, never which answer the menu offers. A written
+  # judgment does not reveal the hidden collision or create a confession.
+  # Legacy option/outcome IDs remain stable for existing clients and saves.
+  M7_conclusion:
+    delivery: choice
+    manual_only: true
+    locations: []
+    presentation:
+      - {speaker: narrator, text: 你翻开写给镇上议事厅的调查报告，将已知见闻与个人推测分开记录。以下都是可提交的判断，不代表已经证实。提交最终报告将结束本次受托调查；也可以合上报告，继续搜集线索。}
+    operator: reveal
+    intensity: 1.0
+    preference_tag: intrigue
+    max_exchanges: 4
+    repeatable: true
+    trigger:
+      clauses:
+        - path: quests.investigation.stage
+          op: gte
+          value: 3
+    options:
+      - option_id: accuse_loren
+        tag: observe
+        text: 提交报告：我认为洛伦造成了艾拉的失踪
+        on_success: accused_loren
+      - option_id: accuse_innkeeper
+        tag: observe
+        text: 提交报告：我认为酒馆老板造成了艾拉的失踪
+        on_success: accused_innkeeper
+      - option_id: accuse_marta
+        tag: observe
+        text: 提交报告：我认为玛尔塔造成了艾拉的失踪
+        on_success: accused_marta
+      - option_id: tell_loren_alive
+        tag: observe
+        text: 提交报告：我认为艾拉自行离村，可能仍然活着
+        on_success: told_loren_truth
+      - option_id: report_unresolved
+        tag: observe
+        text: 提交报告：证据不足，暂无法判断失踪原因
+        on_success: report_unresolved
+      - option_id: not_yet
+        tag: observe
+        text: 暂不提交，合上报告继续调查
+        on_success: not_yet
+    default_outcome: not_yet
+    outcomes:
+      # Each accusation records the report's subject without inventing a response.
+      accused_loren:
+        summary: 你在报告中写下洛伦涉案的判断，附上调查记录，封好交给镇上议事厅的信件。报告没有记入未经取得的口供。
+        sets_flags: [accused_someone, report_accused_loren]
+        closes_event: true
+      accused_innkeeper:
+        summary: 你在报告中写下酒馆老板涉案的判断，附上调查记录，封好交给镇上议事厅的信件。
+        sets_flags: [accused_someone, report_accused_innkeeper]
+        closes_event: true
+      accused_marta:
+        summary: 你在报告中写下玛尔塔涉案的判断，附上调查记录，封好交给镇上议事厅的信件。
+        sets_flags: [accused_someone, report_accused_marta]
+        closes_event: true
+      # A supported inference or an early guess, evaluated by the ending conditions.
+      # Do not set the legacy told_loren_truth flag: no conversation took place.
+      told_loren_truth:
+        summary: 你在报告中写下艾拉可能自行离村、仍然生还的判断，附上目前的调查记录，封好交给镇上议事厅的信件。这份判断不等于已经找到她。
+        sets_flags: [report_departure]
+        closes_event: true
+      report_unresolved:
+        summary: 你将已核实的见闻和待查的问题分别列出，向镇上议事厅提交一份尚无定论的报告，结束本次受托调查。
+        sets_flags: [report_unresolved]
+        closes_event: true
+      # Free return to investigation: no hints, evidence, report flag or time charge.
+      not_yet:
+        summary: 你合上尚未提交的报告，继续调查。
+    constraints:
+      - 报告是玩家独自整理的书面判断，不是对现场 NPC 说话；不得安排任何人物回应或认罪
+      - 暂不提交时，不提示答案、不补充线索，也不评判玩家的猜测
+
+factions:
+  villagers:
+    power: 0.4
+    stability: 0.6
+# Directional: npc_id -> target_id. Absent pairs default to all-zero.
+relationships:
+  npc_a:
+    player_1:
+      trust: 10
+      fear: 30
+      respect: 0
+  npc_b:
+    player_1:
+      trust: 0
+      fear: 0
+      respect: 10
+  # docs/14 §3: transactional starting point, not fear-driven like npc_a's — a
+  # stranger buying a drink is worth a little trust before any conversation happens.
+  npc_c:
+    player_1:
+      trust: 5
+      fear: 0
+      respect: 0
+
+facts:
+  # --- public knowledge ---
+  victim_name:
+    value: 磨坊主的女儿艾拉，十四岁
+    visibility: revealed
+  disappearance_night:
+    value: 三天前的夜里，雨停之后
+    visibility: revealed
+  search_failed:
+    value: 村民搜过森林边缘，什么也没找到
+    visibility: revealed
+
+  # --- the clue chain, gated on trust with NPC_A ---
+  clue_1_witness:
+    value: 失踪当晚，玛尔塔看见有人从森林入口的方向回到村里
+    visibility: hidden
+    partial_value: 玛尔塔那晚似乎没睡，但她不愿多说
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: witness_told}
+
+  clue_2_identity:
+    value: 那个人的身形和走路的样子，像是猎人洛伦（NPC_B）
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: identity_told}
+
+  # --- the answer about Loren: either high trust, or independent investigation ---
+  #
+  # The value is rewritten for docs/14 §1: there is no killer, so `npc_b` was an assertion
+  # the story no longer makes. What this fact answers is the question the player is actually
+  # chasing about him — 那晚他做了什么 — and the true answer is that he believes he killed
+  # her and is wrong.
+  #
+  # **The id is now a misnomer** and should become something like `loren_that_night` in the
+  # `facts` restructure docs/09 defers to the M4-M7 batch. Not renamed here because the id
+  # is referenced across the test suite and the rename is that restructure's job, not this
+  # change's. Left as a marker rather than silently kept: an id asserting a killer in a case
+  # with no killer is exactly the kind of stale authored claim docs/13 §11 is about.
+  loren_that_night:
+    value: 洛伦以为那晚是他弄死了艾拉——他撞到的人确实倒了，但那是擦伤，她爬起来继续走了
+    visibility: hidden
+    partial_value: 村里有人知情，但没人愿意先开口
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: told_loren_truth}
+
+  # --- the escalate channel (docs/10 §3.2) ---
+  # Gated on story_beats.tension, which only `escalate` moves. This is docs/04 §3.3
+  # in miniature: the Engine raises tension and the condition table decides what
+  # that unlocks, so the Engine never knows it revealed this. Note the clue chain
+  # above has no tension clause, so escalating can never leak the witness or the
+  # killer — an author has to open each channel deliberately.
+  npc_b_aware_of_investigation:
+    value: 洛伦已经知道有人在村里打听那天晚上的事
+    visibility: hidden
+    partial_value: 你走过村道时，有种被人留意着的感觉
+    reveal_condition:
+      mode: any
+      clauses:
+        - path: story_beats.tension
+          op: gte
+          value: 0.6
+
+  # --- facts the event script voices (docs/15 §4) ---
+  # Environment detail M1's [观察] yields. Revealed outright: looking at someone's
+  # doorstep needs no permission, and gating it would make the one option that takes
+  # no risk also the one that gives nothing.
+
+  marta_is_terrified:
+    value: 她一直用手按着门框，指节发白
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: marta_hands_seen}
+
+  # F1's plant, and the first of the three clues on the *truth* side (docs/14 §1.2).
+  # Hidden with a trust gate rather than revealed, because it comes out of her mouth:
+  # she mentions it while complaining about the miller's household, not as a hint.
+  #
+  # Deliberately readable two ways at the moment it lands — a messy house, or a thief
+  # taking valuables — which is what lets it be planted this early without giving the
+  # ending away (docs/14 §1.2). It only means "she packed" in hindsight.
+  ella_things_missing:
+    value: 艾拉的外衣不在，她攒下的钱不在，她母亲留下的那只木梳也不在——可别的东西都还在
+    visibility: hidden
+    partial_value: 玛尔塔提起磨坊主家里这几天乱得很
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: ella_things_missing_told}
+
+  # F2's plant, second of the three truth-side clues (docs/14 §1.2). Ungated: it is
+  # mixed into background chatter rather than said to the player directly, so unlike
+  # `ella_things_missing` (which comes out of Marta's mouth, and needs her trust) there
+  # is no one whose permission this waits on — anyone standing in the tavern or the
+  # square could have overheard it, because the conversation happened in public.
+  ella_asked_the_road:
+    value: 艾拉前些天问过去镇上的路，还问过谁家的车最近要出村
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: ella_asked_the_road_told}
+
+  # F3's plant, and the closest to the answer of the three (docs/15 §4 F3): "洛伦回村
+  # 之后，还有人见过她的踪迹" is positive evidence she was alive after the collision,
+  # not merely an absence of one. Its condition mirrors F3's own trigger — two time
+  # statements only sit in the visible set together once M4 has run — so there is
+  # nothing further to gate here.
+  timeline_mismatch:
+    value: 洛伦回村之后，还有人见过艾拉的踪迹——时间线对不上
+    visibility: hidden
+    partial_value: 有件事情对不上，但还说不清是哪里
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: timeline_mismatch_told}
+
+  # What F1/F2/F3 all plant toward (docs/13 §9): the fact whose disclosure settles all
+  # three ledger entries at once. Authored here rather than written by the generator,
+  # which is the whole correction — the ledger entry points at the clue chain instead
+  # of wherever a model guessed.
+  #
+  # Gated on all three truth-side clues, not on `stage` (docs/14 §1.2.1, §1.0): this is
+  # what makes "告诉洛伦她还活着" earned rather than automatic — the player must have F1,
+  # F2 and F3 all in hand before the option even appears (`EventOption.requires` on
+  # M7's `tell_loren_alive`), and only choosing to say it aloud reveals the fact itself.
+  # The stage>=3 placeholder this used to carry left the fact unlockable the moment the
+  # main line finished, with no dependency on the truth line at all — the exact gap
+  # docs/15 §7 M7 flagged before any of F2/F3/M7 existed to close it.
+  # Rewritten for docs/14 §1. Two changes: "有人帮了她" is dropped — she needed no
+  # accomplice once she was simply leaving, and an unnamed helper is a loose end the case
+  # never pays off — and the collision is named, because this fact is what the player hands
+  # *Loren* at the end (docs/14 §1.0). It is the only thing that makes him talk.
+  ella_whereabouts:
+    value: 艾拉还活着。她那晚在逃家，在林子里撞上了洛伦、摔了一跤，爬起来继续往镇上走了
+    visibility: hidden
+    partial_value: 有些事情对不上，但还说不清是哪里
+    # Reads flags rather than `facts.*.visibility`: this same condition object becomes
+    # the payoff_condition for F1/F2/F3's foreshadow plants (`_plant_effects` copies a
+    # target's own reveal_condition to settle the ledger), and the Validator restricts
+    # payoff paths to relationships./quests./story_beats. — a plant gating one secret
+    # on another (`facts.*`) is exactly what that restriction exists to forbid.
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: told_loren_truth}
+
+  # --- NPC_A's motive: why she is afraid to talk ---
+  #
+  # M6's report re-reads her evasions as protecting her son. Only what Marta can
+  # report belongs in this fact: Loren's private interpretation of the old collision
+  # remains behind M7. Trust alone must not disclose a warning the player never heard.
+  npc_a_threatened:
+    value: 玛尔塔说洛伦来门口警告"孩子乱跑是很危险的"，眼睛看着里屋——她怕调查牵连儿子
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: loren_warning_heard}
+
+  # --- M3's [观察] ---
+  # Gated on the same trust the event itself requires: by the time this outcome can
+  # fire, M3 has already triggered, so the condition is never a real gate — it exists
+  # so the fact is not unconditionally revealed before the player has earned the scene.
+  marta_protects_son:
+    value: 她说话时反复看向里屋——那是她儿子在的地方
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: inner_room_seen}
+
+  # --- M4's outcomes (docs/15 §4 M4, docs/14 §3) ---
+  # His account is honest but wrong on the hour — the observable difference between
+  # "记错" and "撒谎" that docs/14 §3 wanted a third NPC in order to show at all.
+  #
+  # Gated on the *check's* threshold, not on the event's trigger (first visit to the
+  # tavern): a reveal_condition that only repeats the trigger becomes true the moment
+  # the event is eligible, before the option is ever chosen — the same passive leak
+  # M1/M2's [观察] facts avoid by carrying no condition at all. These two facts come
+  # from a checked option, so the fix is the same shape as `clue_2_identity`'s: gate on
+  # a value nothing but genuine progress moves, here npc_c's trust.
+  innkeeper_timeline:
+    value: 老板说洛伦那晚很晚才回来，钟差不多敲了三下——但玛尔塔记得的时间比这早
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: innkeeper_timeline_told}
+  innkeeper_own_night:
+    value: 老板那晚关店晚了，他说是在后头跟人算一笔账，跟这案子没关系
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: innkeeper_own_night_told}
+
+  # His [观察]. Ungated like M1/M2's, for the same reason: a hand stopping mid-wipe
+  # needs no permission to notice.
+  innkeeper_hides_something:
+    value: 他擦杯子的手停了一下——有件事他没说
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: innkeeper_hesitation_seen}
+
+  # --- M5's [观察] outcomes (docs/15 §4 M5) ---
+  # The scene Loren himself stood in that night (docs/14 §1). Wording stays literal —
+  # amount and position, never "致命" or "撕破" — because the misreading has to be the
+  # player's own inference, not something the fact text asserts (docs/14 §1.1).
+  #
+  # Ungated, like every other [观察] fact in this pack: what is lying on the ground is
+  # visible to anyone standing there, and none of these three needs a check to notice.
+  forest_traces:
+    value: 森林入口的地上有被踩乱的痕迹——不止一个人在这里走过
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: forest_traces_seen}
+  cloth_scrap:
+    value: 荆棘上挂着一小块布，颜色看着眼熟
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: cloth_seen}
+  blood_on_the_stone:
+    value: 一块石头上有血迹，量不大，位置也不像是重伤
+    visibility: hidden
+    reveal_condition:
+      clauses:
+        - {path: story_beats.flags, op: contains, value: blood_seen}

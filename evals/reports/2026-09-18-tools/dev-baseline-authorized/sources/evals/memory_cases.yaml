@@ -1,0 +1,279 @@
+version: memory-v1
+description: >-
+  Synthetic NPC-private fixtures, not additions to the playable story. Each event's
+  two paraphrases share one split. Labels are authored before either backend runs.
+  Stored speech is evidence of what someone said, not proof that it is world truth.
+pool_size_per_npc: 100
+groups:
+  - id: notebook
+    npc: npc_a
+    split: dev
+    category: paraphrase
+    gold: [notebook_name]
+    answer: 玩家把自己的笔记命名为青石手记。
+    disclosure: allowed
+    memories:
+      - {id: notebook_name, text: '玩家说他给自己的笔记取名叫青石手记。', day: 2}
+      - {id: notebook_other, text: '药师把她自己的账本叫作松针账册。', day: 2}
+    queries: ['我那本记录调查经过的小册子叫什么？', '之前告诉你的，我给随身笔记起的名字是什么？']
+  - id: latch
+    npc: npc_a
+    split: dev
+    category: paraphrase
+    gold: [latch_help]
+    answer: 玩家帮我修好了门闩。
+    disclosure: allowed
+    memories:
+      - {id: latch_help, text: '玩家替我换下折断的门闩，现在大门能关牢了。', day: 3}
+      - {id: latch_other, text: '木匠帮酒馆补好了窗框。', day: 3}
+    queries: ['我上回替你处理了家里的什么麻烦？', '让你家大门重新能关紧的人，具体帮你做了什么？']
+  - id: tea
+    npc: npc_a
+    split: dev
+    category: entity_distractor
+    gold: [tea_player]
+    answer: 玩家喜欢薄荷茶，不要加糖。
+    disclosure: allowed
+    memories:
+      - {id: tea_player, text: '玩家告诉我，他喝茶只要薄荷茶，而且不要加糖。', day: 2}
+      - {id: tea_miller, text: '磨坊主爱喝加蜂蜜的姜茶。', day: 2}
+    queries: ['如果你给我准备一杯热饮，该选什么口味，怎么调甜度？', '还记得我偏好的茶和加糖习惯吗？']
+  - id: meeting_update
+    npc: npc_a
+    split: dev
+    category: update
+    gold: [meeting_new]
+    answer: 最新约定改为傍晚在石桥见面。
+    disclosure: allowed
+    memories:
+      - {id: meeting_old, text: '第2天玩家约我次日中午在磨坊见面。', day: 2}
+      - {id: meeting_new, text: '第3天玩家取消了磨坊之约，明确改为当日傍晚在石桥碰面。', day: 3}
+    queries: ['按照我们最后商量好的，什么时候在哪里碰头？', '原先的约定已经改了，我们现在该何时到哪里见？']
+  - id: parcel
+    npc: npc_a
+    split: dev
+    category: multi_event
+    gold: [parcel_left, parcel_taken]
+    answer: 玩家先把药包放在井边，后来药师取走了。
+    disclosure: allowed
+    memories:
+      - {id: parcel_left, text: '玩家把装着退烧药的布包放在井边，托我照看。', day: 2}
+      - {id: parcel_taken, text: '次日药师带着玩家的口信，从井边取走了那包退烧药。', day: 3}
+    queries: ['我的退烧药包最初放在哪，后来谁拿走了？', '帮我回忆一下那包药从我放下到被人取走的经过。']
+  - id: lantern
+    npc: npc_b
+    split: dev
+    category: paraphrase
+    gold: [lantern_return]
+    answer: 玩家把借的风灯还在了我的门口。
+    disclosure: allowed
+    memories:
+      - {id: lantern_return, text: '玩家把借走照路的风灯擦干净，放回我家门前。', day: 3}
+      - {id: lantern_other, text: '守夜人将自己的油灯挂在广场的木柱上。', day: 3}
+    queries: ['我借的那件夜里照明的东西后来怎么处理了？', '我把你的风灯归还到什么地方了？']
+  - id: ankle
+    npc: npc_b
+    split: dev
+    category: entity_distractor
+    gold: [ankle_player]
+    answer: 玩家扭伤的是左脚踝。
+    disclosure: allowed
+    memories:
+      - {id: ankle_player, text: '玩家向我解释自己走得慢，是昨天扭伤了左脚踝。', day: 2}
+      - {id: ankle_carpenter, text: '木匠伤的是右手腕，因此暂停干活。', day: 2}
+    queries: ['我走路不方便是哪里受了伤？', '我之前说扭到的是哪一侧的哪个部位？']
+  - id: rope_update
+    npc: npc_b
+    split: dev
+    category: update
+    gold: [rope_new]
+    answer: 玩家已把麻绳从谷仓搬到工具棚。
+    disclosure: allowed
+    memories:
+      - {id: rope_old, text: '第1天玩家说备用麻绳放在谷仓。', day: 1}
+      - {id: rope_new, text: '第4天玩家特意纠正，备用麻绳已从谷仓搬到工具棚。', day: 4}
+    queries: ['按我最新告诉你的消息，备用麻绳现在在哪？', '绳子已经挪过位置了，我现在该去哪里找？']
+  - id: private_route
+    npc: npc_b
+    split: dev
+    category: private
+    gold: [private_route_fact]
+    answer: NPC 私下走过北坡小径；检索应命中，但本夹具不允许向玩家披露。
+    disclosure: forbidden
+    memories:
+      - {id: private_route_fact, text: '我私下走北坡小径去收猎套，这条路线从未告诉玩家。', day: 2, importance: 0.9}
+      - {id: public_route, text: '我公开告诉村民，去集市可以沿河边大道走。', day: 2}
+    queries: ['你偷偷收猎套走的是什么路？', '那条没有告诉外人的狩猎路线在哪里？']
+  - id: miller_visit
+    npc: npc_a
+    split: dev
+    category: temporal
+    gold: [miller_before]
+    answer: 下雨前磨坊主来借过梯子。
+    disclosure: allowed
+    memories:
+      - {id: miller_before, text: '那天下雨之前，磨坊主来到我家借梯子。', day: 2}
+      - {id: miller_after, text: '雨停以后，磨坊主到我家送来一袋面粉。', day: 2}
+    queries: ['那场雨开始之前，磨坊主找你是为了什么？', '磨坊主在下雨前来借的东西是什么？']
+  - id: unknown_birthday
+    npc: npc_a
+    split: dev
+    category: no_answer
+    gold: []
+    answer: 未告知玩家生日，应承认不知道。
+    disclosure: unknown
+    memories: []
+    queries: ['我的生日是几月几日？', '你能说出我的出生日期吗？']
+  - id: other_npc_route
+    npc: npc_a
+    split: dev
+    category: cross_npc
+    gold: []
+    answer: 只有 npc_b 知道北坡小径，npc_a 不应获得这条记忆。
+    disclosure: unknown
+    forbidden_ids: [private_route_fact]
+    memories: []
+    queries: ['洛伦没告诉过别人，他偷偷收猎套走哪条路？', '猎人那条保密的狩猎路线，你知道是哪条吗？']
+  - id: scarf
+    npc: npc_a
+    split: test
+    category: paraphrase
+    gold: [scarf_player]
+    answer: 玩家把蓝围巾留在我的椅背上。
+    disclosure: allowed
+    memories:
+      - {id: scarf_player, text: '玩家临走时把蓝色围巾搭在我家椅背上，忘了带走。', day: 4}
+      - {id: scarf_neighbor, text: '邻居把红围巾挂在自家门后。', day: 4}
+    queries: ['我落下的那件保暖衣物是什么颜色，在哪里？', '我那条忘带走的围巾放在哪儿了？']
+  - id: soup
+    npc: npc_a
+    split: test
+    category: entity_distractor
+    gold: [soup_player]
+    answer: 玩家不能吃花生。
+    disclosure: allowed
+    memories:
+      - {id: soup_player, text: '玩家提醒我做饭时不要放花生，他吃了会过敏。', day: 4}
+      - {id: soup_neighbor, text: '邻居不喜欢香菜，但没有食物过敏。', day: 4}
+    queries: ['为我准备饭菜时，必须避开哪种会让我身体不舒服的食材？', '我告诉过你我对什么食物过敏？']
+  - id: basket_update
+    npc: npc_a
+    split: test
+    category: update
+    gold: [basket_new]
+    answer: 最新位置是灶台下面。
+    disclosure: allowed
+    memories:
+      - {id: basket_old, text: '第2天玩家把竹篮放在门后的柜子里。', day: 2}
+      - {id: basket_new, text: '第5天玩家把竹篮从门后柜子移到了灶台下面，并告诉了我。', day: 5}
+    queries: ['我后来重新安置的竹篮现在在哪里？', '不要说之前的位置，我把篮子最后挪到哪了？']
+  - id: grain
+    npc: npc_a
+    split: test
+    category: multi_event
+    gold: [grain_received, grain_distributed]
+    answer: 玩家送来两袋燕麦，我把其中一袋交给了药师。
+    disclosure: allowed
+    memories:
+      - {id: grain_received, text: '玩家送了两袋燕麦到我家，作为过冬的粮食。', day: 4}
+      - {id: grain_distributed, text: '我随后把玩家送来的燕麦分出一袋，交给药师。', day: 5}
+    queries: ['我送来了多少燕麦，后来你分给了谁？', '那次我送粮的数量和之后分出去的去向，你还记得吗？']
+  - id: private_letter
+    npc: npc_a
+    split: test
+    category: private
+    gold: [private_letter_fact]
+    answer: NPC 把儿子的信藏在床板下；检索应命中，但本夹具不允许向玩家披露。
+    disclosure: forbidden
+    memories:
+      - {id: private_letter_fact, text: '我把儿子寄来的信藏在床板下，从未让玩家知道这个藏信地点。', day: 4, importance: 0.9}
+      - {id: public_letter, text: '邮差把公开通知贴在广场告示板上。', day: 4}
+    queries: ['你把不愿让我看的家书藏到哪里了？', '你儿子的那封私信放在什么地方？']
+  - id: whistle
+    npc: npc_b
+    split: test
+    category: paraphrase
+    gold: [whistle_player]
+    answer: 玩家送给我的是骨哨。
+    disclosure: allowed
+    memories:
+      - {id: whistle_player, text: '玩家送了我一只骨哨，说遇到危险时可以吹响求助。', day: 4}
+      - {id: whistle_guard, text: '守卫领到一只铜铃，用于夜间报时。', day: 4}
+    queries: ['我送你的那个用来发出求救声音的小东西是什么？', '我给你的紧急呼救物品，你记得叫什么吗？']
+  - id: debt
+    npc: npc_b
+    split: test
+    category: entity_distractor
+    gold: [debt_player]
+    answer: 我欠玩家七枚铜币。
+    disclosure: allowed
+    memories:
+      - {id: debt_player, text: '玩家借给我七枚铜币买盐，我答应赶集后还给他。', day: 4}
+      - {id: debt_innkeeper, text: '我另欠酒馆老板十二枚铜币，是上个月的酒钱。', day: 4}
+    queries: ['你上次向我借了多少钱？', '你答应还给我的铜币有几枚？']
+  - id: trap_update
+    npc: npc_b
+    split: test
+    category: update
+    gold: [trap_new]
+    answer: 玩家已把自己的兽夹从榆树旁移到溪沟边。
+    disclosure: allowed
+    memories:
+      - {id: trap_old, text: '第3天玩家说他的兽夹设在榆树旁。', day: 3}
+      - {id: trap_new, text: '第6天玩家说原来榆树旁的兽夹已撤走，现在改设在溪沟边。', day: 6}
+    queries: ['按我最近告诉你的，我的兽夹现在设在哪？', '我那只捕兽夹换了位置之后，该去哪里查看？']
+  - id: crossing
+    npc: npc_b
+    split: test
+    category: multi_event
+    gold: [crossing_before, crossing_after]
+    answer: 玩家先修好独木桥，随后带药师过了河。
+    disclosure: allowed
+    memories:
+      - {id: crossing_before, text: '玩家先加固了松动的独木桥，让桥面不再摇晃。', day: 5}
+      - {id: crossing_after, text: '独木桥修好以后，玩家扶着药师从桥上过河。', day: 5}
+    queries: ['我带药师过河之前做了什么，后来和谁过了河？', '你看到我修桥和护送人的先后经过是什么？']
+  - id: bells
+    npc: npc_b
+    split: test
+    category: temporal
+    gold: [bells_before]
+    answer: 钟响之前玩家在井边洗手。
+    disclosure: allowed
+    memories:
+      - {id: bells_before, text: '午钟敲响之前，我看见玩家在井边洗手。', day: 5}
+      - {id: bells_after, text: '午钟响过之后，玩家到面包铺买了面包。', day: 5}
+    queries: ['午钟还没响的时候，你看见我在干什么？', '我去买面包之前、钟响之前，在哪儿做什么？']
+  - id: unknown_horse
+    npc: npc_b
+    split: test
+    category: no_answer
+    gold: []
+    answer: 玩家未提过坐骑的名字，应承认不知道。
+    disclosure: unknown
+    memories: []
+    queries: ['我的马叫什么名字？', '我那匹坐骑的名字你还记得吗？']
+  - id: other_npc_letter
+    npc: npc_b
+    split: test
+    category: cross_npc
+    gold: []
+    answer: 只有 npc_a 知道床板下的信，npc_b 不应获得这条记忆。
+    disclosure: unknown
+    forbidden_ids: [private_letter_fact]
+    memories: []
+    queries: ['玛尔塔不曾告诉外人的家书藏在哪里？', '玛尔塔把儿子的私信放在哪个秘密位置？']
+
+# Supplemental long-horizon probes: disjoint from the retrieval selection set.
+# Filler exchanges are authored, not 30 real LLM turns; each lag is an isolated branch.
+sequences:
+  - id: notebook_retention
+    npc: npc_a
+    tell: '这不是案子的线索。我给自己的笔记取名叫白桦随记，请记住，下次我会问你。'
+    ask: '我之前给自己的笔记取的名字是什么？请说出名字。'
+    answer: 白桦随记
+  - id: appointment_retention
+    npc: npc_b
+    tell: '说件和案子无关的事：我把见面的地点定为南岸茶棚，请记住，下次我会问你。'
+    ask: '我之前定下的见面地点叫什么？请说出具体地点。'
+    answer: 南岸茶棚

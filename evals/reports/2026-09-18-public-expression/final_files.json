@@ -1,0 +1,15 @@
+{
+  "README.md": "995f48f335cec5efff914c5d98c1157e6854f22519c5135ebf3d9c0079726de2",
+  "docs/06_NPC_Agent_Spec.md": "d83d61d96f5d16d9b2b3d400029844d12a224c3982f1699812521ff71210a40a",
+  "docs/09_Reference_Scenario.md": "5c0cd2d2dea243402c421e70569487a556159bc2906d1b19dd3e977374df4172",
+  "docs/16_Guided_Playthrough.md": "049569bcbe95d4f63eaada205741834a8e300144ff6ca87a4e89f757cd4ba484",
+  "evals/OVERVIEW.md": "516e0d3037d734e58082417f2fe5ce5a12d7519a8393a189aac8734bc2e074b0",
+  "src/ai_native_rpg/agent/expression.py": "b8fa5973957250928461af58d79d6d130f3bb166bca99b6bf93fb6bb18545bdf",
+  "src/ai_native_rpg/agent/harness.py": "93444c208574c776b697dcafb9cb4197e364a088a9763c8c91257181c0a6fc8d",
+  "src/ai_native_rpg/config.py": "114e35048db10f55f99a92234a80a267693ce06db07458677832fa576fffe68f",
+  "src/ai_native_rpg/web/session.py": "86ff8f40532981d3a95b3ed58509adfc2a6c7f9ad18ddde9929e856497bf0a5c",
+  "scripts/chat_demo.py": "c1989239d9f1d715d8674a614d3259124a6083dc3d2c09e300ced1554c510ed8",
+  "scripts/demo_acceptance.py": "9c0749a214a21be330fad8f466325f3e03001eca8b21f69523613e14f1046450",
+  "tests/test_public_expression.py": "7ede23b561086d717428f9638a44398c66cbd5c0716afd327f8f525163ad710b",
+  "prompts/npc_public_expression.txt": "85356e7767cd44d11b26a11eefb658aaed8465d3e456f6905c2be4b7e9c0995b"
+}

@@ -107,6 +107,10 @@ class Settings(BaseModel):
     provider: str = Field(
         default=DEFAULT_PROVIDER, description="which key/url/model set was read; see _PROVIDERS"
     )
+    public_expression: bool = Field(
+        default=True,
+        description="Use the public-expression boundary in real interactive game sessions",
+    )
     api_key: SecretStr | None = Field(
         default=None, description="the provider's API key; None means 'no real backend available'"
     )

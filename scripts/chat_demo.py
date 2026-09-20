@@ -464,7 +464,13 @@ def main() -> int:
     # The mock needs a script; the real client ignores these kwargs.
     llm = build_llm_client(settings, responses=list(_MOCK_SCRIPT) * 20)
     harness = Harness(
-        npc_state=npc_state, manager=manager, llm=llm, memory=memory, prompts=prompts, tools=tools
+        npc_state=npc_state,
+        manager=manager,
+        llm=llm,
+        memory=memory,
+        prompts=prompts,
+        tools=tools,
+        public_expression=settings.public_expression and settings.has_real_backend,
     )
     engine = NarrativeEngine(manager=manager, llm=llm, prompts=prompts, directives=directives)
     traces = TraceStore(TRACE_DIR)

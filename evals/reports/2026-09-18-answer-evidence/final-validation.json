@@ -1,0 +1,25 @@
+{
+  "pytest_full": {
+    "passed": 953,
+    "skipped": 6,
+    "failed": 0,
+    "collected": 959
+  },
+  "pytest_summary_added_after_full": {
+    "passed": 3
+  },
+  "pytest_focused": {
+    "passed": 30
+  },
+  "ruff_check": "passed; frozen eval CLI line length 101, remaining changed files project 100",
+  "ruff_format_check": "passed with same explicitly recorded line-length exception",
+  "git_diff_whitespace": "passed core.whitespace=cr-at-eol",
+  "final_supporting_source_hashes": {
+    "scripts/summarize_answer_evidence.py": "0f4669b07fb3e26939e21cc730fcac1bfa0fe99b789300ff3a2f39346e515f8b",
+    "tests/test_grounded_rewrite.py": "6c3581a17222492a7f35a21098d845fee31d429c5c1ce54a113bd23f9d901f38",
+    "tests/test_answer_evidence_evaluation.py": "65ba83a01e8cb6d3751fea196deff8dcda1521efd75d4f1a38fcf6df8dde4f84",
+    "evals/reports/2026-09-18-answer-evidence/assisted_review.py": "a5a9b85951f976d6ba2ee961057879cf37def3992401dd61a66287cdda682dc8",
+    "evals/reports/2026-09-18-answer-evidence/verify.py": "d5672a2caddf711afa024910c097dc02d02a1c41a27c4cd5285b975d9045d892"
+  },
+  "commit_or_push": false
+}

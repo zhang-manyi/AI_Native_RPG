@@ -1,0 +1,73 @@
+[project]
+name = "ai-native-rpg"
+version = "0.1.0"
+description = "AI Native RPG: Agent runtime with deterministic world state, memory, tool use, trace and eval"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.9,<3",
+    "pyyaml>=6.0.2,<7",
+    "python-dotenv>=1.0.1,<2",
+    "httpx>=0.27,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3,<9",
+    "pytest-asyncio>=0.24,<1",
+    "ruff>=0.7,<1",
+]
+# Real semantic retrieval (Qwen3-Embedding-0.6B). Kept optional because
+# sentence-transformers pulls torch (hundreds of MB) and the weights are ~1.2GB.
+# Everything including the whole test suite runs without it: HashingEmbedder
+# stays the default and the model-dependent tests skip themselves.
+embedding = [
+    "sentence-transformers>=3.0,<6",
+    "modelscope>=1.18,<2",
+]
+# The developer web interface (docs/12_Web_Interface.md). Optional for the same
+# reason as `embedding`: the core library and the whole test suite must not require
+# a web framework. `pip install -e ".[dev,web]"` to run scripts/web.py.
+web = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.30,<1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_native_rpg"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q --strict-markers"
+markers = [
+    "llm: requires a real LLM backend (skipped by default)",
+]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+# docs/schemas/ holds the design-time drafts; src/ai_native_rpg/schemas/ supersedes
+# them and is what gets linted.
+# Archived experiment sources are immutable evidence, not active implementation.
+extend-exclude = ["docs/schemas", "evals/reports/**/sources"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    # Chinese punctuation in docstrings and prompt strings is intentional.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+    # `str, Enum` is kept over `StrEnum` for Pydantic serialization consistency.
+    "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Demo scripts insert the src/ path before importing the package, so that they run
+# from a plain checkout with no install step. That necessarily puts imports after
+# code.
+"scripts/*.py" = ["E402"]

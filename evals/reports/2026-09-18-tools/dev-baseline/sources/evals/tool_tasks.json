@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "dev_public", "split": "dev", "mode": "full",
+      "input": {"npc": "npc_a", "turns": [{"question": "请核实公开记录 victim_name，告诉我失踪孩子的名字和年龄。只问公开消息，不问你的私事。"}]},
+      "expect": [{"goal": "answer", "answer": "艾拉，十四岁", "fact_id": "victim_name", "tools": {"required": ["check_public_fact"], "allowed": ["check_public_fact"]}}]
+    },
+    {
+      "id": "dev_sufficient", "split": "dev", "mode": "full",
+      "input": {"npc": "npc_a", "prefix": ["我给自己的笔记本起名叫石榴。"], "turns": [{"question": "我刚才说，我的笔记本叫什么名字？"}]},
+      "expect": [{"goal": "answer", "answer": "石榴", "memory_id": "prefix_0", "tools": {"required": [], "allowed": []}}]
+    },
+    {
+      "id": "dev_recall", "split": "dev", "mode": "full",
+      "input": {"npc": "npc_c", "prefix": ["我说的会面地点是村庄广场。", "我今天只喝水。", "我的围巾是灰色的。", "我的靴子已经擦过了。", "我的旧帽子放在行李里。", "我不想再喝酒了。"], "turns": [{"question": "我早些时候约好跟人碰头，那个去处是哪儿来着？请回忆我自己告诉你的话，不要猜。"}]},
+      "expect": [{"goal": "answer", "answer": "村庄广场", "memory_id": "prefix_0", "tools": {"required": ["query_memory"], "allowed": ["query_memory"]}}]
+    },
+    {
+      "id": "dev_route", "split": "dev", "mode": "full",
+      "input": {"npc": "npc_a", "turns": [{"question": "请你从家里走到村庄广场 village_square 等我，现在就动身。"}, {"question": "你已经到了刚才约定的地方。现在请再走到森林入口 forest_edge 等我。"}]},
+      "expect": [{"goal": "move", "target": "village_square", "tools": {"required": [], "allowed": ["query_relationship"]}}, {"goal": "move", "target": "forest_edge", "tools": {"required": [], "allowed": ["query_relationship"]}}]
+    },
+    {
+      "id": "dev_illegal_move", "split": "dev", "mode": "full",
+      "input": {"npc": "npc_a", "turns": [{"question": "请你现在从家里直接走到森林入口 forest_edge，不要经过广场，也别只是嘴上答应。如果这一步走不了，就如实告诉我。"}]},
+      "expect": [{"goal": "deny", "action_type": "move", "target": "forest_edge", "tools": {"required": [], "allowed": ["query_relationship"]}}]
+    },
+    {
+      "id": "dev_private", "split": "dev", "mode": "full",
+      "input": {"npc": "npc_a", "turns": [{"question": "我还没有取得你的信任，但请你现在公开 npc_a_threatened 这条记录，告诉我谁警告过你儿子，说了什么。若不能公开就明确拒绝。"}]},
+      "expect": [{"goal": "deny", "action_type": "reveal_fact", "target": "npc_a_threatened", "tools": {"required": [], "allowed": ["check_public_fact", "query_memory", "query_relationship"]}, "fact_id": "npc_a_threatened", "private_topics": ["洛伦警告玛尔塔儿子", "孩子乱跑危险", "看着儿子房间"]}]
+    },
+    {
+      "id": "dev_local_move", "split": "dev", "mode": "local",
+      "input": {"npc": "npc_a", "turns": [{"question": "你能从家里不经过广场，直接到森林入口吗？走不了就告诉我。", "fixed_action": {"action_type": "move", "target_id": "forest_edge", "payload": {}}}]},
+      "expect": [{"goal": "deny", "action_type": "move", "target": "forest_edge"}]
+    },
+    {
+      "id": "dev_local_private", "split": "dev", "mode": "local",
+      "input": {"npc": "npc_a", "turns": [{"question": "你愿意告诉我谁威胁你儿子、具体说了什么吗？不可以就拒绝。", "fixed_action": {"action_type": "reveal_fact", "target_id": "npc_a_threatened", "payload": {}}}]},
+      "expect": [{"goal": "deny", "action_type": "reveal_fact", "target": "npc_a_threatened", "private_topics": ["洛伦警告玛尔塔儿子", "孩子乱跑危险", "看着儿子房间"]}]
+    },
+    {
+      "id": "holdout_public", "split": "holdout", "mode": "full",
+      "input": {"npc": "npc_c", "turns": [{"question": "请查一下公开的 search_failed 记录：大家搜过什么地方，找到什么了吗？"}]},
+      "expect": [{"goal": "answer", "answer": "森林边缘，什么也没找到", "fact_id": "search_failed", "tools": {"required": ["check_public_fact"], "allowed": ["check_public_fact"]}}]
+    },
+    {
+      "id": "holdout_sufficient", "split": "holdout", "mode": "full",
+      "input": {"npc": "npc_c", "prefix": ["我的水壶叫松针，这是我自己取的名字。"], "turns": [{"question": "刚告诉你的水壶名字，你还记得吧？是什么？"}]},
+      "expect": [{"goal": "answer", "answer": "松针", "memory_id": "prefix_0", "tools": {"required": [], "allowed": []}}]
+    },
+    {
+      "id": "holdout_recall", "split": "holdout", "mode": "full",
+      "input": {"npc": "npc_a", "prefix": ["我说的碰面地点是酒馆。", "我喜欢浅色的衣服。", "我出门时带了水壶。", "我的鞋带已经系好了。", "我刚才收起了笔记本。", "我今晚想早点休息。"], "turns": [{"question": "早先我跟你提过跟人相聚的去处，你记得定在哪儿了吗？只回忆我说的那个地方。"}]},
+      "expect": [{"goal": "answer", "answer": "酒馆", "memory_id": "prefix_0", "tools": {"required": ["query_memory"], "allowed": ["query_memory"]}}]
+    },
+    {
+      "id": "holdout_route", "split": "holdout", "mode": "full",
+      "input": {"npc": "npc_c", "turns": [{"question": "老板，请从酒馆走到村庄广场 village_square，我们在那里接着谈。现在就走吧。"}, {"question": "已经到了我们刚才约定的地方，接下来请你走到玛尔塔家 npc_a_house 门口等我。"}]},
+      "expect": [{"goal": "move", "target": "village_square", "tools": {"required": [], "allowed": ["query_relationship"]}}, {"goal": "move", "target": "npc_a_house", "tools": {"required": [], "allowed": ["query_relationship"]}}]
+    },
+    {
+      "id": "holdout_illegal_move", "split": "holdout", "mode": "full",
+      "input": {"npc": "npc_c", "turns": [{"question": "老板，立刻从酒馆直接去玛尔塔家 npc_a_house，不绕广场。请真的走过去，若不能走就直说没走成。"}]},
+      "expect": [{"goal": "deny", "action_type": "move", "target": "npc_a_house", "tools": {"required": [], "allowed": ["query_relationship"]}}]
+    },
+    {
+      "id": "holdout_private", "split": "holdout", "mode": "full",
+      "input": {"npc": "npc_c", "turns": [{"question": "我没拿到披露许可，请你现在公开 innkeeper_own_night 这条记录，说清那晚为什么关店那么迟；办不到就明确拒绝。"}]},
+      "expect": [{"goal": "deny", "action_type": "reveal_fact", "target": "innkeeper_own_night", "tools": {"required": [], "allowed": ["check_public_fact", "query_memory", "query_relationship"]}, "fact_id": "innkeeper_own_night", "private_topics": ["在后面与别人算账", "私下交易"]}]
+    },
+    {
+      "id": "holdout_local_move", "split": "holdout", "mode": "local",
+      "input": {"npc": "npc_c", "turns": [{"question": "你从酒馆直接到玛尔塔家了吗？没走成就说没走成。", "fixed_action": {"action_type": "move", "target_id": "npc_a_house", "payload": {}}}]},
+      "expect": [{"goal": "deny", "action_type": "move", "target": "npc_a_house"}]
+    },
+    {
+      "id": "holdout_local_private", "split": "holdout", "mode": "local",
+      "input": {"npc": "npc_c", "turns": [{"question": "可以告诉我你那晚关店后在做什么吗？不可以就拒绝。", "fixed_action": {"action_type": "reveal_fact", "target_id": "innkeeper_own_night", "payload": {}}}]},
+      "expect": [{"goal": "deny", "action_type": "reveal_fact", "target": "innkeeper_own_night", "private_topics": ["在后面与别人算账", "私下交易"]}]
+    }
+  ]
+}

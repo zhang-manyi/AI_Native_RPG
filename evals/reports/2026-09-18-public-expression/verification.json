@@ -1,0 +1,108 @@
+{
+  "original-real": {
+    "checks": {
+      "all_22_steps_and_truth": true,
+      "no_missing_requests": true,
+      "no_fallback": true,
+      "no_turn_failure": true,
+      "denied_move_unchanged": true,
+      "both_restores_exact": true,
+      "terminal_input_rejected": true,
+      "all_npcs_use_new_boundary_only": true,
+      "source_archive_valid": true,
+      "review_covers_every_dialogue": true,
+      "usage_reconciles": true,
+      "all_eight_dialogues_use_public_expression": true,
+      "public_sources_match_state_and_memory": true,
+      "free_turn_action_deltas_match_verdicts": true,
+      "expression_fields_allowlisted": true,
+      "review_labels_not_sent": true
+    },
+    "cost": {
+      "http_requests": 14,
+      "missing_usage": 0,
+      "tokens": {
+        "prompt_tokens": 23577,
+        "completion_tokens": 5610,
+        "total_tokens": 29187
+      },
+      "returned_models": [
+        "deepseek-flash"
+      ],
+      "http_latency": {
+        "n": 14,
+        "mean_ms": 2575.4454285714287,
+        "p50_ms": 2521.802,
+        "p95_ms": 4390.88
+      }
+    },
+    "elapsed_seconds": 69.875,
+    "expression_http_attempts": 8,
+    "semantic_pass": true
+  },
+  "variant-real": {
+    "checks": {
+      "all_22_steps_and_truth": true,
+      "no_missing_requests": true,
+      "no_fallback": true,
+      "no_turn_failure": true,
+      "denied_move_unchanged": true,
+      "both_restores_exact": true,
+      "terminal_input_rejected": true,
+      "all_npcs_use_new_boundary_only": true,
+      "source_archive_valid": true,
+      "review_covers_every_dialogue": true,
+      "usage_reconciles": true,
+      "all_eight_dialogues_use_public_expression": true,
+      "public_sources_match_state_and_memory": true,
+      "free_turn_action_deltas_match_verdicts": true,
+      "expression_fields_allowlisted": true,
+      "review_labels_not_sent": true
+    },
+    "cost": {
+      "http_requests": 14,
+      "missing_usage": 0,
+      "tokens": {
+        "prompt_tokens": 21385,
+        "completion_tokens": 4851,
+        "total_tokens": 26236
+      },
+      "returned_models": [
+        "deepseek-flash"
+      ],
+      "http_latency": {
+        "n": 14,
+        "mean_ms": 2345.8737857142855,
+        "p50_ms": 1972.0835,
+        "p95_ms": 7133.373
+      }
+    },
+    "elapsed_seconds": 65.891,
+    "expression_http_attempts": 9,
+    "semantic_pass": true
+  },
+  "historical_reports_unchanged": true,
+  "protocol_and_routes_unchanged": true,
+  "both_runs_same_sources": true,
+  "total_real_cost": {
+    "http_requests": 28,
+    "tokens": 55423,
+    "money": null,
+    "money_reason": "no verified provider rate"
+  },
+  "infrastructure_failure": {
+    "http_requests": 1,
+    "missing_usage": 1,
+    "tokens": null,
+    "returned_models": [],
+    "http_latency": {
+      "n": 1,
+      "mean_ms": 1.362,
+      "p50_ms": 1.362,
+      "p95_ms": 1.362
+    }
+  },
+  "unknown_token_reservation": 4949,
+  "review_method": "assistant semantic review, not keyword scoring or calibrated human judge",
+  "bounded_acceptance_passed": true
+}

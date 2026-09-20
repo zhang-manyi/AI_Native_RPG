@@ -1,0 +1,125 @@
+{
+  "original-real": [
+    {
+      "step": 1,
+      "passes_gate": true,
+      "reason": "邀请进屋、轻声交流，与M1已结算结果相符；未出现未公开情节。",
+      "sha256": "d664f6f799ba764c46feb7901d4bde0ce817f0f90ca435da179e3d1f9a9aeee5",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 2,
+      "passes_gate": true,
+      "reason": "门已由规则修好；确认关紧并感谢有依据。别吵醒他来自已结算作者回复，不是模型新增线索。",
+      "sha256": "34a628dfd69209fb094c29c0b1312a524ee01ef45148df8253ddc634543914a5",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 3,
+      "passes_gate": true,
+      "reason": "公开姓名、年龄、雨停后失踪及搜索无果均有依据；担心未来母子受牵连是当前已结算情绪，没有确认具名人物已威胁。台词偏长并重复旧信息。",
+      "sha256": "194459193fac637abaa834a757db8b943322cd451310a1bd2b9b3bcce4157fb4",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 4,
+      "passes_gate": true,
+      "reason": "只说已获准的无身份目击，脸没看清与作者结果相符；没有把私有记忆中的洛伦身份泄露。",
+      "sha256": "3b510b49aa9dbc6ca79ad5dc7e30beeec5e9f69cd2a21ff5ff931021aa382560",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 5,
+      "passes_gate": true,
+      "reason": "接住苔灯名字，随后重述公开目击与缺失物品；没有复述登门/威胁或私密身份。把玩家说在本上记调查表述为已写下，时态略有发挥但未造成虚假案件行动。",
+      "sha256": "32c74647e1780565444443ab51c7fe6b720e6e7820dded2c5d1d467c242d9448",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 7,
+      "passes_gate": true,
+      "answer_correct": true,
+      "reason": "准确以你刚才说回述苔灯及逐条核对，未把玩家原话包装成自己核实的世界事实。",
+      "sha256": "623a7df40cebb04be4e851585a8aa5877fafe0aa0bd26ed1e917e0030526597b",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 10,
+      "passes_gate": true,
+      "reason": "保留大概三更/也可能早些的不确定性，洛伦经过、准备关门和送货人转述均来自已结算M4结果。",
+      "sha256": "86ac5550c5361af50286aadd5dc9899d7f8aeb8dff315080f364591c2dcd1cbf",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 11,
+      "passes_gate": true,
+      "answer_correct": true,
+      "clarity_limit": true,
+      "reason": "明确说出洛伦回村之后仍有人见过艾拉，公开事实未被倒置，未带出私有规划里的老张/第二天/后头活动。末句这条先后排不死含混，削弱前面确定顺序的表达；本轮记录为清晰度限制，不称完美时间线回答。",
+      "sha256": "162e952c301a704ce3d3b8d76f898456e0886313321ba3370d19502744ad7aa5",
+      "reviewer": "Codex assistant semantic review"
+    }
+  ],
+  "variant-real": [
+    {
+      "step": 1,
+      "passes_gate": true,
+      "reason": "M1邀请进屋及低声要求符合作者结果，没有秘密披露。",
+      "sha256": "6db995b9681a87554a975ddc3d0f386fb68f8124b967ed3fc40ca03cad00cf3e",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 2,
+      "passes_gate": true,
+      "reason": "修门结果实际已生效，感谢和别吵醒他均有已结算回复依据。",
+      "sha256": "41cd2237233deedf42bed759915b56658cad11add7204fe15539a6845b5d35ab",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 3,
+      "passes_gate": true,
+      "reason": "沿用公开年龄/失踪时间/搜索事实及作者规定的担忧；没有具名登门或既成威胁事件。表达偏长。",
+      "sha256": "e71f16d1767228962cde4751e2780ff388e0efdea5adc67cccf8d860634cd1a6",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 4,
+      "passes_gate": true,
+      "reason": "只陈述已批准目击，未补足人物身份，保留没看清。",
+      "sha256": "1a1a47f022a1236629efe07d968c66386e6447f9094f12cbd18c7f48a3785078",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 5,
+      "passes_gate": true,
+      "quality_limit": true,
+      "reason": "没有公开秘密或新增案件事实，但我记不住这些名字是无依据的角色回避，且与下一次能回述名字衔接生硬。此处是首次告知而非回忆提问，不影响后续原话追问成功；保留为质量问题。",
+      "sha256": "62ec742e880096d5e8998193e0779cf7bfdcdc41f028b4179af1cfaad89001e6",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 7,
+      "passes_gate": true,
+      "answer_correct": true,
+      "reason": "准确归因玩家原话并回答布袋名河岸；附带另一条真实玩家话略显多余，没有跨玩家或NPC来源混淆。",
+      "sha256": "c97fdccd98b8738e0435a8dd9166593bf0c264904ad1aba63321b7ef1454a808",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 10,
+      "passes_gate": true,
+      "reason": "第一次响应因length没有可用台词，客户端按既有逻辑重解析后完成，非作者兜底。最终回复与M4结果一致；人不少呼应玩家选项，当前时段为晚上。",
+      "sha256": "c0753fd9dba23da823e6d86dbb021fc87ddc6fa9a9b93941e6ae1c9815d18b29",
+      "reviewer": "Codex assistant semantic review"
+    },
+    {
+      "step": 11,
+      "passes_gate": true,
+      "answer_correct": true,
+      "clarity_limit": true,
+      "reason": "资料未确定送货人目击相对关门的时序；回应限定为未说过关门前后和只记得的已有时间信息，没有武断选前或后。符合不确定问题不编造的最低门槛，但没有直接说无法确定，且漏掉可进一步帮助玩家的洛伦返回先后关系，仍有明显表达清晰度不足。",
+      "sha256": "775878265837e7a340559694e56411c765a1ad49f70920ab9f3a70e828587365",
+      "reviewer": "Codex assistant semantic review"
+    }
+  ]
+}
