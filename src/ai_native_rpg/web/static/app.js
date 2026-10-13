@@ -695,12 +695,12 @@ function renderDialogue() {
  * repeated here so a stray call from `renderDialogue` cannot re-show it underneath).
  */
 function renderConclude() {
-  // While the report itself is open the button would only sit greyed out behind it;
-  // it returns once the report is submitted or closed ("暂不提交").
-  const reporting = Boolean(state.scene?.report_active);
-  ui.conclude.hidden = reporting;
-  ui.concludeReason.hidden = reporting;
-  if (reporting) return;
+  // While the report is open, or once an ending is reached, the button would only sit
+  // greyed out behind the overlay; it returns when the report is closed ("暂不提交").
+  const gone = Boolean(state.scene?.report_active || state.scene?.ending);
+  ui.conclude.hidden = gone;
+  ui.concludeReason.hidden = gone;
+  if (gone) return;
   const reason = state.scene?.conclude_reason || (state.busy ? "请等待当前回合完成。" :
     state.awaitingAdvance ? "请先读完当前对白。" : "");
   ui.conclude.disabled = !state.scene?.can_conclude || state.busy || state.awaitingAdvance;
@@ -1052,7 +1052,7 @@ function renderLedger(p) {
         )
         .join("")
     : empty("没有未回收的伏笔");
-  return block("伏笔账本", rows.length, body, { alert: overdue > 0 });
+  return block("伏笔账本", rows.length, body, { open: false, alert: overdue > 0 });
 }
 
 function clauses(list) {
@@ -1085,7 +1085,7 @@ function renderUnlock(p) {
         })
         .join("")
     : empty("没有待解锁的事实");
-  return block("解锁进度", rows.length, body);
+  return block("解锁进度", rows.length, body, { open: false });
 }
 
 function renderRejected(p) {

@@ -143,6 +143,14 @@ test('conclusion button hides while the report is open and returns after it clos
   assert.equal(c.elements.get('conclude').disabled, false);
 });
 
+test('conclusion button hides once an ending is reached', () => {
+  const c = client();
+  c.onScene(scene({ passages: [], options: [], can_conclude: false, conclude_reason: '调查已经结束',
+    ending: { title: '结局 · 调查结束', text: '你作出了判断。' } }));
+  assert.equal(c.elements.get('conclude').hidden, true);
+  assert.equal(c.elements.get('conclude-reason').hidden, true);
+});
+
 test('review announces the day boundary and lists gains without mixing them with old clues', () => {
   const c = client();
   c.renderWrapUp({day: 1, introduction: '今天的调查结束了', baseline_available: true,
