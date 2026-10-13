@@ -1037,7 +1037,7 @@ events:
     operator: reveal
     intensity: 0.7
     preference_tag: exploration
-    max_exchanges: 3          # 正式值 5
+    max_exchanges: 5          # 三处观察 + 一次追问洛伦都要放得下
     closes_permanently_on_failure: true
     trigger:
       mode: all
@@ -1067,6 +1067,17 @@ events:
           threshold: 20
         on_success: loren_gives_an_account
         on_failure: loren_grows_wary
+      - option_id: leave_loren
+        tag: observe
+        text: 看完现场，先不去打扰洛伦
+        # Only after all three: leaving earlier would forfeit evidence M5 never re-offers.
+        requires:
+          mode: all
+          clauses:
+            - {path: story_beats.flags, op: contains, value: forest_traces_seen}
+            - {path: story_beats.flags, op: contains, value: cloth_seen}
+            - {path: story_beats.flags, op: contains, value: blood_seen}
+        on_success: left_quietly
     default_outcome: found_nothing
     outcomes:
       found_traces:
@@ -1094,6 +1105,8 @@ events:
         summary: 他警觉起来
         tension_change: 0.2
         closes_event: true
+      left_quietly:
+        summary: 你记下现场所见，没有去惊动洛伦
       found_nothing:
         summary: 什么也没找到
     constraints:

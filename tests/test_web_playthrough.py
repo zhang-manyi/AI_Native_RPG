@@ -72,6 +72,7 @@ def investigate(game):
     move(game, "forest_edge")
     for option in ["observe_traces", "observe_cloth", "observe_blood"]:
         choose(game, option)
+    choose(game, "leave_loren")  # three observations leave M5 open
     assert game.scene().quest_stages["investigation"] == 3
     assert game.scene().ending is None
     assert "ella_whereabouts" not in {f["id"] for f in game.scene().visible_facts}
@@ -100,6 +101,7 @@ def test_early_accusation_reaches_an_ending_without_exposing_the_answer(game):
     move(game, "forest_edge")
     for option in ["observe_traces", "observe_cloth", "observe_blood"]:
         choose(game, option)
+    choose(game, "leave_loren")  # three observations leave M5 open
     game.submit_conclude_case()
     settle(game)
     assert "tell_loren_alive" in {o.option_id for o in game.scene().options}
@@ -315,6 +317,16 @@ def test_warning_is_once_only_and_backing_off_preserves_the_truth_route(game):
     assert game.manager.snapshot().story_beats.tension == 0.6
 
 
+def test_all_three_observations_still_leave_loren_to_question(game):
+    """Each observation spends an exchange; the forest has room for all three and Loren."""
+    move(game, "village_square")
+    move(game, "forest_edge")
+    for option in ("observe_traces", "observe_cloth", "observe_blood"):
+        choose(game, option)
+    assert [o.option_id for o in game.scene().options] == ["press_loren", "leave_loren"]
+    raise_loren_pressure(game)
+
+
 def test_stale_option_is_refused_without_changing_the_world(game):
     before = game.manager.snapshot()
     with pytest.raises(SessionError):
@@ -444,6 +456,7 @@ def test_losing_the_witness_still_allows_independent_investigation(game):
     move(game, "forest_edge")
     for option in ["observe_traces", "observe_cloth", "observe_blood"]:
         choose(game, option)
+    choose(game, "leave_loren")  # three observations leave M5 open
     assert game.scene().quest_stages["investigation"] == 2
     game.submit_conclude_case()
     settle(game)
