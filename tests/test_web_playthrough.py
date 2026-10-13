@@ -88,7 +88,7 @@ def test_complete_truth_route_without_typing_or_model_calls(game, monkeypatch):
     settle(game)
     choose(game, "tell_loren_alive")
     assert game.engine.reached_ending().ending_id == "truth_uncovered"
-    assert game.scene().ending["title"] == "结局：调查结论：艾拉自行离村"
+    assert game.scene().ending["title"] == "结局 · 调查结论：艾拉自行离村"
     assert game._npcs["npc_a"].memory.episodic_count > 0
     assert game._npcs["npc_c"].memory.episodic_count > 0
     with pytest.raises(SessionError):
@@ -245,7 +245,7 @@ def test_loren_moves_first_from_initial_state_and_survives_resume(game, tmp_path
     assert world.story_beats.tension == 0.8
     assert world.story_beats.ended_at == "loren_moves_first"
     assert world.time_day <= world.story_beats.day_limit
-    assert game.scene().ending["title"] == "结局：调查失控"
+    assert game.scene().ending["title"] == "结局 · 调查失控"
     assert game.scene().options == []
     assert not game.scene().can_conclude
 

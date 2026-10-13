@@ -111,10 +111,10 @@ test('public ready snapshots unlock input without developer tick events', async 
 
 test('ending leaves the transcript accessible and closes action controls', () => {
   const c = client();
-  c.onScene(scene({ passages: [], options: [], ending: { title: '结局：调查结束', text: '你作出了判断。' } }));
+  c.onScene(scene({ passages: [], options: [], ending: { title: '结局 · 调查结束', text: '你作出了判断。' } }));
   assert.equal(c.elements.get('ending').hidden, false);
   assert.equal(c.elements.get('cast').innerHTML, '');
-  assert.equal(c.elements.get('ending-title').textContent, '结局：调查结束');
+  assert.equal(c.elements.get('ending-title').textContent, '结局 · 调查结束');
   assert.equal(c.elements.get('composer').hidden, true);
   assert.equal(c.elements.get('options').hidden, true);
   assert.equal(c.elements.get('ways').hidden, true);
@@ -130,6 +130,17 @@ test('conclusion remains visible with a reason and unlocks when the scene allows
   assert.equal(c.elements.get('conclude').disabled, false);
   c.onScene(scene({ passages: [], ready: false, can_conclude: true, conclude_reason: '' }));
   assert.equal(c.elements.get('conclude').disabled, true);
+});
+
+test('conclusion button hides while the report is open and returns after it closes', () => {
+  const c = client();
+  c.onScene(scene({ passages: [], report_active: true, can_conclude: false, conclude_reason: '已有进行中的事件' }));
+  assert.equal(c.elements.get('conclude').hidden, true);
+  assert.equal(c.elements.get('conclude-reason').hidden, true);
+  c.onScene(scene({ passages: [], report_active: false, can_conclude: true, conclude_reason: '' }));
+  assert.equal(c.elements.get('conclude').hidden, false);
+  assert.equal(c.elements.get('conclude-reason').hidden, false);
+  assert.equal(c.elements.get('conclude').disabled, false);
 });
 
 test('review announces the day boundary and lists gains without mixing them with old clues', () => {

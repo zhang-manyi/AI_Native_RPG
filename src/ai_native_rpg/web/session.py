@@ -615,7 +615,7 @@ class Session:
         ending = self.engine.reached_ending()
         if ending:
             scene.ending = {
-                "title": f"结局：{ending.player_title}",
+                "title": f"结局 · {ending.player_title}",
                 "text": ending.player_text,
             }
         scene.conclude_reason = self.engine.conclude_reason(self.player_id)

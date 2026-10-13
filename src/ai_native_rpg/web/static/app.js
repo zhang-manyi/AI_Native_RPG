@@ -695,7 +695,12 @@ function renderDialogue() {
  * repeated here so a stray call from `renderDialogue` cannot re-show it underneath).
  */
 function renderConclude() {
-  ui.conclude.hidden = false;
+  // While the report itself is open the button would only sit greyed out behind it;
+  // it returns once the report is submitted or closed ("暂不提交").
+  const reporting = Boolean(state.scene?.report_active);
+  ui.conclude.hidden = reporting;
+  ui.concludeReason.hidden = reporting;
+  if (reporting) return;
   const reason = state.scene?.conclude_reason || (state.busy ? "请等待当前回合完成。" :
     state.awaitingAdvance ? "请先读完当前对白。" : "");
   ui.conclude.disabled = !state.scene?.can_conclude || state.busy || state.awaitingAdvance;
