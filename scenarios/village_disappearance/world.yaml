@@ -105,7 +105,7 @@ npcs:
   # knowledge is partially wrong rather than withheld — the pack's first case of
   # subjective memory that is observably fallible, not merely private.
   npc_c:
-    name: 酒馆老板
+    name: 奥托
     public_note: 村里唯一的酒馆老板，见的人多，嘴上也松。
     location: tavern
     faction_id: villagers
