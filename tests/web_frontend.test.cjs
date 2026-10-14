@@ -29,7 +29,13 @@ function client() {
     console,
   });
   const source = fs.readFileSync(path.join(__dirname, '../src/ai_native_rpg/web/static/app.js'), 'utf8');
-  vm.runInContext(source.replace(/boot\(\);\s*$/, '') +
+  // A vm script cannot `import`; the art is decoration, so stand-ins that still carry the
+  // key are enough to check which figure or landmark the client asked for. The landmark
+  // stub knows one kind, like the real table, so "no landmark" is testable too.
+  const stubs = 'const sprite = (key) => `<svg data-sprite="${key}"></svg>`;\n' +
+    'const avatar = (key) => `<svg data-avatar="${key}"></svg>`;\n' +
+    'const landmark = (kind) => (kind === "square" ? `<svg data-landmark="${kind}"></svg>` : "");\n';
+  vm.runInContext(stubs + source.replace(/^import .*\.js";\r?\n/gm, '').replace(/boot\(\);\s*$/, '') +
     '\nglobalThis.testClient = { onScene, advance, onMove, onPanel, renderWrapUp, state };', context);
   return { ...context.testClient, elements, requests, confirmations, confirmation };
 }
@@ -62,6 +68,48 @@ test('reading fixed dialogue reveals choices without submitting player text', as
   assert.equal(c.state.awaitingAdvance, false, 'duplicate snapshot must not replay opening');
 });
 
+test('the cast draws the figure the server assigned, and only NPC lines carry a face', async () => {
+  const c = client();
+  c.onScene(scene({ npcs: [{ npc_id: 'npc_a', name: '玛尔塔', sprite_key: 'sprite_b' }] }));
+  // The key is the server's (scene.py SPRITE_KEYS), never worked out from the name.
+  assert.match(c.elements.get('cast').innerHTML, /data-sprite="sprite_b"/);
+  assert.match(c.elements.get('cast').innerHTML, /玛尔塔/, 'the nameplate stays beside the portrait');
+
+  // The opening line is the player's: no figure, so no avatar.
+  assert.equal(c.elements.get('dialogue-avatar').hidden, true);
+  await c.advance();
+  assert.equal(c.elements.get('dialogue-name').textContent, '玛尔塔');
+  assert.equal(c.elements.get('dialogue-avatar').hidden, false);
+  assert.match(c.elements.get('dialogue-avatar').innerHTML, /data-avatar="sprite_b"/);
+});
+
+test('the figure is drawn once per scene, not again on every line', async () => {
+  const c = client();
+  const cast = c.elements.get('cast');
+  let writes = 0;
+  let html = '';
+  Object.defineProperty(cast, 'innerHTML', {
+    get: () => html,
+    set: (v) => { writes += 1; html = v; },
+  });
+
+  c.onScene(scene({ npcs: [{ npc_id: 'npc_a', name: '玛尔塔', sprite_key: 'sprite_a' }] }));
+  const drawn = writes;
+  await c.advance();
+  await c.advance();
+  // The second snapshot of a turn carries the same people.
+  c.onScene(scene({ npcs: [{ npc_id: 'npc_a', name: '玛尔塔', sprite_key: 'sprite_a' }] }));
+  assert.equal(writes, drawn, 'advancing lines must not rebuild the portrait (it blinked)');
+
+  // Someone else arriving is a real change and is drawn.
+  c.onScene(scene({ npcs: [
+    { npc_id: 'npc_a', name: '玛尔塔', sprite_key: 'sprite_a' },
+    { npc_id: 'npc_b', name: '洛伦', sprite_key: 'sprite_b' },
+  ] }));
+  assert.equal(writes, drawn + 1);
+  assert.match(html, /data-sprite="sprite_b"/);
+});
+
 test('an empty scene can narrate and offer investigation actions without a chat box', async () => {
   const c = client();
   c.onScene(scene({ current_npc_id: null, npcs: [], passage_id: 'square', passages: [
@@ -71,8 +119,19 @@ test('an empty scene can narrate and offer investigation actions without a chat 
   await c.advance();
   assert.equal(c.elements.get('composer').hidden, true);
   assert.equal(c.elements.get('options').hidden, false);
-  assert.match(c.elements.get('cast').innerHTML, /这里没有人/);
+  assert.equal(c.elements.get('cast').innerHTML, '', 'an empty place shows no "nobody here" line');
   assert.equal(c.requests.length, 0);
+});
+
+test('an empty place shows its landmark when it has one, and nothing otherwise', () => {
+  const c = client();
+  c.onScene(scene({ current_npc_id: null, npcs: [], location: { name: '村庄广场', backdrop: 'square' } }));
+  assert.match(c.elements.get('cast').innerHTML, /data-landmark="square"/);
+  assert.doesNotMatch(c.elements.get('cast').innerHTML, /这里没有人/);
+
+  // Moving on to an empty place of another kind redraws: the well must not follow you.
+  c.onScene(scene({ current_npc_id: null, npcs: [], location: { name: '小路', backdrop: 'road' } }));
+  assert.equal(c.elements.get('cast').innerHTML, '');
 });
 
 test('report hides nearby NPC chat and requires confirmation before final submission', async () => {

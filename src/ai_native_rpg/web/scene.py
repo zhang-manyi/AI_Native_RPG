@@ -26,7 +26,10 @@ from ..schemas.world_state import VisibleState
 #: A front-end asset name, deliberately not pack content: a scenario ships no art and
 #: must not need to. A pack wanting its own portraits is a later, additive change (an
 #: optional ``sprite:`` field), and nothing here hardcodes a story's characters.
-SPRITE_KEYS = ("sprite_a", "sprite_b", "sprite_c", "sprite_d")
+#:
+#: One key per figure in ``static/sprites.js``: a fourth NPC wraps round to the first
+#: figure here, rather than the page meeting a key it has no drawing for.
+SPRITE_KEYS = ("sprite_a", "sprite_b", "sprite_c")
 
 
 class LocationDisplay(BaseModel):

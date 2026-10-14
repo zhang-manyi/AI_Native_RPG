@@ -130,6 +130,10 @@ body {
 
 #stage {
   position: relative;
+  /* Its own stacking context, so the cast can sit at z-index -1: above this element's
+   * lamplight background, below every piece of UI, without each of those needing a
+   * z-index of its own. */
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -246,18 +250,47 @@ body {
 
 .dialogue-name.narrator { opacity: 0.65; }
 
+/* The cast is a back layer, not a row of the layout (docs/12 §13.7's options tray is what
+ * forced this). As a flex row it was the only item that could give up height, so four
+ * options squeezed the figure out of the scene entirely. Now `.cast` itself is only the
+ * spacer that pushes the notes and dialogue down. The portraits are positioned against
+ * `#scene`, not against it: they hang from just under the top bar at a fixed size and run
+ * on underneath everything below. That edge does not move when options appear, so neither
+ * does the face — the UI only ever slides up over the figure from the waist toward the
+ * chest.
+ *
+ * Hung from the scene rather than from the cast because the place heading sits between
+ * the two and is ~100px tall: from the cast's top, the "已知" row crossed the chin on a
+ * 1080p window. The heading is left-aligned and the figure centred, so they share the
+ * height without meeting. */
 .cast {
-  position: relative;
-  z-index: 1;
   display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  gap: var(--space-8);
   min-height: 0;
   flex: 1;
-  /* The bubble used to grow upward out of the actor and needed headroom for it. The words
-   * live in the box at the bottom now, so the sprites get that space back. */
-  padding: var(--space-4) 0 var(--space-3);
+}
+
+.cast-row {
+  position: absolute;
+  /* Below every piece of UI, above the stage's lamplight (#stage isolates). */
+  z-index: -1;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* Height, not a percentage of anything that shrinks: the figure must keep its size when
+   * options appear. The face spans roughly 0.11–0.37 of this, so at 1080p the chin lands
+   * near 300px — above the dialogue box even with a two-line speech and four options. */
+  --portrait-h: min(60vh, 640px);
+  height: var(--portrait-h);
+  display: flex;
+  justify-content: center;
+  gap: var(--space-6);
+  pointer-events: none;
+}
+
+/* Two or more people share the width rather than overlapping. */
+.cast-row:has(.actor + .actor) {
+  --portrait-h: min(50vh, 520px);
+  height: var(--portrait-h);
 }
 
 .cast-empty {
@@ -268,11 +301,49 @@ body {
 
 .actor {
   position: relative;
+  height: 100%;
+  animation: rise 0.5s ease both;
+}
+
+.portrait {
+  height: 100%;
+}
+
+.portrait-art {
+  display: block;
+  height: 100%;
+  /* 2:3, the viewBox; width follows so the actor box is exactly the figure. */
+  width: auto;
+  aspect-ratio: 2 / 3;
+  /* The lower body fades into the floor instead of ending in a hard line where the
+   * stage's bottom edge cuts it off. */
+  -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 96%);
+  mask-image: linear-gradient(180deg, #000 55%, transparent 96%);
+}
+
+/* A landmark (landmarks.js) hangs in a portrait's slot; its frame is wider than a
+ * figure's (13:15), so the aspect ratio is its own. */
+.landmark-art {
+  display: block;
+  height: 100%;
+  width: auto;
+  aspect-ratio: 13 / 15;
+  -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent 98%);
+  mask-image: linear-gradient(180deg, #000 70%, transparent 98%);
+}
+
+/* Name and public note beside the head, not over the face. In flow the label would sit
+ * on top of the portrait; here it hangs off the figure's right edge (the figure fills
+ * x≈100–300 of its 400-wide box, so 70% clears the hair) at eye height. Lower down it ran
+ * into the dialogue box and lost its last line. */
+.actor-label {
+  position: absolute;
+  top: 18%;
+  left: 70%;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-2);
-  animation: rise 0.5s ease both;
 }
 
 @keyframes rise {
@@ -302,8 +373,8 @@ body {
 /* Public, ungated pack content: trade and household, the kind of thing anyone in the
  * village would tell you. Never an excerpt of persona.background. */
 .who-note {
-  max-width: 24ch;
-  text-align: center;
+  max-width: 18ch;
+  text-align: left;
   font-size: var(--text-xs);
   line-height: 1.5;
   color: var(--text-faint);
@@ -357,8 +428,20 @@ body {
   border-color: var(--lamp-dim);
 }
 
-.dialogue-name {
+.dialogue-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   margin: 0 0 var(--space-2);
+}
+
+/* Shown only on a short window, where the portrait is not (see the media query below). */
+.dialogue-avatar {
+  display: none;
+}
+
+.dialogue-name {
+  margin: 0;
   font-family: var(--serif);
   font-size: var(--text-base);
   letter-spacing: 0.06em;
@@ -1490,3 +1573,52 @@ body.resizing-panel, body.resizing-panel * { cursor: col-resize !important; user
 .debug-field { margin: .4rem 0; overflow-wrap: anywhere; }
 .debug-value { white-space: pre-wrap; color: var(--paper-dim); }
 .npc-card > summary { font-size: 1rem; }
+
+/* --- short windows: the portrait gives way to an avatar ------------------- */
+
+/* Below this height the stage cannot fit a face above the dialogue box once a two-line
+ * speech and four options are on screen (docs/12 §13.7; measured, not estimated — the
+ * opaque box reaches the chin at about 830px). Rather than show a figure cut off at the
+ * chin, the portrait goes and the speaker's face moves into the dialogue box beside
+ * their name. The nameplate and note stay, centred at the top of the scene beside the
+ * left-aligned place heading — where they sat before there were portraits at all. */
+@media (max-height: 820px) {
+  .portrait {
+    display: none;
+  }
+
+  .cast-row {
+    top: var(--space-5);
+    height: auto;
+  }
+
+  .actor {
+    height: auto;
+  }
+
+  .actor-label {
+    position: static;
+    align-items: center;
+  }
+
+  .who-note {
+    text-align: center;
+  }
+
+  .dialogue-avatar:not([hidden]) {
+    display: block;
+    flex-shrink: 0;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 1px solid var(--lamp-dim);
+    background: var(--ink-3);
+  }
+
+  .avatar-art {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}

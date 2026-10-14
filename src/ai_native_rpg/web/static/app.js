@@ -10,6 +10,9 @@
  * Last-Event-ID, which the server replays (docs/12 §4.1).
  */
 
+import { landmark } from "/static/landmarks.js";
+import { avatar, sprite } from "/static/sprites.js";
+
 const el = (id) => document.getElementById(id);
 
 const ui = {
@@ -32,6 +35,7 @@ const ui = {
   history: el("history"),
   dialogue: el("dialogue"),
   dialogueName: el("dialogue-name"),
+  dialogueAvatar: el("dialogue-avatar"),
   dialogueText: el("dialogue-text"),
   advance: el("advance"),
   logToggle: el("log-toggle"),
@@ -667,6 +671,7 @@ function renderDialogue() {
     const npc = state.scene?.npcs?.find((entry) => entry.npc_id === state.currentNpcId);
     ui.dialogueName.textContent = npc?.name || "";
     ui.dialogueName.className = "dialogue-name npc";
+    renderAvatar(npc);
     ui.dialogueText.innerHTML = `<span class="thinking">在想<span class="dots"><i></i><i></i><i></i></span></span>`;
     ui.advance.hidden = true;
     ui.dialogue.classList.toggle("advanceable", false);
@@ -676,10 +681,32 @@ function renderDialogue() {
 
   ui.dialogueName.textContent = line.who;
   ui.dialogueName.className = `dialogue-name ${line.kind}`;
+  renderAvatar(
+    line.kind === "npc"
+      ? state.scene?.npcs?.find((entry) => entry.npc_id === state.currentNpcId)
+      : null,
+  );
   ui.dialogueText.textContent = line.text;
   ui.advance.hidden = !state.awaitingAdvance;
   ui.dialogue.classList.toggle("advanceable", state.awaitingAdvance);
   renderComposerVisibility();
+}
+
+let avatarShown = null;
+
+/** The speaker's face beside their name, for when the stage has no room for the portrait.
+ *
+ * Always rendered for an NPC line; CSS decides whether it shows (only on a short window,
+ * where the portrait itself is hidden). The player and the narrator have no figure.
+ */
+function renderAvatar(npc) {
+  const key = npc?.sprite_key || null;
+  ui.dialogueAvatar.hidden = !key;
+  // Same reason as `castShown`: redrawing an unchanged face on every line made it blink.
+  // Hiding keeps the last face in place, so a player line between two of hers costs nothing.
+  if (!key || key === avatarShown) return;
+  avatarShown = key;
+  ui.dialogueAvatar.innerHTML = avatar(key);
 }
 
 /** Show the composer, and the options tray beside it, only when it is actually the
@@ -762,7 +789,34 @@ async function advance() {
   await submitTurn(spoken, null, { echo: false });
 }
 
+//: What the cast currently shows, so a redraw that would produce the same people is
+//: skipped. `renderCast` runs on every advanced line and every snapshot (two per turn);
+//: rebuilding the markup each time replaced the SVG and replayed the actor's `rise`
+//: entrance, so the figure blinked on every click.
+let castShown = null;
+
+/** Draw who is here. Rebuilds only when the people change; otherwise it just moves the
+ * "speaking" highlight, so the figures stay put for the whole scene. */
 function renderCast() {
+  const npcs = state.scene?.npcs || [];
+  const shown = state.scene?.ending
+    ? "ending"
+    : state.scene?.report_active
+      ? "report"
+      : JSON.stringify([
+          state.scene?.location?.backdrop || "",
+          npcs.map((n) => [n.npc_id, n.sprite_key, n.name, n.note]),
+        ]);
+  const speakingId = state.line?.kind === "npc" ? state.currentNpcId : null;
+
+  if (shown === castShown) {
+    ui.cast.querySelectorAll(".actor").forEach((actor) => {
+      actor.classList.toggle("speaking", actor.dataset.npc === speakingId);
+    });
+    return;
+  }
+  castShown = shown;
+
   if (state.scene?.ending) {
     ui.cast.innerHTML = "";
     return;
@@ -771,26 +825,34 @@ function renderCast() {
     ui.cast.innerHTML = `<p class="cast-empty">调查报告 · 个人记录</p>`;
     return;
   }
-  const npcs = state.scene?.npcs || [];
   if (npcs.length === 0) {
-    ui.cast.innerHTML = `<p class="cast-empty">这里没有人。</p>`;
+    // The place's landmark if it has one (a well for a square), otherwise nothing —
+    // never "这里没有人。": an empty square is a place, not a missing person, and the
+    // place heading already says where the player is.
+    const art = landmark(state.scene?.location?.backdrop);
+    ui.cast.innerHTML = art
+      ? `<div class="cast-row"><div class="actor landmark"><div class="portrait">${art}</div></div></div>`
+      : "";
     return;
   }
-  ui.cast.innerHTML = npcs
+  const actors = npcs
     .map((npc) => {
-      const isSpeaking =
-        state.line?.kind === "npc" && npc.npc_id === state.currentNpcId;
+      const isSpeaking = npc.npc_id === speakingId;
       // The note is public, ungated pack content (NPCWorldState.public_note) — never
       // an excerpt of persona.background, which runs on into what the player must earn.
-      // Text-only for now (docs/12 §8's manual pass is what would restore sprite/art):
-      // the mechanics under review here do not need a drawn figure to make their point.
+      // The portrait is decoration on top of the nameplate, not a replacement for it: on
+      // a short window it is hidden (styles.css) and the nameplate is what remains.
       return `
-        <div class="actor ${isSpeaking ? "speaking" : ""}">
-          <span class="nameplate">${esc(npc.name)}</span>
-          ${npc.note ? `<span class="who-note">${esc(npc.note)}</span>` : ""}
+        <div class="actor ${isSpeaking ? "speaking" : ""}" data-npc="${esc(npc.npc_id)}">
+          <div class="portrait">${sprite(npc.sprite_key, npc.name)}</div>
+          <div class="actor-label">
+            <span class="nameplate">${esc(npc.name)}</span>
+            ${npc.note ? `<span class="who-note">${esc(npc.note)}</span>` : ""}
+          </div>
         </div>`;
     })
     .join("");
+  ui.cast.innerHTML = `<div class="cast-row">${actors}</div>`;
 }
 
 /** The full record, behind the toggle. Every line goes in, the player's own included.
