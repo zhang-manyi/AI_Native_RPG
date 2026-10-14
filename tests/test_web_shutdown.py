@@ -161,7 +161,13 @@ def test_static_files_are_never_cached(running_server):
     """
     _app, _server, _thread, base = running_server
 
-    for path in ("/", "/static/app.js", "/static/styles.css", "/static/sprites.js"):
+    for path in (
+        "/",
+        "/static/app.js",
+        "/static/styles.css",
+        "/static/sprites.js",
+        "/static/landmarks.js",
+    ):
         response = httpx.get(f"{base}{path}", timeout=5)
         assert response.status_code == 200, path
         directive = response.headers.get("cache-control", "")

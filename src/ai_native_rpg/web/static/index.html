@@ -86,7 +86,12 @@
               aria-label="对话，点击或按空格继续"
               hidden
             >
-              <p class="dialogue-name" id="dialogue-name"></p>
+              <div class="dialogue-head">
+                <!-- The speaker's face, shown only when the stage is too short for the
+                     portrait (styles.css). Decorative: the name beside it is the label. -->
+                <span class="dialogue-avatar" id="dialogue-avatar" aria-hidden="true" hidden></span>
+                <p class="dialogue-name" id="dialogue-name"></p>
+              </div>
               <p class="dialogue-text" id="dialogue-text"></p>
               <!-- Shown only when a line is waiting to be advanced, so it reads as "your
                    move" rather than as decoration. -->
