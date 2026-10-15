@@ -647,19 +647,19 @@ events:
     npc_id: npc_a
     max_exchanges: 3
     presentation:
-      - {speaker: narrator, text: 她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。}
-      - {speaker: npc_a, text: 这门栓一受潮就卡……你问完就走吧。}
+      - {speaker: narrator, text: 她想把门关上，门却怎么也关不严。里屋传来孩子翻身的声音。}
+      - {speaker: npc_a, text: 这门最近总是关不严，我心里不踏实……你问完就走吧。}
     trigger:
       clauses:
         - {path: story_beats.completed_events, op: contains, value: M1_knock}
     options:
-      - {option_id: help_latch, tag: goodwill, text: 我先帮你把门栓修好，你不用急着回答。, on_success: helped}
+      - {option_id: help_latch, tag: goodwill, text: 我先帮你把门修好，你不用急着回答。, on_success: helped}
       - {option_id: leave_it, tag: observe, text: 不打扰了，我去别处问问。, on_success: left}
     default_outcome: left
     outcomes:
       helped:
         npc_reply: 这样就能关紧了……谢谢。进来说吧，别吵醒他。
-        summary: 你修好了门栓。玛尔塔让开门口：“进来说吧。别吵醒他。”
+        summary: 你把门修好了。玛尔塔让开门口：“进来说吧。别吵醒他。”
         relationship_changes:
           npc_a: {trust: 15, fear: -5}
       left:
