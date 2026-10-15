@@ -98,6 +98,9 @@ const state = {
   busy: false, // mirrors the composer lock, so a redraw re-applies it
   panelOpen: false,
   logOpen: false,
+  // The 已知 strip starts collapsed: four or five chips covered the portrait's body.
+  notesOpen: false,
+  notesSeen: 0, // how many facts the player has looked at, to mark new ones
   resumed: false, // continuing a save: suppresses the turn-0 intro screen
   wrapUpActive: false, // the day's review screen has replaced the scene
   // The active event's options, held back from the tray until any scripted line ahead
@@ -426,14 +429,7 @@ function renderScene() {
   ui.placeDesc.textContent = s.location?.description || "";
   ui.panelTurn.textContent = `第 ${s.turn} 轮 · 第 ${s.time_day} 天`;
 
-  const facts = s.visible_facts || [];
-  ui.notes.hidden = facts.length === 0;
-  // Chips live in their own wrapping box so that a wrapped row lines up with the first
-  // one instead of starting back at the label's edge.
-  ui.notes.innerHTML =
-    `<span class="label">已知</span><div class="chips">` +
-    facts.map((f) => `<span class="note">${esc(f.value)}</span>`).join("") +
-    `</div>`;
+  renderNotes();
 
   renderWays(s.destinations || []);
   renderConclude();
@@ -893,6 +889,30 @@ function renderCast() {
     })
     .join("");
   ui.cast.innerHTML = `<div class="cast-row">${actors}</div>`;
+}
+
+/** The 已知 strip: a toggle with the count, and the chips only when opened.
+ *
+ * Collapsed by default because the chips sit over the portrait and four or five of them
+ * covered the figure's body. A clue arriving is still visible while collapsed: the count
+ * is marked new until the strip is opened, so collapsing never hides that something
+ * changed. The chips live in their own wrapping box so that a wrapped row lines up with
+ * the first one instead of starting back at the label's edge.
+ */
+function renderNotes() {
+  const facts = state.scene?.visible_facts || [];
+  ui.notes.hidden = facts.length === 0;
+  if (state.notesOpen) state.notesSeen = facts.length;
+  const fresh = facts.length > state.notesSeen;
+  ui.notes.classList.toggle("open", state.notesOpen);
+  ui.notes.innerHTML =
+    `<button type="button" class="notes-toggle${fresh ? " fresh" : ""}" ` +
+    `aria-expanded="${state.notesOpen}" aria-controls="notes-chips">` +
+    `<span class="label">已知</span><span class="notes-count">${facts.length}</span>` +
+    `${fresh ? `<span class="sr-only">，有新线索</span>` : ""}</button>` +
+    `<div class="chips" id="notes-chips"${state.notesOpen ? "" : " hidden"}>` +
+    facts.map((f) => `<span class="note">${esc(f.value)}</span>`).join("") +
+    `</div>`;
 }
 
 /** The full record, behind the toggle. Every line goes in, the player's own included.
@@ -1542,6 +1562,13 @@ document.addEventListener("keydown", (e) => {
 });
 
 ui.logToggle.addEventListener("click", () => setLogOpen(!state.logOpen));
+
+/* Delegated: `renderNotes` replaces the button on every snapshot. */
+ui.notes.addEventListener("click", (e) => {
+  if (!e.target.closest(".notes-toggle")) return;
+  state.notesOpen = !state.notesOpen;
+  renderNotes();
+});
 
 ui.toggle.addEventListener("click", () => setPanelOpen(!state.panelOpen));
 

@@ -42,7 +42,7 @@ intro:
   # written; optional (a pack without it just shows the facts).
   # One line on purpose: YAML's '>' folding turns newlines into spaces, which in
   # Chinese text (no inter-word spaces) would insert stray gaps after punctuation.
-  premise: "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是敲响了她家的门。"
+  premise: "三天前的雨夜，磨坊主十四岁的女儿艾拉在村里失踪了。村民搜遍森林边缘，什么也没找到。镇上议事厅委托你查明情况，并在调查结束后提交书面报告。你听说接生婆玛尔塔那晚似乎在外面，于是今天一早，趁村里还没人走动，敲响了她家的门。"
   facts_header: 已知线索
   goal: 你想从她口中问出关于这起失踪案的线索。
 
@@ -576,7 +576,7 @@ events:
     delivery: choice
     locations: [npc_a_house]
     presentation:
-      - {speaker: narrator, text: 门只开了一条缝。玛尔塔挡在门后，先看了看街上。}
+      - {speaker: narrator, text: 天刚亮。门只开了一条缝，玛尔塔挡在门后，先看了看还没有人的街上。}
       - {speaker: player, text: 我受镇上议事厅委托，来问问艾拉失踪那晚的事。}
       - {speaker: npc_a, text: ……小声点。我儿子在屋里。你想问什么？}
     operator: reveal
@@ -648,7 +648,7 @@ events:
     max_exchanges: 3
     presentation:
       - {speaker: narrator, text: 她想关门，门栓却卡在翘起的木刺上。里屋传来孩子翻身的声音。}
-      - {speaker: npc_a, text: 这门一到晚上就关不严……你问完就走吧。}
+      - {speaker: npc_a, text: 这门栓一受潮就卡……你问完就走吧。}
     trigger:
       clauses:
         - {path: story_beats.completed_events, op: contains, value: M1_knock}
@@ -749,7 +749,7 @@ events:
         sets_flags: [marta_hands_seen]
         advances_conversation: false
       she_changed_the_subject:
-        npc_reply: 孩子已经睡了。你还要问多久？
+        npc_reply: 孩子快醒了。你还要问多久？
         summary: 她转了话题
 
   # --- F1: 艾拉的东西少了几件 ----------------------------------------------

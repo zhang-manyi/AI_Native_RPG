@@ -123,6 +123,32 @@ test('an empty scene can narrate and offer investigation actions without a chat 
   assert.equal(c.requests.length, 0);
 });
 
+test('known clues start collapsed, flag a new one, and open on click', () => {
+  const c = client();
+  const facts = (n) => Array.from({ length: n }, (_, i) => ({ id: `f${i}`, value: `线索${i}` }));
+  c.onScene(scene({ visible_facts: facts(3) }));
+  const notes = c.elements.get('notes');
+  assert.equal(notes.hidden, false);
+  // Collapsed: the count shows, the chips are hidden so they do not cover the portrait.
+  assert.match(notes.innerHTML, /aria-expanded="false"/);
+  assert.match(notes.innerHTML, /notes-count">3</);
+  assert.match(notes.innerHTML, /id="notes-chips" hidden/);
+  assert.match(notes.innerHTML, /notes-toggle fresh/, 'unseen clues are marked while collapsed');
+
+  const toggle = { target: { closest: (sel) => (sel === '.notes-toggle' ? {} : null) } };
+  notes.listeners.click(toggle);
+  assert.match(notes.innerHTML, /aria-expanded="true"/);
+  assert.doesNotMatch(notes.innerHTML, /id="notes-chips" hidden/);
+  assert.match(notes.innerHTML, /线索2/);
+  assert.doesNotMatch(notes.innerHTML, /notes-toggle fresh/, 'opening marks them seen');
+
+  // Closed again, a fourth clue arriving is flagged without opening the strip.
+  notes.listeners.click(toggle);
+  c.onScene(scene({ visible_facts: facts(4) }));
+  assert.match(notes.innerHTML, /id="notes-chips" hidden/);
+  assert.match(notes.innerHTML, /notes-toggle fresh/);
+});
+
 test('an empty place shows its landmark when it has one, and nothing otherwise', () => {
   const c = client();
   c.onScene(scene({ current_npc_id: null, npcs: [], location: { name: '村庄广场', backdrop: 'square' } }));
