@@ -105,6 +105,9 @@ const state = {
   // — an option is not conditioned on the line before it there — so without this the
   // tray would render before the player had read what he is being asked to respond to.
   pendingOptions: [],
+  // A final report the player has picked but not yet confirmed. While set, the options tray
+  // offers only "submit" / "think again" and the dialogue box holds the narrator's question.
+  confirmingReport: null, // { option, previousLine } | null
   passageId: null,
   authoredQueue: false,
   panelGauge: false,
@@ -371,6 +374,8 @@ function onTick(data) {
 function onScene(scene) {
   if (!scene) return;
   state.scene = scene;
+  // A snapshot that closes the report (or ends the game) drops a pending question.
+  if (!scene.report_active || scene.ending) state.confirmingReport = null;
   state.currentNpcId = scene.current_npc_id ?? null;
   if (scene.ready !== undefined) {
     state.waiting = scene.ready ? null : state.waiting;
@@ -473,7 +478,42 @@ function updateOptionsTray() {
     !state.awaitingAdvance &&
     !state.wrapUpActive &&
     !state.scene?.ending;
-  renderOptions(idle ? state.pendingOptions : []);
+  const options = state.confirmingReport ? REPORT_CONFIRM_OPTIONS : state.pendingOptions;
+  renderOptions(idle ? options : []);
+}
+
+/* The two answers to "submit this report?". Front-end only: they never reach the server,
+ * which only ever sees the report option itself once the player has confirmed it. */
+const REPORT_CONFIRM_OPTIONS = [
+  { option_id: "__report_confirm", label: "确认", text: "提交这份报告，结束调查" },
+  { option_id: "__report_back", label: "返回", text: "再想想" },
+];
+
+/** Ask, in the narrator's voice, whether to hand in the final report.
+ *
+ * Replaces a `window.confirm`: a browser dialog broke out of the page in the browser's
+ * own colours, for the one decision in the game that most deserves to feel like part of it.
+ * The question goes where every other line goes, and the answer is two options in the tray.
+ */
+function askToSubmitReport(option) {
+  state.confirmingReport = { option, previousLine: state.line };
+  say(
+    "narrator",
+    "旁白",
+    `你写下：「${option.text.replace(/^提交报告：/, "")}」。一旦提交，这次受托调查就结束了，报告不能再改。确定提交吗？`,
+  );
+}
+
+function cancelReportConfirmation() {
+  const pending = state.confirmingReport;
+  state.confirmingReport = null;
+  // Back to whatever the report screen was showing before the question.
+  if (pending?.previousLine) {
+    say(pending.previousLine.kind, pending.previousLine.who, pending.previousLine.text);
+  } else {
+    clearDialogue();
+    renderDialogue();
+  }
 }
 
 /** Offer the event's scripted lines for the player to say, one at a time.
@@ -558,7 +598,7 @@ function renderOptions(options) {
       (o) =>
         `<button type="button" class="option" data-option="${esc(o.option_id)}"
                  ${state.busy ? "disabled" : ""}>
-           <span class="tag-label">[${esc(state.scene?.report_active ? (o.final_report ? "报告" : "返回") : TAG_LABELS[o.tag] || o.tag)}]</span>
+           <span class="tag-label">[${esc(o.label || (state.scene?.report_active ? (o.final_report ? "报告" : "返回") : TAG_LABELS[o.tag] || o.tag))}]</span>
            <span class="option-text">${esc(o.text)}</span>
          </button>`,
     )
@@ -964,6 +1004,7 @@ const FIELD_HELP = {
   伏笔账本: "预定义伏笔的登记及回收条件；不再由模型发明新线索。",
   解锁进度: "隐藏事实的条件和当前值，仅开发者可见。",
   "被拒的 Proposal": "校验未通过的动作，没有按该提案改变世界。",
+  调用链: "上一个 NPC 回合的每一步：检索了什么、调了哪些工具和返回值、规则怎么裁决。点开一步看细节。",
   算子时间线: "每轮事件的用途、选择原因、阻塞原因及生成的文本。当前剧本路径由规则推进。",
   关系值走势: "按单个 NPC 展示，避免不同 NPC 的数值连成一条误导曲线。",
   记忆检索: "该 NPC 最近对话检索的记忆及重要度/确信程度。",
@@ -1030,6 +1071,7 @@ function renderPanel() {
     renderLedger(p),
     renderUnlock(p),
     renderRejected(p),
+    renderTrace(p),
     renderTimeline(p),
     renderNpcs(p),
     renderCost(p),
@@ -1150,6 +1192,60 @@ function renderUnlock(p) {
   return block("解锁进度", rows.length, body, { open: false });
 }
 
+/* Step kinds as short labels, and the status they settle into. The reading of each step
+ * (what counts as a tool result, a ruling, a failure) is the server's — panels.py
+ * `build_trace_view` — so this only draws it (docs/12 §4.4). */
+const STEP_KIND = {
+  memory: "检索", tool: "工具", plan: "规划", validation: "裁决",
+  event: "事件", expression: "表达", reflection: "反思", other: "其他",
+};
+const STEP_MARK = { ok: ["ok", "✓"], rejected: ["danger", "✗"], error: ["warn", "!"], info: ["", "·"] };
+
+/** A value from a step's detail: short scalars inline, anything structured as JSON. */
+function stepValue(v) {
+  if (v === null || v === undefined || v === "") return `<span class="empty">（空）</span>`;
+  if (Array.isArray(v) && v.every((x) => typeof x !== "object")) {
+    return v.map((x) => `<div>${esc(String(x))}</div>`).join("");
+  }
+  if (typeof v === "object") return `<pre class="trace-json">${esc(JSON.stringify(v, null, 2))}</pre>`;
+  return esc(String(v));
+}
+
+function renderTrace(p) {
+  const t = p.last_trace;
+  if (!t) return block("调用链", null, empty("还没有 NPC 回合"), { open: false });
+  const rows = t.steps
+    .map((s, i) => {
+      const [cls, mark] = STEP_MARK[s.status] || STEP_MARK.info;
+      const meta = [
+        s.model_used ? esc(s.model_used) : "确定性",
+        s.tokens ? `${s.tokens} tok` : "",
+        s.latency_ms ? `${num(s.latency_ms)}ms` : "",
+      ].filter(Boolean).join(" · ");
+      const detail = Object.entries(s.detail || {});
+      const body = detail.length
+        ? `<dl class="trace-detail">${detail
+            .map(([k, v]) => `<dt>${esc(k)}</dt><dd>${stepValue(v)}</dd>`)
+            .join("")}</dl>`
+        : "";
+      // Keyed by trace and position, so a step the developer opened stays open across the
+      // panel's redraws until the next turn replaces the trace.
+      const head = `<span class="tag ${cls}">${mark}</span>
+        <span class="trace-kind">${esc(STEP_KIND[s.kind] || s.kind)}</span>
+        <span class="trace-title">${esc(s.title)}</span>
+        <span class="trace-meta">${meta}</span>`;
+      return body
+        ? `<details class="trace-step" data-key="trace:${esc(t.trace_id)}:${i}">
+             <summary>${head}</summary>${body}</details>`
+        : `<div class="trace-step flat">${head}</div>`;
+    })
+    .join("");
+  const rejected = t.steps.filter((s) => s.status === "rejected").length;
+  const raw = `<div class="why">${esc(t.npc_id)} · ${num(t.total_latency_ms)}ms ·
+    <a href="/debug/trace/${esc(t.trace_id)}" target="_blank" rel="noopener">原始 JSON</a></div>`;
+  return block("调用链", t.steps.length, rows + raw, { open: false, alert: rejected > 0 });
+}
+
 function renderRejected(p) {
   const rows = p.rejected_proposals || [];
   const body = rows.length
@@ -1167,7 +1263,8 @@ function renderRejected(p) {
         .join("")
     : empty("还没有被拒绝的提议");
   // The most under-rated block: direct evidence a rule stopped the model.
-  return block("被拒的 Proposal", rows.length, body, { alert: rows.length > 0 });
+  // Starts closed like its neighbours; the count turning orange is what flags a refusal.
+  return block("被拒的 Proposal", rows.length, body, { open: false, alert: rows.length > 0 });
 }
 
 function renderTimeline(p) {
@@ -1346,8 +1443,24 @@ ui.composer.addEventListener("submit", async (e) => {
 ui.options.addEventListener("click", async (e) => {
   const button = e.target.closest("button[data-option]");
   if (!button || state.busy) return;
-  const option = state.pendingOptions.find(o => o.option_id === button.dataset.option);
-  if (option?.final_report && !window.confirm(`${option.text}\n\n提交后将结束本次调查。确定提交这份最终报告吗？`)) return;
+  const id = button.dataset.option;
+
+  if (id === "__report_back") {
+    cancelReportConfirmation();
+    return;
+  }
+  if (id === "__report_confirm") {
+    const { option } = state.confirmingReport || {};
+    state.confirmingReport = null;
+    if (option) await submitTurn(option.text, option.option_id);
+    return;
+  }
+
+  const option = state.pendingOptions.find((o) => o.option_id === id);
+  if (option?.final_report) {
+    askToSubmitReport(option);
+    return;
+  }
 
   // The option's own text is what the player said, so it goes in as the utterance —
   // exactly what typing that sentence would have sent.

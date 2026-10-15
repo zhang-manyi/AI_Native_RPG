@@ -14,6 +14,7 @@ from ai_native_rpg.observability.panels import (
     build_beats,
     build_ledger,
     build_slot_budget,
+    build_trace_view,
     build_unlock_board,
     memory_hits,
     operator_entry,
@@ -504,3 +505,136 @@ def test_memory_hits_preserve_rank_order_and_kind():
     assert hits[0].score == 0.95
     assert hits[-1].kind == "semantic"
     assert hits[-1].score == 0.8
+
+
+# --- the readable trace (docs/07 §2.1) ----------------------------------------------
+
+
+def _trace(*steps):
+    return AgentTrace(
+        trace_id="tr-view",
+        npc_id=NPC_A,
+        player_id=PLAYER,
+        session_id="s1",
+        final_dialogue="你小声些。",
+        steps=list(steps),
+    )
+
+
+def test_trace_view_reads_a_tool_call_and_its_result():
+    view = build_trace_view(
+        _trace(
+            TraceStep(
+                step_name="tool_call",
+                input_summary={"tool": "query_relationship", "arguments": {"target_id": PLAYER}},
+                output_summary={"ok": True, "result_keys": ["trust"], "result": {"trust": 32}},
+                latency_ms=1.5,
+            )
+        )
+    )
+    (step,) = view.steps
+    assert step.kind == "tool"
+    assert step.status == "ok"
+    assert step.title == f"query_relationship(target_id={PLAYER!r})"
+    # The result is the point of expanding the row; it must survive intact.
+    assert step.detail == {"结果": {"trust": 32}}
+
+
+def test_trace_view_marks_a_failed_tool_call_as_an_error():
+    view = build_trace_view(
+        _trace(
+            TraceStep(
+                step_name="tool_call",
+                input_summary={"tool": "query_memory", "arguments": {}},
+                output_summary={"ok": False, "error": "unknown npc"},
+            )
+        )
+    )
+    (step,) = view.steps
+    assert step.status == "error"
+    assert step.title == "query_memory()"
+    assert step.detail == {"错误": "unknown npc"}
+
+
+def test_trace_view_reads_rulings_with_rule_and_reason():
+    view = build_trace_view(
+        _trace(
+            TraceStep(
+                step_name="action_validation",
+                input_summary={"action_type": "reveal_fact", "target_id": "loren_that_night"},
+                output_summary={
+                    "approved": False,
+                    "reason": "条件未满足 (trust 32 < 85)",
+                    "rule_name": "reveal_requires_condition_met",
+                },
+            ),
+            TraceStep(
+                step_name="action_validation",
+                input_summary={"action_type": "adjust_relationship"},
+                output_summary={"approved": True, "reason": None, "rule_name": None},
+            ),
+        )
+    )
+    refused, allowed = view.steps
+    assert refused.kind == "validation"
+    assert refused.status == "rejected"
+    assert refused.title == "裁决：reveal_fact(loren_that_night) 被拒"
+    assert refused.detail == {
+        "规则": "reveal_requires_condition_met",
+        "理由": "条件未满足 (trust 32 < 85)",
+    }
+    # An approval has no rule to show; empty fields are dropped, not shown as blanks.
+    assert allowed.status == "ok"
+    assert allowed.title == "裁决：adjust_relationship 通过"
+    assert allowed.detail == {}
+
+
+def test_trace_view_reads_an_option_resolution_and_its_check():
+    view = build_trace_view(
+        _trace(
+            TraceStep(
+                step_name="event_resolution",
+                input_summary={"option_id": "probe_seen"},
+                output_summary={
+                    "event_id": "M2_doorway",
+                    "outcome_id": "she_pulls_back",
+                    "option_id": "probe_seen",
+                    "band": "fail",
+                    "threshold": 35,
+                    "current_value": 20,
+                    "proposals": [
+                        {"approved": True, "applied_changes": {"trust": "20 -> 15"}},
+                        {"approved": False, "rule_name": "fear_cap", "reason": "已到上限"},
+                    ],
+                },
+            )
+        )
+    )
+    (step,) = view.steps
+    assert step.kind == "event"
+    # One of the outcome's effects was refused, so the step reads as a rejection.
+    assert step.status == "rejected"
+    assert step.title == "事件结算：M2_doorway → she_pulls_back"
+    assert step.detail["阈值"] == "20 / 35"
+    assert step.detail["提议"] == ["✓ trust=20 -> 15", "✗ fear_cap — 已到上限"]
+
+
+def test_trace_view_keeps_unknown_steps_and_counts_llm_tokens():
+    view = build_trace_view(
+        _trace(
+            TraceStep(
+                step_name="something_new",
+                input_summary={"a": 1},
+                output_summary={"b": 2},
+                model_used="m",
+                token_usage={"prompt_tokens": 7, "completion_tokens": 5},
+            )
+        )
+    )
+    (step,) = view.steps
+    # A step this reader does not know yet still shows up, with its raw summaries.
+    assert step.kind == "other"
+    assert step.title == "something_new"
+    assert step.detail == {"a": 1, "b": 2}
+    assert step.tokens == 12
+    assert view.final_dialogue == "你小声些。"

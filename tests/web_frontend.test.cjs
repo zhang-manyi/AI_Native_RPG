@@ -149,13 +149,29 @@ test('report hides nearby NPC chat and requires confirmation before final submis
   const event = id => ({ target: { closest() { return {
     dataset: {option: id}, querySelector() { return {textContent: '提交报告：个人判断'}; },
   }; } } });
+
+  // Picking the report asks in the narrator's voice, inside the page — not a browser dialog.
   await click(event('report'));
-  assert.equal(c.confirmations.length, 1);
-  assert.equal(c.requests.length, 0, 'cancel keeps the report open');
-  c.confirmation.accepted = true;
+  assert.equal(c.confirmations.length, 0, 'no window.confirm');
+  assert.equal(c.requests.length, 0, 'asking is not submitting');
+  assert.equal(c.elements.get('dialogue-name').textContent, '旁白');
+  assert.match(c.elements.get('dialogue-text').textContent, /个人判断.*确定提交吗/);
+  assert.match(c.elements.get('options').innerHTML, /\[确认\]/);
+  assert.match(c.elements.get('options').innerHTML, /\[返回\]/);
+  assert.doesNotMatch(c.elements.get('options').innerHTML, /继续调查/, 'only the two answers are offered');
+
+  // "再想想" goes back to the report's own options without sending anything.
+  await click(event('__report_back'));
+  assert.equal(c.requests.length, 0);
+  assert.match(c.elements.get('options').innerHTML, /\[报告\]/);
+
+  // Asking again and confirming sends the report option itself.
   await click(event('report'));
+  await click(event('__report_confirm'));
   assert.equal(c.requests.length, 1);
-  assert.equal(JSON.parse(c.requests[0][1].body).option_id, 'report');
+  const body = JSON.parse(c.requests[0][1].body);
+  assert.equal(body.option_id, 'report');
+  assert.equal(body.text, '提交报告：个人判断');
 });
 
 test('public ready snapshots unlock input without developer tick events', async () => {

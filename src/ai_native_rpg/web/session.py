@@ -52,10 +52,12 @@ from ..observability import NarrativeTickStore, TraceStore
 from ..observability.panels import (
     PanelView,
     RejectedProposal,
+    TraceView,
     TurnCost,
     build_beats,
     build_ledger,
     build_slot_budget,
+    build_trace_view,
     build_unlock_board,
     memory_hits,
     operator_entry,
@@ -424,6 +426,7 @@ class Session:
         self._relationship_trend: list[dict[str, float]] = []
         self._last_cost: Any = None
         self._last_memory: Any = []
+        self._last_trace: TraceView | None = None
         self._npc_activity: dict[str, dict] = {}
         self._npc_trends: dict[str, list] = {npc_id: [] for npc_id in world.npcs}
         self._day_start = resume.day_start if resume else self._day_baseline()
@@ -642,6 +645,7 @@ class Session:
                 "semantic": runtime.memory.semantic_count if runtime is not None else 0,
             },
             last_turn_cost=self._last_cost,
+            last_trace=self._last_trace,
             pending_hook=str((self.engine.pending_event or {}).get("dialogue_hook", "")),
         )
 
@@ -993,6 +997,7 @@ class Session:
 
         self._last_cost = turn_cost(trace)
         self._last_memory = memory_hits(trace)
+        self._last_trace = build_trace_view(trace)
         self._record_npc_activity(trace)
         self._rejected.extend(rejected_from_trace(trace, turn=world.story_beats.turn))
         self._sample_relationship()
@@ -1169,6 +1174,7 @@ class Session:
         self.traces.save(trace)
         self._last_cost = turn_cost(trace)
         self._last_memory = memory_hits(trace)
+        self._last_trace = build_trace_view(trace)
         self._record_npc_activity(trace)
         self._rejected.extend(
             rejected_from_trace(trace, turn=self.manager.snapshot().story_beats.turn)
