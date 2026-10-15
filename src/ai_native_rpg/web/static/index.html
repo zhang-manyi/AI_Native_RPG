@@ -50,11 +50,6 @@
             <p id="ending-text"></p>
           </section>
 
-          <div class="notes" id="notes" hidden>
-            <span class="label">已知</span>
-            <div class="chips"></div>
-          </div>
-
           <!-- Where the player may go. Every entry comes from the projection; the page
                never works out reachability itself, and a refused move is explained by
                the Validator's own words (docs/12 §13.2). -->
@@ -102,7 +97,14 @@
 
           <!-- The transcript is kept but not shown: on screen the player sees only what is
                being said right now, and the record is one button away. -->
+          <!-- Under the dialogue box, beside the transcript toggle: both are records the
+               player opens when he wants them. Above the box, its rule line cut across the
+               portrait's body. -->
           <div class="log-bar">
+            <div class="notes" id="notes" hidden>
+              <span class="label">已知</span>
+              <div class="chips"></div>
+            </div>
             <button
               type="button"
               class="log-toggle"
