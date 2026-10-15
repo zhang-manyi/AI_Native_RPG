@@ -182,6 +182,40 @@ class SlotBudget(BaseModel):
     out_of_days: bool = False
 
 
+class TraceStepView(BaseModel):
+    """One step of an NPC turn, already interpreted for the panel (docs/07 §2.1).
+
+    The trace records steps as free-form summaries; this decides, once, what each kind of
+    step *means* — "tool X with these arguments returned this", "the Validator approved
+    or refused this action under this rule" — so the web panel and the terminal can both
+    render it without either one re-deriving the reading from raw keys.
+    """
+
+    name: str = Field(description="the trace's own step_name")
+    kind: Literal[
+        "memory", "tool", "plan", "validation", "event", "expression", "reflection", "other"
+    ]
+    title: str = Field(description="one line: what happened at this step")
+    status: Literal["ok", "rejected", "error", "info"] = "info"
+    detail: dict[str, Any] = Field(
+        default_factory=dict,
+        description="the parts worth reading, keyed for display (arguments, result, rule…)",
+    )
+    latency_ms: float = 0.0
+    model_used: str | None = None
+    tokens: int = 0
+
+
+class TraceView(BaseModel):
+    """The last NPC turn as a readable chain: retrieve → tools → plan → validate → speak."""
+
+    trace_id: str
+    npc_id: str
+    final_dialogue: str = ""
+    total_latency_ms: float = 0.0
+    steps: list[TraceStepView] = Field(default_factory=list)
+
+
 class PanelView(BaseModel):
     """Everything the developer panel shows, in one snapshot.
 
@@ -203,6 +237,10 @@ class PanelView(BaseModel):
     memory: list[MemoryHit] = Field(default_factory=list)
     memory_counts: dict[str, int] = Field(default_factory=dict)
     last_turn_cost: TurnCost | None = None
+    last_trace: TraceView | None = Field(
+        default=None,
+        description="the last NPC turn, step by step, with tool results and rulings",
+    )
     pending_hook: str = Field(
         default="",
         description="content generated last turn, waiting to be woven into the next one. "
@@ -429,6 +467,155 @@ def turn_cost(trace: AgentTrace) -> TurnCost:
         tokens=tokens,
         total_latency_ms=trace.total_latency_ms,
         trace_id=trace.trace_id,
+    )
+
+
+def _step_tokens(usage: dict[str, int] | None) -> int:
+    usage = usage or {}
+    return usage.get("total_tokens", 0) or (
+        usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)
+    )
+
+
+def _call(tool: str, arguments: Any) -> str:
+    if isinstance(arguments, dict) and arguments:
+        args = ", ".join(f"{k}={v!r}" for k, v in arguments.items())
+    else:
+        args = ""
+    return f"{tool}({args})"
+
+
+def _proposal_line(p: dict[str, Any]) -> str:
+    """One authored effect and its ruling (an ``ActionValidationResult`` dump).
+
+    A result carries no action type, so an approved one is named by what it changed
+    and a refused one by the rule that stopped it.
+    """
+    if p.get("approved", True):
+        changes = p.get("applied_changes") or {}
+        what = ", ".join(f"{k}={v}" for k, v in changes.items()) or "已应用"
+        return f"✓ {what}"
+    rule = p.get("rule_name") or "被拒"
+    reason = p.get("reason")
+    return f"✗ {rule} — {reason}" if reason else f"✗ {rule}"
+
+
+def _step_view(step) -> TraceStepView:
+    """Read one TraceStep. Unknown step names still render, as ``other``."""
+    name = step.step_name
+    inp = step.input_summary or {}
+    out = step.output_summary or {}
+    base = {
+        "name": name,
+        "latency_ms": step.latency_ms,
+        "model_used": step.model_used,
+        "tokens": _step_tokens(step.token_usage),
+    }
+
+    if name == "memory_retrieval":
+        return TraceStepView(
+            **base,
+            kind="memory",
+            title=f"检索记忆：情景 {out.get('episodic_hits', 0)} 条 · "
+            f"语义 {out.get('semantic_hits', 0)} 条",
+            detail={"查询": inp.get("observation", "")},
+        )
+    if name == "tool_request":
+        return TraceStepView(
+            **base, kind="tool", title=f"模型请求调用 {out.get('tool_count', 0)} 个工具"
+        )
+    if name == "tool_call":
+        call = _call(str(inp.get("tool", "?")), inp.get("arguments"))
+        if out.get("ok", False):
+            return TraceStepView(
+                **base, kind="tool", status="ok", title=call, detail={"结果": out.get("result")}
+            )
+        return TraceStepView(
+            **base, kind="tool", status="error", title=call, detail={"错误": out.get("error")}
+        )
+    if name == "planning":
+        detail = {"策略": out.get("strategy", "")}
+        if inp.get("tool_iterations"):
+            detail["工具轮数"] = inp["tool_iterations"]
+        return TraceStepView(
+            **base,
+            kind="plan",
+            title="规划：提出了行动" if out.get("proposes_action") else "规划：只说话，不提行动",
+            detail=detail,
+        )
+    if name == "action_validation":
+        action = str(inp.get("action_type", "?"))
+        target = inp.get("target_id")
+        approved = bool(out.get("approved"))
+        detail = {"规则": out.get("rule_name"), "理由": out.get("reason")}
+        return TraceStepView(
+            **base,
+            kind="validation",
+            status="ok" if approved else "rejected",
+            title=f"裁决：{action}{f'({target})' if target else ''} "
+            f"{'通过' if approved else '被拒'}",
+            detail={k: v for k, v in detail.items() if v},
+        )
+    if name == "event_resolution":
+        detail = {
+            "选项": out.get("option_id") or inp.get("option_id"),
+            "结果": out.get("outcome_id"),
+            "检定": out.get("band"),
+        }
+        if out.get("threshold") is not None:
+            detail["阈值"] = f"{out.get('current_value')} / {out.get('threshold')}"
+        proposals = out.get("proposals") or []
+        rejected = [p for p in proposals if not p.get("approved", True)]
+        if proposals:
+            detail["提议"] = [_proposal_line(p) for p in proposals]
+        return TraceStepView(
+            **base,
+            kind="event",
+            status="rejected" if rejected else "ok",
+            title=f"事件结算：{out.get('event_id', '?')} → {out.get('outcome_id') or '继续'}",
+            detail={k: v for k, v in detail.items() if v not in (None, "", [])},
+        )
+    if name == "intent_classification":
+        matched = out.get("matched_option_id")
+        return TraceStepView(
+            **base,
+            kind="event",
+            title=f"意图归类：{matched}" if matched else "意图归类：未匹配任何选项",
+        )
+    if name in ("dialogue_generation", "expression_evidence", "rewrite_evidence"):
+        return TraceStepView(
+            **base,
+            kind="expression",
+            title={
+                "dialogue_generation": "生成台词",
+                "expression_evidence": "整理可公开的依据",
+                "rewrite_evidence": "补充改写依据",
+            }[name],
+            detail=dict(out),
+        )
+    if name == "expression_fallback":
+        return TraceStepView(
+            **base,
+            kind="expression",
+            status="error",
+            title="台词生成失败，使用作者写好的回复",
+            detail={"错误类型": out.get("error_type")},
+        )
+    if name == "reflection":
+        return TraceStepView(
+            **base, kind="reflection", title=f"写回记忆 {out.get('episodic_written', 0)} 条"
+        )
+    return TraceStepView(**base, kind="other", title=name, detail={**inp, **out})
+
+
+def build_trace_view(trace: AgentTrace) -> TraceView:
+    """The panel's reading of one trace (docs/07 §2.1), shared by every renderer."""
+    return TraceView(
+        trace_id=trace.trace_id,
+        npc_id=trace.npc_id,
+        final_dialogue=trace.final_dialogue,
+        total_latency_ms=trace.total_latency_ms,
+        steps=[_step_view(step) for step in trace.steps],
     )
 
 

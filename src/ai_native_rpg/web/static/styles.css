@@ -1381,6 +1381,123 @@ body.resizing-panel, body.resizing-panel * { cursor: col-resize !important; user
   font-style: italic;
 }
 
+/* trace: one row per step, expandable when the step has something to show */
+.trace-step {
+  border-bottom: 1px dashed var(--edge-soft);
+  font-size: var(--text-xs);
+}
+
+.trace-step:last-of-type {
+  border-bottom: none;
+}
+
+/* Wraps, so the model/tokens/latency drop under the title in a narrow panel instead of
+ * squeezing the title into a column a few characters wide. */
+.trace-step > summary,
+.trace-step.flat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  padding: var(--space-2) 0;
+  list-style: none;
+}
+
+.trace-step > summary {
+  cursor: pointer;
+}
+
+.trace-step > summary::-webkit-details-marker {
+  display: none;
+}
+
+.trace-step > summary:hover .trace-title,
+.trace-step[open] > summary .trace-title {
+  color: var(--paper);
+}
+
+.trace-step .tag {
+  flex-shrink: 0;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--edge);
+  color: var(--text-faint);
+}
+
+.trace-step .tag.ok { color: var(--ok); border-color: var(--ok); }
+.trace-step .tag.danger { color: var(--danger); border-color: var(--danger); }
+.trace-step .tag.warn { color: var(--warn); border-color: var(--warn); }
+
+.trace-kind {
+  flex-shrink: 0;
+  width: 2.5em;
+  color: var(--text-faint);
+}
+
+.trace-title {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-family: var(--mono);
+  color: var(--paper-dim);
+  overflow-wrap: anywhere;
+}
+
+.trace-meta {
+  margin-left: auto;
+  font-family: var(--mono);
+  color: var(--text-faint);
+}
+
+.trace-detail {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0 0 var(--space-3) calc(2.5em + 3.2rem);
+  padding: var(--space-2) var(--space-3);
+  border-left: 2px solid var(--edge);
+  background: var(--ink-2);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.trace-detail dt {
+  color: var(--text-faint);
+}
+
+.trace-detail dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--paper-dim);
+  overflow-wrap: anywhere;
+}
+
+/* The panel's links sit in muted italic text; the browser's default blue was the loudest
+ * thing on the panel. */
+.block-body a {
+  color: var(--accent);
+  font-style: normal;
+  text-decoration: underline;
+  text-decoration-color: var(--edge);
+  text-underline-offset: 2px;
+}
+
+.block-body a:hover,
+.block-body a:focus-visible {
+  text-decoration-color: currentColor;
+}
+
+.trace-json {
+  margin: 0;
+  max-height: 16rem;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--paper-dim);
+}
+
 /* operator timeline */
 .beat {
   display: flex;
