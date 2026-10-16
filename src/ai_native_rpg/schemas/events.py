@@ -262,6 +262,14 @@ class EventOutcome(BaseModel):
         "Only M3 and M5 use it, and both have another route to the same information: "
         "closure is a cost, not a dead end.",
     )
+    rests_until_left: bool = Field(
+        default=False,
+        description="the player walked away: a repeatable event that finished on this "
+        "outcome does not re-open until he has left the place and come back. Without it a "
+        "repeatable event whose trigger still holds re-opens on the tick it finished, so "
+        "its own way out would put it straight back on screen — and an open event keeps "
+        "the report locked. Unlike closes_event this is not permanent.",
+    )
     advances_conversation: bool = Field(
         default=True,
         description="False for outcomes that give the player something without moving the "

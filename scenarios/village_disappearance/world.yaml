@@ -527,6 +527,13 @@ events:
   # Continuing the failed M5 confrontation is a choice, never a travel/tick tax.
   # At 0.6 the player must hear the warning before this can lead to an attack.
   # No new clue or side quest: this is the risk-input half of M6.
+  #
+  # Leaving only ends the conversation; it never closes the event. It used to close it
+  # ("停止施压，靠线索作判断"), and at 0.6 that was the only button on screen — so the
+  # natural click permanently stranded tension at 0.6 and made 调查失控 unreachable.
+  # A player who wants no risk simply does not press (tension never rises on its own),
+  # and one who wants to reason from the clues can open the report at any time. Only M3
+  # and M5 close for good (docs/15 §3.3).
   M6_pressure:
     delivery: choice
     locations: [forest_edge]
@@ -555,7 +562,7 @@ events:
         on_success: pressure_mounts
       - option_id: stop_pressing
         tag: observe
-        text: 停止施压，靠线索作判断
+        text: 先不逼他了，去别处看看
         on_success: stepped_back
     default_outcome: stepped_back
     outcomes:
@@ -564,8 +571,8 @@ events:
         summary: 你没有新证据，仍继续逼问；洛伦提到了玛尔塔，危险正在加剧
         tension_change: 0.2
       stepped_back:
-        summary: 你暂时停止追问，仍可去别处调查
-        closes_event: true
+        summary: 你没有再逼问洛伦。下次来，还可以接着问
+        rests_until_left: true
     constraints:
       - 不要泄露艾拉的去向或洛伦对那晚的误解
       - 洛伦自己也害怕，不要让他享受恐吓

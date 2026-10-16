@@ -657,6 +657,8 @@ class NarrativeEngine:
             payload: dict[str, Any] = {"finish_event": True}
             if close:
                 payload["close_event"] = True
+            if outcome.rests_until_left and not close:
+                payload["rest_event"] = True
             results.append(self._submit(ActionType.ADVANCE_STORY_BEAT, payload=payload))
 
         beats = self._manager.snapshot().story_beats

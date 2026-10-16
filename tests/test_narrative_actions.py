@@ -253,6 +253,36 @@ class TestEventLifecycleWrites:
         assert result.rule_name == "event_lifecycle_payload_is_coherent"
 
 
+class TestRestingAnEvent:
+    """``rest_event``: walked away from, back on the next visit (M6's way out)."""
+
+    def test_finishing_with_a_rest_rests_it_without_closing(self, world: WorldState):
+        manager = WorldStateManager(world)
+        manager.submit(_proposal("advance_story_beat", open_event="M6_pressure", max_exchanges=1))
+
+        result = manager.submit(_proposal("advance_story_beat", finish_event=True, rest_event=True))
+
+        assert result.approved, result.reason
+        beats = manager.snapshot().story_beats
+        assert beats.is_resting("M6_pressure")
+        assert not beats.is_closed("M6_pressure")
+        assert result.applied_changes["story_beats.resting_events"] == ["M6_pressure"]
+
+    def test_a_rest_without_a_finish_is_rejected(self, world: WorldState):
+        result = WorldStateManager(world).submit(_proposal("advance_story_beat", rest_event=True))
+
+        assert not result.approved
+        assert "rest_event only makes sense together with finish_event" in result.reason
+
+    def test_a_non_boolean_rest_is_rejected(self, world: WorldState):
+        result = WorldStateManager(world).submit(
+            _proposal("advance_story_beat", finish_event=True, rest_event="yes")
+        )
+
+        assert not result.approved
+        assert "rest_event must be a boolean" in result.reason
+
+
 class TestPlantForeshadowing:
     def test_writes_a_hidden_fact_and_a_ledger_entry(self, world: WorldState):
         manager = WorldStateManager(world)

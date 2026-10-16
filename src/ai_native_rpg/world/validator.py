@@ -288,6 +288,7 @@ _BEAT_ADVANCE_KEYS = frozenset(
         "record_exchange",
         "finish_event",
         "close_event",
+        "rest_event",
         "raise_flags",
         "advance_slot",
         # `_apply_story_beat` (manager.py) writes `story_beats.ended_at` from this key,
@@ -373,7 +374,13 @@ def _event_lifecycle_payload_is_coherent(
             "event ends permanently, not a state it sits in while still running"
         )
 
-    for key in ("record_exchange", "finish_event", "close_event"):
+    if payload.get("rest_event") and not payload.get("finish_event"):
+        return RuleOutcome.failed(
+            "rest_event only makes sense together with finish_event: it says how an event "
+            "that is ending may come back, not a state it sits in while still running"
+        )
+
+    for key in ("record_exchange", "finish_event", "close_event", "rest_event"):
         if key in payload and not isinstance(payload[key], bool):
             return RuleOutcome.failed(f"{key} must be a boolean, got {payload[key]!r}")
 

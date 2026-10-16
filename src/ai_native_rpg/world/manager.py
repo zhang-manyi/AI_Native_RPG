@@ -264,11 +264,15 @@ class WorldStateManager:
 
         if payload.get("finish_event"):
             finished = beats.active_event.event_id if beats.active_event else None
-            beats.finish_event(close=bool(payload.get("close_event")))
+            beats.finish_event(
+                close=bool(payload.get("close_event")), rest=bool(payload.get("rest_event"))
+            )
             if finished is not None:
                 changes["story_beats.completed_events"] = list(beats.completed_events)
                 if payload.get("close_event"):
                     changes["story_beats.closed_events"] = list(beats.closed_events)
+                if payload.get("rest_event"):
+                    changes["story_beats.resting_events"] = list(beats.resting_events)
 
         if "open_event" in payload:
             event_id = str(payload["open_event"])

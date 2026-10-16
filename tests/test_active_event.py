@@ -86,6 +86,22 @@ class TestActiveEvent:
         assert beats.has_completed("M3_witness")
         assert beats.is_closed("M3_witness")
 
+    def test_walking_away_rests_the_event_until_the_player_moves(self):
+        """A rest is not a closure: the next arrival anywhere lifts it.
+
+        M6's way out finishes the event while its trigger still holds; without the rest
+        the engine re-opened it on the same tick, so leaving put it straight back.
+        """
+        beats = StoryBeats()
+        beats.open_event("M6_pressure", max_exchanges=1)
+
+        beats.finish_event(rest=True)
+
+        assert beats.is_resting("M6_pressure")
+        assert not beats.is_closed("M6_pressure")
+        beats.record_visit("village_square")
+        assert not beats.is_resting("M6_pressure")
+
     def test_finishing_twice_does_not_duplicate_the_record(self):
         beats = StoryBeats()
         beats.open_event("M1_knock", max_exchanges=4)

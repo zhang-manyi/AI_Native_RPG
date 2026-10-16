@@ -231,6 +231,12 @@ class StoryBeats(BaseModel):
         "and M5 close, and both have another route to the same information, so closure "
         "is a cost rather than a dead end.",
     )
+    resting_events: list[str] = Field(
+        default_factory=list,
+        description="events the player walked away from on this visit (an outcome with "
+        "rests_until_left). They may not re-open until he has moved; every arrival "
+        "clears the list, because coming back is what 'again' means.",
+    )
     flags: list[str] = Field(
         default_factory=list,
         description="named state an outcome raised, e.g. 'probed_once', "
@@ -322,6 +328,9 @@ class StoryBeats(BaseModel):
         The return value is what makes "first arrival" expressible at all — after the
         write, the state cannot distinguish a first visit from a fifth.
         """
+        # Every arrival, first or fifth, is a new visit: whatever the player walked away
+        # from on the last one may run again.
+        self.resting_events.clear()
         if location_id in self.visited_locations:
             return False
         self.visited_locations.append(location_id)
@@ -344,8 +353,11 @@ class StoryBeats(BaseModel):
         if self.active_event is not None:
             self.active_event.exchanges += 1
 
-    def finish_event(self, *, close: bool = False) -> None:
-        """End the active event, recording it as completed and optionally closed."""
+    def finish_event(self, *, close: bool = False, rest: bool = False) -> None:
+        """End the active event, recording it as completed and optionally closed.
+
+        ``rest`` keeps a repeatable event from re-opening until the player moves.
+        """
         if self.active_event is None:
             return
         event_id = self.active_event.event_id
@@ -353,7 +365,12 @@ class StoryBeats(BaseModel):
             self.completed_events.append(event_id)
         if close and event_id not in self.closed_events:
             self.closed_events.append(event_id)
+        if rest and event_id not in self.resting_events:
+            self.resting_events.append(event_id)
         self.active_event = None
+
+    def is_resting(self, event_id: str) -> bool:
+        return event_id in self.resting_events
 
     def has_completed(self, event_id: str) -> bool:
         return event_id in self.completed_events

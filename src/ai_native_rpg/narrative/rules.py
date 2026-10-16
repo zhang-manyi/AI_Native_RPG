@@ -164,6 +164,10 @@ def triggerable_events(
             continue
         if beats.has_completed(event.event_id) and not event.repeatable:
             continue
+        # Walked away from on this visit: it runs again after the player comes back,
+        # not on the tick its own way out finished it.
+        if beats.is_resting(event.event_id):
+            continue
         # Continuing the event in progress is not the same act as triggering a new
         # one, and one conversation at a time is the rule (docs/13 §5.2).
         if event.event_id == active_id:

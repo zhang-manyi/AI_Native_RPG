@@ -309,12 +309,48 @@ def test_warning_is_once_only_and_backing_off_preserves_the_truth_route(game):
     move(game, "village_square")
     move(game, "forest_edge")
     choose(game, "stop_pressing")
-    assert game.manager.snapshot().story_beats.is_closed("M6_pressure")
+    # Leaving ends the conversation, not the event: pressing stays possible later.
+    assert not game.manager.snapshot().story_beats.is_closed("M6_pressure")
     game.submit_conclude_case()
     settle(game)
     choose(game, "tell_loren_alive")
     assert game.engine.reached_ending().ending_id == "truth_uncovered"
     assert game.manager.snapshot().story_beats.tension == 0.6
+
+
+def test_leaving_at_point_six_keeps_the_loren_ending_reachable(game):
+    """At 0.6 the only button is the way out; clicking it must not strand the route.
+
+    It used to close M6 for good, so the natural click left tension at 0.6 forever and
+    调查失控 could not be reached. The authored route survives a click on every exit.
+    """
+    move(game, "village_square")
+    move(game, "forest_edge")
+    choose(game, "press_loren")
+    choose(game, "stop_pressing")  # leaving at 0.2 ...
+    beats = game.manager.snapshot().story_beats
+    assert not beats.is_closed("M6_pressure")
+    # ... ends this conversation: M6 does not pop straight back, and the report opens.
+    assert game.engine.active_event() is None
+    assert game.scene().can_conclude
+    move(game, "village_square")
+    move(game, "forest_edge")
+    assert {"keep_pressing", "stop_pressing"} <= {o.option_id for o in game.scene().options}
+    for expected in (0.4, 0.6):
+        choose(game, "keep_pressing")
+        assert game.manager.snapshot().story_beats.tension == expected
+    # At 0.6 the way out is the only option on screen; clicking it must not strand us.
+    assert [o.option_id for o in game.scene().options] == ["stop_pressing"]
+    choose(game, "stop_pressing")
+    assert not game.manager.snapshot().story_beats.is_closed("M6_pressure")
+
+    hear_loren_warning(game)
+    move(game, "village_square")
+    move(game, "forest_edge")
+    assert "keep_pressing" in {o.option_id for o in game.scene().options}
+    choose(game, "keep_pressing")
+    assert game.manager.snapshot().story_beats.tension == 0.8
+    assert game.engine.reached_ending().ending_id == "loren_moves_first"
 
 
 def test_all_three_observations_still_leave_loren_to_question(game):
