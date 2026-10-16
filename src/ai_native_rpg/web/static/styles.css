@@ -332,18 +332,14 @@ body {
   mask-image: linear-gradient(180deg, #000 70%, transparent 98%);
 }
 
-/* The report's desk scene is a still life, not a figure: it must sit *above* the
- * dialogue box, not run under it like a body. The room above the box depends on the
- * window (about 245px at 830px tall, 600px at 1200px), so the art is not sized from the
- * viewport. It fills the cast spacer itself — the exact gap between the heading and the
- * box — and its own aspect ratio keeps the letter whole at any size. */
+/* The report's desk scene hangs exactly like a portrait: same slot, same fixed height,
+ * behind the UI, so the translucent dialogue box slides over its lower part. Chosen over
+ * fitting it into the gap above the box, which kept the letter whole but small. At 1080p
+ * the letter shows almost entirely (seal included) and the desk goes under the box; on
+ * shorter windows more of it is covered, and below 820px it gives way to its text label,
+ * the same point where portraits give way to avatars. */
 .cast-row.report-row {
-  position: relative;
-  height: auto;
-  flex: 1;
-  min-height: 0;
-  align-items: flex-end;
-  padding: var(--space-3) 0;
+  align-items: flex-start;
 }
 
 .cast-row.report-row .actor,
@@ -352,19 +348,16 @@ body {
 }
 
 /* While the report is open the scene is a desk, not a place: 已知 and 出发去 belong to
- * walking around the village, and leaving them on screen cost the letter the room it
- * needed (at 900px tall it shrank to a 28px strip). The report's own options are the
- * only thing the player can do here, and 暂不提交 brings both rows back. */
+ * walking around the village, and would sit over the letter. The report's own options
+ * are the only thing the player can do here, and 暂不提交 brings both rows back. */
 #scene:has(.report-row) .notebook-row,
 #scene:has(.report-row) .ways {
   display: none;
 }
 
+/* Wider than a figure (10:7 rather than 2:3); keeps the portrait's fade at the bottom. */
 .report-art {
-  max-height: 420px;
   aspect-ratio: 10 / 7;
-  -webkit-mask-image: none;
-  mask-image: none;
 }
 
 /* Name and public note beside the head, not over the face. In flow the label would sit
