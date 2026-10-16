@@ -74,6 +74,72 @@ function lantern() {
     ${shape("M210 238 L246 238 L242 248 L214 248 Z", "#2f2924")}`;
 }
 
+const PAPER = "#e6dcc6";
+const PAPER_DK = "#cbbfa6";
+
+/** A quill standing in an inkwell whose base sits at (x, base). */
+function quillInWell(x, base) {
+  const barbs = [0, 1, 2, 3, 4, 5]
+    .map((i) => ink(`M${x + 20 + i * 11} ${base - 70 - i * 26} l${-10 + i} 8`, 1, 0.4))
+    .join("");
+  return `
+    ${shape(`M${x - 22} ${base} C${x - 24} ${base - 26} ${x + 24} ${base - 26} ${x + 22} ${base} Z`, "#2f3442")}
+    ${flat(`M${x} ${base - 20} C${x + 14} ${base - 19} ${x + 23} ${base - 14} ${x + 22} ${base} L${x} ${base} Z`, "#232733")}
+    <rect x="${x - 12}" y="${base - 30}" width="24" height="10" rx="2" fill="#3b4150" stroke="${LINE}" stroke-width="1.8"/>
+    ${shape(
+      `M${x + 2} ${base - 28} C${x + 30} ${base - 120} ${x + 70} ${base - 190} ${x + 96} ${base - 230} ` +
+        `C${x + 84} ${base - 176} ${x + 56} ${base - 104} ${x + 6} ${base - 26} Z`,
+      "#ece4d2",
+      1.6,
+    )}
+    ${ink(`M${x + 4} ${base - 28} C${x + 40} ${base - 110} ${x + 70} ${base - 170} ${x + 96} ${base - 230}`, 1.2, 0.6)}
+    ${barbs}`;
+}
+
+/** A letter closed with a wax seal, tilted a little, centred on (cx, cy). */
+function sealedLetter(cx, cy, w, h, rot) {
+  const seal = "#9a3b33";
+  const sealDk = "#6e2621";
+  return `<g transform="rotate(${rot} ${cx} ${cy})">
+    <rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="3" fill="${PAPER}" stroke="${LINE}" stroke-width="2"/>
+    ${flat(`M${cx} ${cy - h / 2} h${w / 2} v${h} h${-w / 2} Z`, PAPER_DK, 0.7)}
+    ${ink(`M${cx - w / 2} ${cy - h / 2} L${cx} ${cy + 8} L${cx + w / 2} ${cy - h / 2}`, 1.8, 0.8)}
+    <circle cx="${cx}" cy="${cy + 6}" r="20" fill="${seal}" stroke="${LINE}" stroke-width="2"/>
+    <circle cx="${cx}" cy="${cy + 6}" r="12" fill="none" stroke="${sealDk}" stroke-width="2"/>
+    <path d="M${cx - 5} ${cy + 1} l5 5 l5 -5 M${cx} ${cy + 6} v7" fill="none" stroke="${sealDk}" stroke-width="1.6" stroke-linecap="round" opacity="0.8"/>
+    ${flat(`M${cx - 18} ${cy + 18} q-6 10 -2 16 q4 -6 6 -12 Z`, seal)}
+  </g>`;
+}
+
+/* The report screen's art: not a place, so not keyed by backdrop. A sealed letter on the
+ * desk says what this screen is for — the report goes to the council once it is sent —
+ * and the scene is a still life rather than a person, because the player writes it
+ * alone (docs/15 §4 M7: 不得安排任何人物回应). */
+const REPORT = `
+  <defs>
+    <radialGradient id="report-lamp">
+      <stop offset="0" stop-color="#f0c07a" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#f0c07a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Radius kept inside the frame: a glow past its edge shows as a hard line. -->
+  <circle cx="300" cy="330" r="220" fill="url(#report-lamp)"/>
+  <ellipse cx="300" cy="560" rx="250" ry="22" fill="#000" opacity="0.4"/>
+  ${shape("M60 480 L540 480 L560 560 L40 560 Z", "#6e5038")}
+  ${flat("M300 480 L540 480 L560 560 L300 560 Z", "#523a28")}
+  ${sealedLetter(300, 400, 260, 160, -5)}
+  ${quillInWell(450, 482)}
+  <rect x="90" y="456" width="120" height="22" rx="2" fill="${PAPER_DK}" stroke="${LINE}" stroke-width="1.6"/>
+  <rect x="96" y="440" width="114" height="18" rx="2" fill="${PAPER}" stroke="${LINE}" stroke-width="1.6"/>`;
+
+/** The report screen's still life. The frame crops the empty top of the desk scene. */
+export function reportArt() {
+  return (
+    `<svg class="landmark-art report-art" viewBox="0 160 600 420" ` +
+    `preserveAspectRatio="xMidYMin meet" aria-hidden="true" focusable="false">${REPORT}</svg>`
+  );
+}
+
 const LANDMARKS = {
   // The village well, lamplit. The pack's square is "where people gather by the well".
   square: `

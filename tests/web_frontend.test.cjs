@@ -34,7 +34,8 @@ function client() {
   // stub knows one kind, like the real table, so "no landmark" is testable too.
   const stubs = 'const sprite = (key) => `<svg data-sprite="${key}"></svg>`;\n' +
     'const avatar = (key) => `<svg data-avatar="${key}"></svg>`;\n' +
-    'const landmark = (kind) => (kind === "square" ? `<svg data-landmark="${kind}"></svg>` : "");\n';
+    'const landmark = (kind) => (kind === "square" ? `<svg data-landmark="${kind}"></svg>` : "");\n' +
+    'const reportArt = () => `<svg data-report-art></svg>`;\n';
   vm.runInContext(stubs + source.replace(/^import .*\.js";\r?\n/gm, '').replace(/boot\(\);\s*$/, '') +
     '\nglobalThis.testClient = { onScene, advance, onMove, onPanel, renderWrapUp, state };', context);
   return { ...context.testClient, elements, requests, confirmations, confirmation };
@@ -169,6 +170,7 @@ test('report hides nearby NPC chat and requires confirmation before final submis
   assert.equal(c.elements.get('composer').hidden, true);
   assert.equal(c.elements.get('options').hidden, false);
   assert.match(c.elements.get('cast').innerHTML, /调查报告/);
+  assert.match(c.elements.get('cast').innerHTML, /data-report-art/, 'the report shows its sealed letter');
   assert.doesNotMatch(c.elements.get('cast').innerHTML, /玛尔塔/);
   assert.match(c.elements.get('options').innerHTML, /\[报告\]/);
   const click = c.elements.get('options').listeners.click;

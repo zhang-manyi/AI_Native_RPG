@@ -10,7 +10,7 @@
  * Last-Event-ID, which the server replays (docs/12 §4.1).
  */
 
-import { landmark } from "/static/landmarks.js";
+import { landmark, reportArt } from "/static/landmarks.js";
 import { avatar, sprite } from "/static/sprites.js";
 
 const el = (id) => document.getElementById(id);
@@ -858,7 +858,11 @@ function renderCast() {
     return;
   }
   if (state.scene?.report_active) {
-    ui.cast.innerHTML = `<p class="cast-empty">调查报告 · 个人记录</p>`;
+    // The letter is decoration; the label says what the screen is for. Read aloud always,
+    // and shown on a short window where there is no room for the letter (styles.css).
+    ui.cast.innerHTML =
+      `<div class="cast-row report-row"><div class="actor landmark"><div class="portrait">${reportArt()}</div></div></div>` +
+      `<p class="sr-only report-label">调查报告 · 个人记录</p>`;
     return;
   }
   if (npcs.length === 0) {

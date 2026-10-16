@@ -332,6 +332,41 @@ body {
   mask-image: linear-gradient(180deg, #000 70%, transparent 98%);
 }
 
+/* The report's desk scene is a still life, not a figure: it must sit *above* the
+ * dialogue box, not run under it like a body. The room above the box depends on the
+ * window (about 245px at 830px tall, 600px at 1200px), so the art is not sized from the
+ * viewport. It fills the cast spacer itself — the exact gap between the heading and the
+ * box — and its own aspect ratio keeps the letter whole at any size. */
+.cast-row.report-row {
+  position: relative;
+  height: auto;
+  flex: 1;
+  min-height: 0;
+  align-items: flex-end;
+  padding: var(--space-3) 0;
+}
+
+.cast-row.report-row .actor,
+.cast-row.report-row .portrait {
+  height: 100%;
+}
+
+/* While the report is open the scene is a desk, not a place: 已知 and 出发去 belong to
+ * walking around the village, and leaving them on screen cost the letter the room it
+ * needed (at 900px tall it shrank to a 28px strip). The report's own options are the
+ * only thing the player can do here, and 暂不提交 brings both rows back. */
+#scene:has(.report-row) .notebook-row,
+#scene:has(.report-row) .ways {
+  display: none;
+}
+
+.report-art {
+  max-height: 420px;
+  aspect-ratio: 10 / 7;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
 /* Name and public note beside the head, not over the face. In flow the label would sit
  * on top of the portrait; here it hangs off the figure's right edge (the figure fills
  * x≈100–300 of its 400-wide box, so 70% clears the hair) at eye height. Lower down it ran
@@ -1803,6 +1838,24 @@ body.resizing-panel, body.resizing-panel * { cursor: col-resize !important; user
 @media (max-height: 820px) {
   .portrait {
     display: none;
+  }
+
+  /* No room for the letter on a short window (it shrank to a sliver): the screen falls
+   * back to its text label, centred where the letter was. */
+  .report-row .portrait {
+    display: none;
+  }
+
+  .report-label {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: auto;
+    clip: auto;
+    overflow: visible;
+    white-space: normal;
+    color: var(--text-muted);
+    font-style: italic;
   }
 
   /* The scene's own content (heading, places, dialogue, 已知 and the transcript toggle)
