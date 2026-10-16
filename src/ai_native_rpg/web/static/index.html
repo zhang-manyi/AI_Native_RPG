@@ -50,6 +50,21 @@
             <p id="ending-text"></p>
           </section>
 
+          <!-- 已知 and 整理调查报告 together, small and on the left, above the places and
+               the dialogue box. Both are the player's own records and both stay out of the
+               middle, so the row covers as little of the centred portrait as possible. No
+               rule line: one drawn across the full width cut through the figure. -->
+          <div class="notebook-row">
+            <div class="notes" id="notes" hidden>
+              <span class="label">已知</span>
+              <div class="chips"></div>
+            </div>
+            <div class="conclude-control">
+              <button type="button" id="conclude" class="conclude-button" disabled aria-describedby="conclude-reason">整理调查报告</button>
+              <span id="conclude-reason" class="why"></span>
+            </div>
+          </div>
+
           <!-- Where the player may go. Every entry comes from the projection; the page
                never works out reachability itself, and a refused move is explained by
                the Validator's own words (docs/12 §13.2). -->
@@ -97,14 +112,7 @@
 
           <!-- The transcript is kept but not shown: on screen the player sees only what is
                being said right now, and the record is one button away. -->
-          <!-- Under the dialogue box, beside the transcript toggle: both are records the
-               player opens when he wants them. Above the box, its rule line cut across the
-               portrait's body. -->
           <div class="log-bar">
-            <div class="notes" id="notes" hidden>
-              <span class="label">已知</span>
-              <div class="chips"></div>
-            </div>
             <button
               type="button"
               class="log-toggle"
@@ -150,10 +158,6 @@
           <button type="button" id="wrap-close" class="wrap-next">睡下，等天亮</button>
         </section>
 
-        <div class="conclude-control">
-          <button type="button" id="conclude" class="conclude-button" disabled aria-describedby="conclude-reason">整理调查报告</button>
-          <span id="conclude-reason" class="why"></span>
-        </div>
         <p class="status" id="status" role="status" aria-live="polite"></p>
         <div class="feedback-toast" id="feedback-toast" role="status" aria-live="polite" hidden></div>
 

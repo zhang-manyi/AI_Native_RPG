@@ -528,10 +528,8 @@ body {
  * line started at the container edge — the chips did not share a left margin. Putting
  * the label in its own column and the chips in a nested wrapping box gives every row
  * the same origin. */
-/* No rule line above it: it sits under the dialogue box now, and the border it used to
- * carry ran straight across the portrait. */
+/* No rule line above it: the border it used to carry ran straight across the portrait. */
 .notes {
-  flex: 1;
   min-width: 0;
   display: grid;
   grid-template-columns: auto 1fr;
@@ -902,19 +900,39 @@ body {
 
 /* Hidden by default: the scene shows what is being said now, and the record is one click
  * away. Keeping it collapsed is what lets the current line be large. */
-/* The 已知 strip on the left, the transcript toggle on the right. The toggle stays at
- * the top of the row when the strip is open and its chips wrap onto several lines. */
 .log-bar {
   flex-shrink: 0;
   display: flex;
-  align-items: flex-start;
   justify-content: flex-end;
-  gap: var(--space-4);
   padding: var(--space-2) 0 0;
 }
 
-.log-bar .log-toggle {
+/* 已知 and 整理调查报告 stacked at the left edge, above the places. Neither is stretched
+ * across the stage: left-aligned and only as wide as their content, they stay clear of
+ * the centred portrait. Opened, the clue chips wrap inside the strip to the figure's left.
+ *
+ * The cap is measured from the figure, not guessed: it is centred and about
+ * --portrait-h × 2/3 wide, filling roughly the middle half of its box, so its left edge
+ * sits near 50% − portrait-h/4. At 50% the third chip landed on Marta's hands. */
+.notebook-row {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: calc(50% - min(60vh, 640px) / 4 - var(--space-4));
+  padding: var(--space-3) 0 0;
+}
+
+/* No portrait on a short window, so there is nothing to keep clear of. */
+@media (max-height: 820px) {
+  .notebook-row {
+    max-width: 60%;
+  }
+}
+
+.notebook-row:not(:has(.notes:not([hidden]))):not(:has(.conclude-button:not([hidden]))) {
+  display: none;
 }
 
 .log-toggle {
@@ -1752,7 +1770,10 @@ body.resizing-panel, body.resizing-panel * { cursor: col-resize !important; user
   border: 0;
 }
 
-.conclude-control { display: flex; align-items: center; gap: .8rem; padding: .6rem 1rem; flex-wrap: wrap; }
+/* Inside the scene now, so no padding of its own: the row it sits in carries the
+ * spacing, and the button lines up with 已知 above it. */
+.conclude-control { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
+.conclude-control .why { margin-top: 0; font-size: var(--text-xs); }
 .conclude-button:disabled { opacity: .55; cursor: not-allowed; }
 .field-help { display: inline-flex; align-items: center; justify-content: center; width: 1rem; height: 1rem; border: 1px solid currentColor; border-radius: 50%; margin-left: .3rem; font-size: .7rem; cursor: help; color: var(--paper-dim); }
 .field-help:focus { outline: 2px solid var(--lamp); }
