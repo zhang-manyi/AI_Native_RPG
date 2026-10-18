@@ -559,8 +559,12 @@ body {
 /* No rule line above it: the border it used to carry ran straight across the portrait. */
 .notes {
   min-width: 0;
+  /* Never below the 已知 toggle's own line, so squeezing only ever takes from the chips. */
+  min-height: 1.75rem;
   display: grid;
   grid-template-columns: auto 1fr;
+  /* minmax(0, …) so the row can give up height and the chips scroll (`.notebook-row`). */
+  grid-template-rows: minmax(0, auto);
   align-items: start;
   gap: var(--space-2);
 }
@@ -580,11 +584,25 @@ body {
   padding-top: 3px;
 }
 
+/* Capped and scrolled in place. Opened, ten clues ran ~560px tall; the row cannot shrink
+ * (`.notebook-row` is flex-shrink: 0), so it pushed the dialogue box, options and composer
+ * out through the bottom of `#scene`, which only scrolls below 820px — on a taller window
+ * the composer was simply cut off. The cap leaves the room under it to the dialogue and
+ * options, whatever the window height. */
 .notes .chips {
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
   gap: var(--space-2);
   min-width: 0;
+  min-height: 0;
+  max-height: 24vh;
+  /* Stretched to the grid track, so a shrunk `.notes` row bounds it and it scrolls. */
+  align-self: stretch;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+  scrollbar-width: thin;
+  scrollbar-color: var(--edge) transparent;
 }
 
 .notes .chips[hidden] {
@@ -950,8 +968,14 @@ body {
  * The cap is measured from the figure, not guessed: it is centred and about
  * --portrait-h × 2/3 wide, filling roughly the middle half of its box, so its left edge
  * sits near 50% − portrait-h/4. At 50% the third chip landed on Marta's hands. */
+/* The one row allowed to shrink (with `.notes` and its chips below): everything else in
+ * the scene column holds its height, so when options open on a full clue list it is the
+ * chips that scroll, not the dialogue box that gets pushed under the options. */
 .notebook-row {
-  flex-shrink: 0;
+  flex-shrink: 1;
+  /* Floor: the 已知 toggle plus the 整理调查报告 button. Below it the button rode up over
+   * the toggle and swallowed its clicks. */
+  min-height: 5rem;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -961,9 +985,12 @@ body {
 }
 
 /* No portrait on a short window, so there is nothing to keep clear of. */
+/* No portrait on a short window, so there is nothing to keep clear of. And no need to
+ * shrink: `#scene` scrolls here, so the row keeps its height and the chips their 24vh cap. */
 @media (max-height: 820px) {
   .notebook-row {
     max-width: 60%;
+    flex-shrink: 0;
   }
 }
 
